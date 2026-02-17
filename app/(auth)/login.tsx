@@ -3,15 +3,16 @@ import React, { useState } from 'react';
 import { View, Text,Pressable } from 'react-native';
 import { LabeledInput  } from 'components/input';
 import { PrimaryButton } from 'components/Button';
+import { useAuthStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 // ---------------- Login Screen ----------------
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
+   const { userDraft, setField, login } = useAuthStore();
 
-  const onLogin = () => {
-    console.log({ email, password, remember });
+  const onLogin = async () => {
+    console.log('Logging in with:', userDraft);
+    await login(userDraft.email, userDraft.password);
   };
 
   return (
@@ -29,8 +30,8 @@ export default function LoginScreen() {
           placeholder="xyz1@gmail.com"
           autoCapitalize="none"
           keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
+          value={userDraft.email}
+          onChangeText={(value) => setField('email', value)}
         />
 
         <LabeledInput
@@ -38,8 +39,8 @@ export default function LoginScreen() {
           required
           placeholder="Password"
           secureToggle
-          value={password}
-          onChangeText={setPassword}
+          value={userDraft.password}
+          onChangeText={(value) => setField('password', value)}
         />
 
         <View className="flex-row items-center justify-between mt-1">

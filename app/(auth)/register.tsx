@@ -1,20 +1,21 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { PrimaryButton } from 'components/Button';
 import { LabeledInput } from 'components/input';
-import { useAuthStore } from 'store/userStore';
+import { useAuthStore } from 'stores/auth-store';
 
 // ---------------- Register Screen ----------------
 export default function RegisterScreen() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  
 
-  const onRegister = () => {
-    console.log({ name, email, password, confirm });
+  const { userDraft, setField, register } = useAuthStore();
+  const onRegister = async () => {
+    setField('name', userDraft.name);
+    setField('email', userDraft.email);
+    setField('password', userDraft.password);
+    setField('confirm', userDraft.confirm);
+    console.log('Registering with:', userDraft);
+    router.replace('/(auth)/login');
+    await register();
   };
 
   return (
@@ -30,8 +31,8 @@ export default function RegisterScreen() {
           label="Full Name"
           required
           placeholder="John Doe"
-          value={name}
-          onChangeText={setName}
+          value={userDraft.name}
+          onChangeText={(value) => setField('name', value)}
         />
 
         <LabeledInput
@@ -40,8 +41,8 @@ export default function RegisterScreen() {
           placeholder="xyz1@gmail.com"
           autoCapitalize="none"
           keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
+          value={userDraft.email}
+          onChangeText={(value) => setField('email', value)}
         />
 
         <LabeledInput
@@ -49,8 +50,8 @@ export default function RegisterScreen() {
           required
           placeholder="Password"
           secureToggle
-          value={password}
-          onChangeText={setPassword}
+          value={userDraft.password}
+          onChangeText={(value) => setField('password', value)}
         />
 
         <LabeledInput
@@ -58,8 +59,8 @@ export default function RegisterScreen() {
           required
           placeholder="Re-enter password"
           secureToggle
-          value={confirm}
-          onChangeText={setConfirm}
+          value={userDraft.confirm}
+          onChangeText={(value) => setField('confirm', value)}
         />
 
         <View className="mt-3">
