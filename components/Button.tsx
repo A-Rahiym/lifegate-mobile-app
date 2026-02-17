@@ -8,7 +8,7 @@ export const PrimaryButton = ({ title, onPress, loading }: { title: string; onPr
       className="bg-[#0EA5A4] p-6 rounded-2xl items-center justify-center active:opacity-80"
     >
       <Text className="text-white font-semibold text-base">
-        {loading ? 'Please wait…' : `${title}  →`}
+        {loading ? 'Please wait…' : `${title}`}
       </Text>
     </Pressable>
   );

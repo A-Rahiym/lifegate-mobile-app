@@ -7,8 +7,6 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       {/* Splash first */}
       <Stack.Screen name="index" />
-      {/* Auth group */}
-      <Stack.Screen name="Login" />
     </Stack>
   );
 }
