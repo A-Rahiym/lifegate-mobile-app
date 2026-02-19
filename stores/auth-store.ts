@@ -18,10 +18,14 @@ export type UserDraft = {
   password: string;
   confirm: string; // registration only
   phone: string; // profile details (step 2 of registration)
+  role?: string; // user role (user or health professional)
   dob: string;
   gender: string;
   language: string;
   healthHistory: string; // profile details (step 2 of registration)
+  specialization?: string; // health professional only
+  licenseNumber?: string;
+  yearsOfExperience?: string;
 };
 
 // ---------------------------
@@ -177,8 +181,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: response.user,
         isAuthenticated: true,
         loading: false,
-        userDraft: { ...get().userDraft, password: '', confirm: '' }, // clear sensitive fields
       });
+      // Reset form after successful registration
+      get().resetForm();
     } catch (err) {
       set({
         loading: false,

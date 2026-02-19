@@ -6,6 +6,7 @@ type InputProps = React.ComponentProps<typeof TextInput> & {
   label: string;
   required?: boolean;
   secureToggle?: boolean;
+  type?: 'default' | 'email' | 'password';
 };
 
 export const LabeledInput: React.FC<InputProps> = ({
@@ -18,7 +19,7 @@ export const LabeledInput: React.FC<InputProps> = ({
 
   return (
     <View className="mb-5">
-      <Text className="mb-1.5 text-sm text-gray-700">
+      <Text className="mb-1.5 font-medium text-gray-700">
         {label} {required && <Text className="text-red-500">*</Text>}
       </Text>
 

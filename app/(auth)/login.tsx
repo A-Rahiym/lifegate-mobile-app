@@ -6,6 +6,9 @@ import { PrimaryButton } from 'components/Button';
 import { useAuthStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Dropdown } from 'components/DropDown';
+import { USER_TYPE_OPTIONS } from 'constants/constants';
+
 // ---------------- Login Screen ----------------
 export default function LoginScreen() {
   const [remember, setRemember] = useState(false);
@@ -27,6 +30,14 @@ export default function LoginScreen() {
 
       <View className="flex-1 rounded-t-[36px] bg-gray-100 px-6 pt-7">
         <Text className="mb-6 text-center text-2xl font-bold text-[#0EA5A4]">Welcome Back!</Text>
+
+        <Dropdown
+          label="User Type"
+          value={userDraft.role || ''}
+          onChange={(value: string) => setField('role', value)}
+          options={USER_TYPE_OPTIONS}
+          placeholder="Select user type"
+        />
 
         <LabeledInput
           label="Email Address"
@@ -65,14 +76,15 @@ export default function LoginScreen() {
         <View className="mt-5">
           <PrimaryButton title="Login" onPress={onLogin} />
         </View>
-
+                
         <View className="mt-5 flex-row justify-center">
           <Text className="text-gray-500">Don’t have an account? </Text>
-          <Pressable onPress={() => router.push('/register')}>
-            <Text className="font-semibold text-[#0EA5A4]">Create an account</Text>
+          <Pressable onPress={() => router.push('/(auth)/register-choice')}>
+            <Text className="font-semibold text-[#0EA5A4]">Register</Text>
           </Pressable>
         </View>
       </View>
     </LinearGradient>
   );
 }
+

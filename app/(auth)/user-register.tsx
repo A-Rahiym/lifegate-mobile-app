@@ -6,6 +6,9 @@ import { LabeledInput } from 'components/input';
 import { useAuthStore } from 'stores/auth-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { Dropdown } from 'components/DropDown';
+import { GENDER_OPTIONS } from 'constants/constants';
+import { PrimaryCalendar } from 'components/Calender';
 
 export default function RegisterWizardScreen() {
   const [step, setStep] = useState(1);
@@ -32,15 +35,18 @@ export default function RegisterWizardScreen() {
       style={{ flex: 1 }}>
       <View className="flex-1 ">
         {/* Header Section */}
-        <View className="h-56 items-center justify-center pt-10  self-center">
-          <View className="flex flex-row justify-between w-3/4 pr-12">
-            {step > 1 && (
-              <Pressable
-                onPress={() => setStep(step - 1)}
-                >
+        <View className="flex h-56 w-full items-center justify-center self-center  pt-10">
+          <View className="w-full flex-row items-center justify-start px-6 py-4">
+            {step > 1 ? (
+              <Pressable onPress={() => setStep(step - 1)}>
                 <Ionicons name="arrow-back" size={24} color="white" />
               </Pressable>
+            ) : (
+              /* This empty View maintains the height even when the arrow is hidden */
+              <View className="h-6 w-6" />
             )}
+          </View>
+          <View className="mt-2 flex w-full justify-center items-center">
             <Text className="mb-4 text-2xl font-bold text-white">
               {step === 1 ? 'Get Started Today' : 'Continue Profile Setup'}
             </Text>
@@ -105,6 +111,19 @@ export default function RegisterWizardScreen() {
           ) : (
             /* STEP 2: PROFILE DETAILS */
             <View>
+              <PrimaryCalendar
+                label="Date of Birth"
+                value={userDraft.dob}
+                onChange={(value:string) => setField('dob', value)}
+              />
+
+              <Dropdown
+                label="Select Gender"
+                value={userDraft.gender || ''}
+                onChange={(value: string) => setField('gender', value)}
+                options={GENDER_OPTIONS}
+                placeholder="Select gender"
+              />
               <LabeledInput
                 label="Phone Number"
                 required
@@ -120,12 +139,7 @@ export default function RegisterWizardScreen() {
                 // You'd likely trigger a DatePicker modal here
                 value={userDraft.dob}
               />
-              <LabeledInput
-                label="Gender"
-                required
-                placeholder="Select your gender"
-                value={userDraft.gender}
-              />
+            
               <LabeledInput
                 label="Language"
                 required
