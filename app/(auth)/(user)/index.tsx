@@ -1,5 +1,5 @@
 import React from "react";
-import { View } from "react-native";
+import { View, Alert } from "react-native";
 import { PrimaryButton } from "components/Button";
 import { LabeledInput } from "components/LabeledInput";
 import { useAuthStore } from "stores/auth-store";
@@ -7,6 +7,21 @@ import { router } from "expo-router";
 
 export default function UserAccountStep() {
   const { userDraft, setUserField } = useAuthStore();
+
+  const handleNext = () => {
+    // Frontend password validation (only frontend check)
+    if (!userDraft.password || !userDraft.confirmPassword) {
+      Alert.alert("Validation Error", "Please enter and confirm your password");
+      return;
+    }
+
+    if (userDraft.password !== userDraft.confirmPassword) {
+      Alert.alert("Validation Error", "Passwords do not match");
+      return;
+    }
+
+    router.push("/(auth)/(user)/profile");
+  };
 
   return (
     <View className="px-6">
@@ -37,14 +52,14 @@ export default function UserAccountStep() {
         required
         placeholder="Confirm Password"
         secureToggle
-        value={userDraft.confirm}
-        onChangeText={(v) => setUserField("confirm", v)}
+        value={userDraft.confirmPassword}
+        onChangeText={(v) => setUserField("confirmPassword", v)}
       />
 
       <View className="mt-8">
         <PrimaryButton
           title="Next"
-          onPress={() => router.push("/(auth)/(user)/profile")}
+          onPress={handleNext}
           type="secondary"
         />
       </View>

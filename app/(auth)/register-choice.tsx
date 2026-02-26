@@ -3,13 +3,20 @@ import { View, Text } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PrimaryButton } from 'components/Button';
+import { useAuthStore } from 'stores/auth-store';
 
 export default function RegisterChoiceScreen() {
+  const { setUserField, userDraft } = useAuthStore();
+
   const handleRegisterAsUser = () => {
+    setUserField('role', 'user' as string);
+    console.log('User role set to user', userDraft.role);
     router.push('/(auth)/(user)');
   };
 
   const handleRegisterAsHealthProfessional = () => {
+    setUserField('role', 'professional' as string);
+    console.log('User role set to professional', userDraft.role);
     router.push('/(auth)/(health-professional)');
   };
 

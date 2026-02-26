@@ -5,11 +5,12 @@ import { useAuthStore } from 'stores/auth-store';
 import { LabeledInput } from 'components/LabeledInput';
 import { PrimaryButton } from 'components/Button';
 import { Ionicons } from '@expo/vector-icons';
-import { PrimaryCalendar } from 'components/Calender';
+import { DOBInput } from 'components/DobPicker';
 
 export default function LicenseScreen() {
-  const { healthProfessionalDraft, setHealthProfessionalField } = useAuthStore();
+  const { userDraft, setUserField } = useAuthStore();
   const [isAdding, setIsAdding] = useState(false);
+
 
   if (!isAdding) {
     // --- EMPTY STATE (Add Certification Screen) ---
@@ -39,22 +40,31 @@ export default function LicenseScreen() {
       <LabeledInput
         label="Certificate Name"
         placeholder="Type certificate name"
-        value={healthProfessionalDraft.certificateName}
-        onChangeText={(v) => setHealthProfessionalField('certificateName', v)}
-        // If LabeledInput supports an asterisk prop, use it here
+        value={userDraft.certificateName}
+        onChangeText={(v) => setUserField('certificateName', v)}
       />
 
       <LabeledInput
         label="Certificate ID"
         placeholder="Type certificate ID"
-        value={healthProfessionalDraft.certificateId}
-        onChangeText={(v) => setHealthProfessionalField('certificateId', v)}
+        value={userDraft.certificateId}
+        onChangeText={(v) => setUserField('certificateId', v)}
       />
 
-      <PrimaryCalendar
+      <LabeledInput
+      label='License Id'
+        placeholder="Type license ID"
+        value={userDraft.licenseNumber}
+        onChangeText={(v) => setUserField('licenseNumber', v)}
+      />
+
+        <DOBInput
         label="Issue Date"
-        value={healthProfessionalDraft.certificateIssueDate}
-        onChange={(date: string) => setHealthProfessionalField('certificateIssueDate', date)}
+        value={userDraft.certificateIssueDate ? new Date(userDraft.certificateIssueDate) : null}
+        onChange={(date: Date) => {
+          const new_date = date.toISOString().split('T')[0];
+          setUserField('certificateIssueDate', new_date);
+          console.log('New Date set:', new_date);}}
       />
 
       <View className="mb-6">

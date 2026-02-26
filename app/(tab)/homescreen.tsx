@@ -5,8 +5,8 @@ import { router } from 'expo-router'
 import { PrimaryButton } from 'components/Button'
 
 const handlelogout =  () =>{
-  handlelogout()
-  router.push('/(auth)/login')
+  router.replace('/(auth)/login')
+  useAuthStore.getState().logout()
 }
 
 const homescreen = () => {

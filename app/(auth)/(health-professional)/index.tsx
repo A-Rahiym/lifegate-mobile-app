@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { View, Alert } from "react-native";
 import { router } from "expo-router";
 import { LabeledInput } from "components/LabeledInput";
 import { PrimaryButton } from "components/Button";
@@ -8,11 +8,16 @@ export default function AccountScreen() {
   const { userDraft, setUserField } = useAuthStore();
 
   const next = () => {
-    if (!userDraft.email || !userDraft.password || !userDraft.name)
-      return alert("Please complete all fields");
+    // Frontend password validation (only frontend check)
+    if (!userDraft.email || !userDraft.password || !userDraft.name) {
+      Alert.alert("Validation Error", "Please complete all fields");
+      return;
+    }
 
-    if (userDraft.password !== userDraft.confirm)
-      return alert("Passwords do not match");
+    if (userDraft.password !== userDraft.confirmPassword) {
+      Alert.alert("Validation Error", "Passwords do not match");
+      return;
+    }
 
     router.push("/(auth)/(health-professional)/professional");
   };
@@ -46,8 +51,8 @@ export default function AccountScreen() {
       <LabeledInput
         label="Confirm Password"
         secureToggle
-        value={userDraft.confirm}
-        onChangeText={(v) => setUserField("confirm", v)}
+        value={userDraft.confirmPassword}
+        onChangeText={(v) => setUserField("confirmPassword", v)}
       />
 
       <PrimaryButton title="Next" onPress={next} type="secondary" />

@@ -12,10 +12,10 @@ import Logo from 'assets/logo.svg';
 
 export default function LoginScreen() {
   const [remember, setRemember] = useState(false);
-  const { userDraft, setUserField, UserLogin } = useAuthStore();
+  const { userDraft, setUserField, login } = useAuthStore();
 
   const onLogin = async () => {
-    await UserLogin(userDraft.email, userDraft.password);
+    await login(userDraft.email, userDraft.password);
   };
 
   return (
