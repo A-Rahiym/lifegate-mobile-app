@@ -91,7 +91,6 @@ export default function ReviewScreen() {
         title={loading ? 'Submitting...' : 'Submit Application'}
         onPress={handleFinalSubmit}
       />
-
       {/* Confirmation Modal */}
       <Modal
         visible={modalVisible}

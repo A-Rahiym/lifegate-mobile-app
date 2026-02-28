@@ -1,22 +1,52 @@
-import React from 'react'
-import { View, Text } from 'react-native'
-import { useAuthStore } from 'stores/auth-store'
-import { router } from 'expo-router'
-import { PrimaryButton } from 'components/Button'
+import React, { useState } from 'react';
+import { SafeAreaView, KeyboardAvoidingView, View, Platform, StatusBar } from 'react-native';
+import { Background } from 'components/Background';
+import { Header } from 'components/Header';
+import { GreetingSection } from 'components/GreetingSection';
+import { SymptomGrid } from 'components/SymptomGrid';
+import { ChatInputBar } from 'components/ChatInputBar';
+import {router} from 'expo-router';
 
-const handlelogout =  () =>{
-  router.replace('/(auth)/login')
-  useAuthStore.getState().logout()
-}
+const HomeScreen: React.FC = () => {
+  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
 
-const homescreen = () => {
+  const handleSend = (message: string) => {
+    console.log('Message sent:', message);
+    console.log('Selected symptoms:', selectedSymptoms);
+    router.push('/(tab)/chatScreen');
+
+    // Navigate to chat or process message
+  };
+
   return (
-    <View className="flex-1 items-center justify-center bg-white">
-      <Text className="text-2xl font-bold text-gray-800">Welcome to the Home Screen</Text>
-      <PrimaryButton title="Logout" onPress={() => handlelogout()} />
+    <>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <Background>
+        <SafeAreaView className="flex-1">
+          <KeyboardAvoidingView
+            className="flex-1"
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
+            {/* Header */}
+            <Header
+              onProfilePress={() => console.log('Profile pressed')}
+              onMenuPress={() => console.log('Menu pressed')}
+            />
 
-    </View>
-  )
-}
+            {/* Main content — vertically centred */}
+            <View className="flex-1 justify-center pb-5">
+              <GreetingSection userName="Chioma" />
+              <SymptomGrid onSymptomSelect={setSelectedSymptoms} />
+            </View>
 
-export default homescreen
+            {/* Sticky bottom input */}
+            <ChatInputBar onSend={handleSend} />
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Background>
+    </>
+  );
+};
+
+export default HomeScreen;
