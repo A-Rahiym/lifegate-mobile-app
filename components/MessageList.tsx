@@ -7,6 +7,7 @@ export interface Message {
   text: string;
   type: 'sent' | 'received';
   timestamp?: string;
+  status?: 'SENDING' | 'SENT' | 'FAILED';
 }
 
 interface MessageListProps {
@@ -37,6 +38,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
           message={msg.text}
           type={msg.type}
           timestamp={msg.timestamp}
+          status={msg.status}
           delay={index * 60}
         />
       ))}

@@ -6,19 +6,21 @@ interface ChatInputBarProps {
   onSend?: (message: string) => void;
   onMicPress?: () => void;
   placeholder?: string;
+  disabled?: boolean; // Disable input when AI is thinking
 }
 
 export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   onSend,
   onMicPress,
   placeholder = 'How are you feeling....',
+  disabled = false,
 }) => {
   const [text, setText] = useState('');
   const [isMicActive, setIsMicActive] = useState(false);
   const sendScaleAnim = useRef(new Animated.Value(1)).current;
 
   const handleSend = () => {
-    if (!text.trim()) return;
+    if (!text.trim() || disabled) return;
 
     Animated.sequence([
       Animated.timing(sendScaleAnim, { toValue: 0.88, duration: 80, useNativeDriver: true }),
@@ -30,6 +32,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   };
 
   const handleMicPress = () => {
+    if (disabled) return;
     setIsMicActive((prev) => !prev);
     onMicPress?.();
   };
@@ -46,6 +49,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           shadowOpacity: 0.12,
           shadowRadius: 16,
           elevation: 6,
+          opacity: disabled ? 0.6 : 1,
         }}
       >
         {/* Text input */}
@@ -59,6 +63,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           returnKeyType="send"
           onSubmitEditing={handleSend}
           selectionColor="#1a6b5e"
+          editable={!disabled}
         />
 
         {/* Mic button */}
@@ -75,7 +80,8 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           <TouchableOpacity
             onPress={handleSend}
             activeOpacity={0.85}
-            className={`w-11 h-11 rounded-full justify-center items-center ${hasText ? 'bg-teal-900' : 'bg-teal-600'}`}
+            disabled={disabled || !hasText}
+            className={`w-11 h-11 rounded-full justify-center items-center ${hasText && !disabled ? 'bg-teal-900' : 'bg-teal-600'}`}
             style={{
               shadowColor: '#0d4a40',
               shadowOffset: { width: 0, height: 3 },

@@ -13,9 +13,10 @@ const HomeScreen: React.FC = () => {
   const handleSend = (message: string) => {
     console.log('Message sent:', message);
     console.log('Selected symptoms:', selectedSymptoms);
+    
+    // Navigate to chat screen with symptoms context
+    // The drawer will handle smooth transition
     router.push('/(tab)/chatScreen');
-
-    // Navigate to chat or process message
   };
 
   return (

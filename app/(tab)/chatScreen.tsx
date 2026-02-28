@@ -1,74 +1,87 @@
-import React, { useState } from 'react';
-import { SafeAreaView, KeyboardAvoidingView, Platform, StatusBar } from 'react-native';
+/**
+ * Chat Screen (Tab View)
+ * Connected to useChatStore for state management
+ * Implements the full chat flow per specification:
+ * - Shows welcome message initially
+ * - Displays messages as user sends them (optimistic UI)
+ * - Connects to Gemini AI via ChatService
+ * - Persists conversation history to AsyncStorage
+ */
+
+import React, { useEffect, useState } from 'react';
+import {
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  View,
+  Text,
+  Alert,
+} from 'react-native';
 import { Background } from 'components/Background';
 import { Header } from 'components/Header';
-import { MessageList, Message } from 'components/MessageList';
+import { MessageList } from 'components/MessageList';
+import type { Message as ChatMessage } from 'components/MessageList';
 import { ChatInputBar } from 'components/ChatInputBar';
+import { useChatStore } from 'stores/chat-store';
+import { useAuthStore } from 'stores/auth-store';
 
-const INITIAL_MESSAGES: Message[] = [
-  {
-    id: '1',
-    text: "Hello! I'm here to help. How are you feeling today?",
-    type: 'received',
-    timestamp: '9:00 AM',
-  },
-  {
-    id: '2',
-    text: 'I have a headache and feel a bit fatigued.',
-    type: 'sent',
-    timestamp: '9:01 AM',
-  },
-  {
-    id: '3',
-    text: "I'm sorry to hear that. How long have you had the headache? Is it on one side or both?",
-    type: 'received',
-    timestamp: '9:01 AM',
-  },
-  {
-    id: '4',
-    text: 'Since this morning. Both sides.',
-    type: 'sent',
-    timestamp: '9:02 AM',
-  },
-  {
-    id: '5',
-    text: 'Understood. Have you had enough water today? Dehydration is a common cause of tension headaches.',
-    type: 'received',
-    timestamp: '9:02 AM',
-  },
-];
-
-let nextId = 6;
+const WELCOME_MESSAGE =
+  "Hi there! 👋 I'm HealthPilot, your AI health assistant. Tell me how you're feeling today, and I'll help guide you through understanding your symptoms.";
 
 const ChatScreen: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+  const { messages, sendMessage, isThinking, error, clearError, initializeChat } =
+    useChatStore();
+  const { user } = useAuthStore();
+  const [hasShowWelcome, setHasShowWelcome] = useState(false);
 
-  const now = () => {
-    const d = new Date();
-    return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() >= 12 ? 'PM' : 'AM'}`;
-  };
+  // Initialize chat on mount
+  useEffect(() => {
+    const initialize = async () => {
+      await initializeChat(user?.id || 'default-user');
+    };
+    initialize();
+  }, [user?.id, initializeChat]);
+
+  // Show welcome message if conversation is empty
+  useEffect(() => {
+    if (messages.length === 0 && !hasShowWelcome) {
+      setHasShowWelcome(true);
+    }
+  }, [messages.length, hasShowWelcome]);
+
+  // Convert Message to ChatMessage type for display
+  const displayMessages: ChatMessage[] = messages.map((msg) => ({
+    id: msg.id,
+    text: msg.text,
+    type: msg.role === 'USER' ? 'sent' : 'received',
+    timestamp: new Date(msg.timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    status: msg.status, // SENDING | SENT | FAILED
+  }));
 
   const handleSend = (text: string) => {
-    const userMsg: Message = {
-      id: String(nextId++),
-      text,
-      type: 'sent',
-      timestamp: now(),
-    };
+    // Clear welcome state if user sends first message
+    if (messages.length === 0) {
+      setHasShowWelcome(false);
+    }
 
-    setMessages((prev) => [...prev, userMsg]);
-
-    // Simulate AI reply
-    setTimeout(() => {
-      const reply: Message = {
-        id: String(nextId++),
-        text: "Thanks for sharing that. I'll note it down and ask a few more questions to better understand your symptoms.",
-        type: 'received',
-        timestamp: now(),
-      };
-      setMessages((prev) => [...prev, reply]);
-    }, 1000);
+    sendMessage(text);
   };
+
+  // Show error alert
+  useEffect(() => {
+    if (error) {
+      Alert.alert('Error', error, [
+        {
+          text: 'OK',
+          onPress: clearError,
+        },
+      ]);
+    }
+  }, [error, clearError]);
 
   return (
     <>
@@ -80,9 +93,47 @@ const ChatScreen: React.FC = () => {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
           >
-            <Header />
-            <MessageList messages={messages} />
-            <ChatInputBar onSend={handleSend} />
+            {/* Header with profile */}
+            <Header
+              onProfilePress={() => console.log('Profile pressed')}
+              onMenuPress={() => console.log('Menu pressed')}
+            />
+
+            {/* Welcome message or message list */}
+            {messages.length === 0 && hasShowWelcome ? (
+              <View className="flex-1 justify-center items-center px-6">
+                <Text className="text-lg text-gray-700 text-center leading-7">
+                  {WELCOME_MESSAGE}
+                </Text>
+              </View>
+            ) : (
+              <MessageList messages={displayMessages} />
+            )}
+
+            {/* Typing indicator if AI is thinking */}
+            {isThinking && (
+              <View className="px-4 py-2 flex-row items-center gap-2">
+                <Text className="text-gray-500 text-sm">HealthPilot is typing</Text>
+                <View className="flex-row gap-1">
+                  {[0, 1, 2].map((i) => (
+                    <View
+                      key={i}
+                      className="w-2 h-2 rounded-full bg-teal-500"
+                      style={{
+                        opacity: 0.5 + (i * 0.2),
+                      }}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Chat input */}
+            <ChatInputBar
+              onSend={handleSend}
+              disabled={isThinking}
+              placeholder="Type your message..."
+            />
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Background>

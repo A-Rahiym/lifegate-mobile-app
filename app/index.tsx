@@ -22,7 +22,7 @@ export default function SplashScreen() {
         // Navigate based on auth state
         setTimeout(() => {
           if (isAuthenticated) {
-            router.replace('/(tab)/homescreen');
+            router.replace('/(tab)/chatScreen');
           } else {
             router.replace('/welcome');
           }

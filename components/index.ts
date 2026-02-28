@@ -4,3 +4,6 @@ export { GreetingSection } from './GreetingSection';
 export { SymptomChip } from './SymptomChip';
 export { SymptomGrid } from './SymptomGrid';
 export { ChatInputBar } from './ChatInputBar';
+export { ConversationDrawer } from './ConversationDrawer';
+export { MessageList } from './MessageList';
+export { MessageBubble } from './MessageBubble';

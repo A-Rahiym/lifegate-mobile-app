@@ -1,10 +1,12 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface MessageBubbleProps {
   message: string;
   type: 'sent' | 'received';
   timestamp?: string;
+  status?: 'SENDING' | 'SENT' | 'FAILED';
   delay?: number;
 }
 
@@ -12,6 +14,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   type,
   timestamp,
+  status,
   delay = 0,
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -88,6 +91,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           >
             {timestamp}
           </Text>
+        )}
+
+        {/* Status indicator for sent messages */}
+        {isSent && status && (
+          <View className="mt-1 flex-row items-center justify-end gap-1">
+            {status === 'SENDING' && (
+              <>
+                <Ionicons name="ellipsis-horizontal" size={12} color="#a7e8dc" />
+                <Text className="text-xs text-teal-200">Sending...</Text>
+              </>
+            )}
+            {status === 'FAILED' && (
+              <>
+                <Ionicons name="alert-circle" size={12} color="#ef4444" />
+                <Text className="text-xs text-red-400">Failed</Text>
+              </>
+            )}
+          </View>
         )}
       </View>
     </Animated.View>
