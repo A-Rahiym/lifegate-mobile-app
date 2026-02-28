@@ -12,7 +12,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { Message, AIResponse } from 'types/chat-types';
 
-const GEMINI_API_KEY = 'AIzaSyB7mkRn6Vagk9UrJm_U6RCpngRs5LoOR4k';
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || '';
 const MODEL = 'gemini-3-flash-preview';
 
 // System instruction for LifeGate persona

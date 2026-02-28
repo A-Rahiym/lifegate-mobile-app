@@ -1,14 +1,4 @@
-/**
- * Chat Screen (Tab View)
- * Connected to useChatStore for state management
- * Implements the full chat flow per specification:
- * - Shows welcome message initially
- * - Displays messages as user sends them (optimistic UI)
- * - Connects to Gemini AI via ChatService
- * - Persists conversation history to AsyncStorage
- */
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import {
   SafeAreaView,
   KeyboardAvoidingView,
@@ -18,6 +8,7 @@ import {
   Text,
   Alert,
 } from 'react-native';
+
 import { Background } from 'components/Background';
 import { Header } from 'components/Header';
 import { MessageList } from 'components/MessageList';
@@ -27,57 +18,72 @@ import { useChatStore } from 'stores/chat-store';
 import { useAuthStore } from 'stores/auth-store';
 
 const WELCOME_MESSAGE =
-  "Hi there! 👋 I'm HealthPilot, your AI health assistant. Tell me how you're feeling today, and I'll help guide you through understanding your symptoms.";
+  "Hi there! 👋 I'm LifeGate, your AI health assistant. Tell me how you're feeling today, and I'll help guide you through understanding your symptoms.";
 
 const ChatScreen: React.FC = () => {
-  const { messages, sendMessage, isThinking, error, clearError, initializeChat } =
-    useChatStore();
-  const { user } = useAuthStore();
-  const [hasShowWelcome, setHasShowWelcome] = useState(false);
+  // ✅ Zustand selectors (optimized)
+  const activeConversation = useChatStore((state) =>
+    state.conversations.find((c) => c.id === state.activeConversationId)
+  );
 
-  // Initialize chat on mount
+  const sendMessage = useChatStore((state) => state.sendMessage);
+  const isThinking = useChatStore((state) => state.isThinking);
+  const error = useChatStore((state) => state.error);
+  const clearError = useChatStore((state) => state.clearError);
+  const initializeChat = useChatStore((state) => state.initializeChat);
+
+  const { user } = useAuthStore();
+
+  const messages = activeConversation?.messages || [];
+
+  const [showWelcome, setShowWelcome] = useState(true);
+  const hasInitialized = useRef(false);
+
+  // ✅ FIX 1: Initialize when user becomes available
   useEffect(() => {
-    const initialize = async () => {
-      await initializeChat(user?.id || 'default-user');
-    };
-    initialize();
+    if (user?.id && !hasInitialized.current) {
+      hasInitialized.current = true;
+      initializeChat(user.id);
+    }
   }, [user?.id, initializeChat]);
 
-  // Show welcome message if conversation is empty
+  // ✅ Welcome toggle
   useEffect(() => {
-    if (messages.length === 0 && !hasShowWelcome) {
-      setHasShowWelcome(true);
-    }
-  }, [messages.length, hasShowWelcome]);
+    setShowWelcome(messages.length === 0);
+  }, [messages.length]);
 
-  // Convert Message to ChatMessage type for display
-  const displayMessages: ChatMessage[] = messages.map((msg) => ({
-    id: msg.id,
-    text: msg.text,
-    type: msg.role === 'USER' ? 'sent' : 'received',
-    timestamp: new Date(msg.timestamp).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-    status: msg.status, // SENDING | SENT | FAILED
-  }));
+  // ✅ FIX 2: Memoized message transformation
+  const displayMessages: ChatMessage[] = useMemo(() => {
+    return messages.map((msg) => ({
+      id: msg.id,
+      text: msg.text,
+      type: msg.role === 'USER' ? 'sent' : 'received',
+      timestamp: new Date(msg.timestamp).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      status: msg.status,
+    }));
+  }, [messages]);
 
-  const handleSend = (text: string) => {
-    // Clear welcome state if user sends first message
-    if (messages.length === 0) {
-      setHasShowWelcome(false);
-    }
+  // ✅ FIX 3: Stable callback
+  const handleSend = useCallback(
+    (text: string) => {
+      if (!text.trim()) return;
+      sendMessage(text);
+    },
+    [sendMessage]
+  );
 
-    sendMessage(text);
-  };
-
-  // Show error alert
+  // ✅ FIX 4: Safe error alert
   useEffect(() => {
     if (error) {
       Alert.alert('Error', error, [
         {
           text: 'OK',
-          onPress: clearError,
+          onPress: () => {
+            clearError();
+          },
         },
       ]);
     }
@@ -93,14 +99,12 @@ const ChatScreen: React.FC = () => {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
           >
-            {/* Header with profile */}
             <Header
               onProfilePress={() => console.log('Profile pressed')}
               onMenuPress={() => console.log('Menu pressed')}
             />
 
-            {/* Welcome message or message list */}
-            {messages.length === 0 && hasShowWelcome ? (
+            {showWelcome ? (
               <View className="flex-1 justify-center items-center px-6">
                 <Text className="text-lg text-gray-700 text-center leading-7">
                   {WELCOME_MESSAGE}
@@ -110,25 +114,8 @@ const ChatScreen: React.FC = () => {
               <MessageList messages={displayMessages} />
             )}
 
-            {/* Typing indicator if AI is thinking */}
-            {isThinking && (
-              <View className="px-4 py-2 flex-row items-center gap-2">
-                <Text className="text-gray-500 text-sm">HealthPilot is typing</Text>
-                <View className="flex-row gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <View
-                      key={i}
-                      className="w-2 h-2 rounded-full bg-teal-500"
-                      style={{
-                        opacity: 0.5 + (i * 0.2),
-                      }}
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
+            {isThinking && <TypingIndicator />}
 
-            {/* Chat input */}
             <ChatInputBar
               onSend={handleSend}
               disabled={isThinking}
@@ -142,3 +129,24 @@ const ChatScreen: React.FC = () => {
 };
 
 export default ChatScreen;
+
+/* ============================= */
+/* Typing Indicator Component    */
+/* ============================= */
+
+const TypingIndicator = () => {
+  return (
+    <View className="px-4 py-2 flex-row items-center gap-2">
+      <Text className="text-gray-500 text-sm">LifeGate is typing</Text>
+      <View className="flex-row gap-1">
+        {[0, 1, 2].map((i) => (
+          <View
+            key={i}
+            className="w-2 h-2 rounded-full bg-teal-500"
+            style={{ opacity: 0.4 + i * 0.2 }}
+          />
+        ))}
+      </View>
+    </View>
+  );
+};
