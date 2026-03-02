@@ -8,6 +8,7 @@ import { GENDER_OPTIONS, LANGUAGE_OPTIONS } from 'constants/constants';
 import { useAuthStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 import { DOBInput } from 'components/DobPicker';
+import { PhoneNumberInput } from 'components/PhoneInput';
 import { validateSingleField } from 'utils/validation';
 
 const VALID_FIELDS = {
@@ -52,15 +53,23 @@ export default function UserProfileStep() {
 
   return (
     <View className="px-6">
-      <LabeledInput
+      {/* <LabeledInput
         label="Phone Number"
         required
         placeholder="Enter phone number"
         keyboardType="phone-pad"
         value={userDraft.phone}
         onChangeText={(v) => handleFieldChange('phone', v)}
+      /> */}
+      {/* Phone Number Input */}
+      <PhoneNumberInput
+        label="Phone Number"
+        required
+        value={userDraft.phone}
+        onChangePhoneNumber={(value) => handleFieldChange('phone', value)}
+        error={fieldErrors.phone}
       />
-      <ErrorMessage fieldName="phone" fieldErrors={fieldErrors} />
+      {/* <ErrorMessage fieldName="phone" fieldErrors={fieldErrors} /> */}
 
       <DOBInput
         label="Enter Date of Birth"
@@ -91,7 +100,7 @@ export default function UserProfileStep() {
           numberOfLines={6}
           textAlignVertical="top"
           className="rounded-lg border border-gray-300 p-3 text-base text-gray-800"
-          style={{ minHeight:75, paddingVertical: 12 }}
+          style={{ minHeight: 75, paddingVertical: 12 }}
         />
       </View>
       <ErrorMessage fieldName="healthHistory" fieldErrors={fieldErrors} />

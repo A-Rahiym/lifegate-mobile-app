@@ -203,7 +203,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Reset form after successful registration
       get().resetForm();
-      router.push('/(auth)/login');
+      // router.push('/(auth)/login');
     } catch (err: any) {
       const message = err.message || 'Network error. Please try again.';
       set({

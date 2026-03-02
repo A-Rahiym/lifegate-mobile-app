@@ -7,9 +7,6 @@ import { useAuthStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Logo from 'assets/logo.svg';
-
-
-
 export default function LoginScreen() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -66,7 +63,6 @@ export default function LoginScreen() {
           value={userDraft.password}
           onChangeText={(value) => setUserField('password', value)}
         />
-
         <View className="mt-1 flex-row items-center justify-between">
           <Pressable className="flex-row items-center" onPress={() => setRemember((v) => !v)}>
             <View

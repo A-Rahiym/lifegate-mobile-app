@@ -9,3 +9,4 @@ export { ConversationDrawer } from './ConversationDrawer';
 export { MessageList } from './MessageList';
 export { MessageBubble } from './MessageBubble';
 export { ErrorMessage } from './ErrorMessage';
+export { SubmissionModal } from './SubmissionModal';

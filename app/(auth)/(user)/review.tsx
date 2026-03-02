@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, Pressable, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, Alert, ScrollView } from 'react-native';
 import { PrimaryButton } from 'components/Button';
+import { SubmissionModal } from 'components/SubmissionModal';
 import { useAuthStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 import { validateRegistration } from 'utils/validation';
@@ -12,6 +13,7 @@ export default function UserReviewStep() {
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<any[]>([]);
   const [agreed, setAgreed] = useState(false);
+  const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
   const handleFinalSubmit = async () => {
     if (!agreed) {
@@ -34,10 +36,18 @@ export default function UserReviewStep() {
 
     try {
       await register('user');
+      // If no error was set, registration succeeded
+      const { error } = useAuthStore.getState();
+      if (!error) {
+        setSubmissionSuccess(true);
+      } else {
+        setSubmissionSuccess(false);
+      }
       setModalVisible(true);
     } catch (error) {
       console.error('Registration failed', error);
-      return;
+      setSubmissionSuccess(false);
+      setModalVisible(true);
     } finally {
       setLoading(false);
     }
@@ -45,7 +55,9 @@ export default function UserReviewStep() {
 
   const handleModalConfirm = () => {
     setModalVisible(false);
-    router.replace('/(auth)/login');
+    if (submissionSuccess) {
+      router.replace('/(auth)/login');
+    }
   };
 
   return (
@@ -84,7 +96,7 @@ export default function UserReviewStep() {
         I have the information is accurate and I consent to the lifeGate Privacy and policy
       </Text>
 
-      <View className="mt-20 flex-row justify-center">
+      <View className="mt-15 flex-row justify-center">
         <Pressable onPress={() => setAgreed(!agreed)} className="mb-8 flex-row items-center">
           <View
             className={`mr-3 h-5 w-5 rounded border ${
@@ -101,20 +113,19 @@ export default function UserReviewStep() {
       <PrimaryButton
         title={loading ? 'Submitting...' : 'Submit Application'}
         onPress={handleFinalSubmit}
+        disabled={loading}
       />
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <View className="flex-1 items-center justify-center bg-black/50">
-          <View className="w-80 items-center rounded-lg bg-white p-6">
-            <Text className="mb-4 text-center text-lg font-bold">Application Submitted</Text>
-            <Text className="mb-6 text-center">
-              We’ve received your application. We’ll get back to you soon!
-            </Text>
-            <Pressable onPress={handleModalConfirm} className="rounded bg-[#0EA5A4] px-6 py-2">
-              <Text className="text-center font-semibold text-white">OK</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+
+      {modalVisible && (
+        <SubmissionModal
+          visible={modalVisible}
+          isSuccess={submissionSuccess}
+          title={submissionSuccess ? 'Application Submitted' : 'Submission Failed'}
+          message={submissionSuccess ? "We've received your application. We'll get back to you soon!" : (backendError || 'An error occurred. Please try again.')}
+          onConfirm={handleModalConfirm}
+          confirmButtonText={submissionSuccess ? 'Go to Login' : 'Try Again'}
+        />
+      )}
     </ScrollView>
   );
 }
