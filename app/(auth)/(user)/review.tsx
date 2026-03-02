@@ -7,7 +7,7 @@ import { validateRegistration } from 'utils/validation';
 import { InfoRow } from 'components/infoRow';
 
 export default function UserReviewStep() {
-  const { userDraft, register } = useAuthStore();
+  const { userDraft, register, error: backendError } = useAuthStore();
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<any[]>([]);
@@ -53,6 +53,12 @@ export default function UserReviewStep() {
       <Text className="mb-6 mt-4 text-center text-lg font-semibold">
         Review your information before submitting.
       </Text>
+
+      {backendError && (
+        <View className="mb-6 rounded-lg border border-red-400 bg-red-100 p-4">
+          <Text className="text-center text-red-700">{backendError}</Text>
+        </View>
+      )}
 
       {validationErrors.length > 0 && (
         <View className="mb-6 rounded-lg border border-red-300 bg-red-100 p-4">

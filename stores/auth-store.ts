@@ -120,13 +120,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: response.user,
         isAuthenticated: true,
         loading: false,
+        error: null,
       });
-      router.push('/(tab)/chatScreen');
       return true;
-    } catch {
+    } catch (err: any) {
+      const message = err.message || 'Network error. Please try again.';
       set({
         loading: false,
-        error: 'Network error. Please try again.',
+        error: message,
       });
       return false;
     }
@@ -197,17 +198,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: response.user,
         isAuthenticated: true,
         loading: false,
+        error: null,
       });
 
       // Reset form after successful registration
       get().resetForm();
       router.push('/(auth)/login');
-    } catch {
+    } catch (err: any) {
+      const message = err.message || 'Network error. Please try again.';
       set({
         loading: false,
-        error: 'Network error. Please try again.',
+        error: message,
       });
-      Alert.alert('Registration Error', 'Network error. Please try again.');
     }
   },
 

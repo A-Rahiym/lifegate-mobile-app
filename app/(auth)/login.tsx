@@ -12,10 +12,19 @@ import Logo from 'assets/logo.svg';
 
 export default function LoginScreen() {
   const [remember, setRemember] = useState(false);
-  const { userDraft, setUserField, login } = useAuthStore();
+  const [loading, setLoading] = useState(false);
+  const { userDraft, setUserField, login, error } = useAuthStore();
 
   const onLogin = async () => {
-    await login(userDraft.email, userDraft.password);
+    setLoading(true);
+    try {
+      const success = await login(userDraft.email, userDraft.password);
+      if (success) {
+        router.replace('/(tab)/chatScreen');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -31,6 +40,14 @@ export default function LoginScreen() {
         </View>
       <View className="flex-1 rounded-t-[36px] bg-gray-100 px-6 pt-7">
         <Text className="mb-6 text-center text-2xl font-bold text-[#0EA5A4]">Welcome Back!</Text>
+        
+        {/* Backend Error Message */}
+        {error && (
+          <View className="bg-red-100 border border-red-400 rounded-lg p-3 mb-4">
+            <Text className="text-red-700 text-sm">{error}</Text>
+          </View>
+        )}
+
         <LabeledInput
           label="Email Address"
           required
@@ -66,7 +83,11 @@ export default function LoginScreen() {
         </View>
 
         <View className="mt-5">
-          <PrimaryButton title="Login" onPress={onLogin} />
+          <PrimaryButton 
+            title="Login" 
+            onPress={onLogin}
+            loading={loading}
+          />
         </View>
                 
         <View className="mt-5 flex-row justify-center">
