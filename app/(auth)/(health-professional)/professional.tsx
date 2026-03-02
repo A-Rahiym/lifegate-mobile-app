@@ -9,11 +9,27 @@ import { DOBInput } from 'components/DobPicker';
 import { useState } from 'react';
 import { validateSingleField } from 'utils/validation';
 
+const VALID_FIELDS = {
+  phone: true,
+  dob: true,
+  gender: true,
+  language: true,
+  yearsOfExperience: true,
+  specialization: true,
+} as const;
+
+type ValidFieldName = keyof typeof VALID_FIELDS;
+
+const isValidField = (fieldName: string): fieldName is ValidFieldName => {
+  return fieldName in VALID_FIELDS;
+};
+
 export default function ProfessionalScreen() {
   const { userDraft, setUserField } = useAuthStore();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleFieldChange = (fieldName: string, value: string) => {
+    if (!isValidField(fieldName)) return;
     setUserField(fieldName, value);
     const error = validateSingleField(fieldName, value, true);
     setFieldErrors(prev => ({
@@ -23,6 +39,7 @@ export default function ProfessionalScreen() {
   };
 
   const handleDateChange = (fieldName: string, date: Date) => {
+    if (!isValidField(fieldName)) return;
     const new_date = date.toISOString().split('T')[0];
     setUserField(fieldName, new_date);
     const error = validateSingleField(fieldName, new_date, true);
@@ -72,7 +89,6 @@ export default function ProfessionalScreen() {
 
       <Dropdown
         label="Gender"
-        required
         value={userDraft.gender}
         onChange={(v) => handleFieldChange('gender', v)}
         placeholder="Select Gender"
@@ -101,7 +117,7 @@ export default function ProfessionalScreen() {
 
       <Dropdown
         label="Specialization"
-        required
+
         value={userDraft.specialization || ''}
         onChange={(v) => handleFieldChange('specialization', v)}
         placeholder="Select Specialization"

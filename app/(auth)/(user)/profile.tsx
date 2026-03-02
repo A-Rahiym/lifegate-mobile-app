@@ -9,12 +9,27 @@ import { router } from 'expo-router';
 import { DOBInput } from 'components/DobPicker';
 import { validateSingleField } from 'utils/validation';
 
+const VALID_FIELDS = {
+  phone: true,
+  dob: true,
+  gender: true,
+  healthHistory: true,
+  language: true,
+} as const;
+
+type ValidFieldName = keyof typeof VALID_FIELDS;
+
+const isValidField = (fieldName: string): fieldName is ValidFieldName => {
+  return fieldName in VALID_FIELDS;
+};
+
 export default function UserProfileStep() {
   const { userDraft, setUserField } = useAuthStore();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleFieldChange = (fieldName: string, value: string) => {
-    setUserField(fieldName as keyof typeof userDraft, value);
+    if (!isValidField(fieldName)) return;
+    setUserField(fieldName, value);
     const error = validateSingleField(fieldName, value, false);
     setFieldErrors(prev => ({
       ...prev,
@@ -23,6 +38,7 @@ export default function UserProfileStep() {
   };
 
   const handleDateChange = (fieldName: string, date: Date) => {
+    if (!isValidField(fieldName)) return;
     const new_date = date.toISOString().split('T')[0];
     setUserField(fieldName, new_date);
     const error = validateSingleField(fieldName, new_date, false);

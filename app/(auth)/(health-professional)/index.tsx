@@ -6,14 +6,28 @@ import { useAuthStore } from "stores/auth-store";
 import { useState } from "react";
 import { validateSingleField } from "utils/validation";
 
+const VALID_FIELDS = {
+  name: true,
+  email: true,
+  password: true,
+  confirmPassword: true,
+} as const;
+
+type ValidFieldName = keyof typeof VALID_FIELDS;
+
+const isValidField = (fieldName: string): fieldName is ValidFieldName => {
+  return fieldName in VALID_FIELDS;
+};
+
 export default function AccountScreen() {
   const { userDraft, setUserField } = useAuthStore();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleFieldChange = (fieldName: string, value: string) => {
+    if (!isValidField(fieldName)) return;
     setUserField(fieldName, value);
     
-    const additionalData = fieldName === 'confirm' || fieldName === 'confirmPassword' 
+    const additionalData = fieldName === 'confirmPassword' 
       ? { password: userDraft.password }
       : undefined;
     

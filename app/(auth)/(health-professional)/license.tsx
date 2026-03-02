@@ -8,12 +8,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { DOBInput } from 'components/DobPicker';
 import { validateSingleField } from 'utils/validation';
 
+const VALID_FIELDS = {
+  certificateName: true,
+  certificateId: true,
+  licenseNumber: true,
+  certificateIssueDate: true,
+} as const;
+
+type ValidFieldName = keyof typeof VALID_FIELDS;
+
+const isValidField = (fieldName: string): fieldName is ValidFieldName => {
+  return fieldName in VALID_FIELDS;
+};
+
 export default function LicenseScreen() {
   const { userDraft, setUserField } = useAuthStore();
   const [isAdding, setIsAdding] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleFieldChange = (fieldName: string, value: string) => {
+    if (!isValidField(fieldName)) return;
     setUserField(fieldName, value);
     const error = validateSingleField(fieldName, value, true);
     setFieldErrors(prev => ({
@@ -23,6 +37,7 @@ export default function LicenseScreen() {
   };
 
   const handleDateChange = (fieldName: string, date: Date) => {
+    if (!isValidField(fieldName)) return;
     const new_date = date.toISOString().split('T')[0];
     setUserField(fieldName, new_date);
     const error = validateSingleField(fieldName, new_date, true);

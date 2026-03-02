@@ -59,7 +59,7 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
           isPrimary ? "text-white" : "text-[#0EA5A4]"
         }`}
       >
-        {loading ? `Loading${dots}` : title}
+        {loading ? `${title}${dots}` : title}
       </Text>
     </Pressable>
   );
