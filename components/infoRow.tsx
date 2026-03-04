@@ -9,7 +9,7 @@ export const InfoRow = ({
 }) => (
   <View className="flex-row justify-between mb-3 px-3">
     <Text className="text-gray-800 font-medium text-right max-w-[55%]">{label}:</Text>
-    <Text className="text-gray-800">
+    <Text className="text-gray-800 flex-1 text-left max-w-[45%]">
       {value}
     </Text>
   </View>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, Alert, ScrollView } from 'react-native';
+import { View, Text, Pressable, Alert, ScrollView, Linking } from 'react-native';
 import { PrimaryButton } from 'components/Button';
 import { SubmissionModal } from 'components/SubmissionModal';
 import { useAuthStore } from 'stores/auth-store';
@@ -104,7 +104,7 @@ export default function UserReviewStep() {
             }`}
           />
           <Text className="font-bold text-gray-700">
-            I have read the <Text className="font-semibold text-teal-600">Privacy Policy</Text> and
+            I have read the <Text className="font-semibold text-teal-600" onPress={() => Linking.openURL('https://www.lifegate.com/privacy-policy')}>Privacy Policy</Text> and
             I agree.
           </Text>
         </Pressable>

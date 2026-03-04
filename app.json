@@ -34,6 +34,13 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
+      },
+      "package": "com.lazyapp.lifegatemobile"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "dcbcc80b-1678-4703-87aa-bbd99581ecb4"
       }
     }
   }

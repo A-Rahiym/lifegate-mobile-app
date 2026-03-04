@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { ScrollView, View } from 'react-native';
 import { MessageBubble } from './MessageBubble';
+import { UI_SPACING } from 'constants/constants';
 
 export interface Message {
   id: string;
@@ -28,7 +29,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     <ScrollView
       ref={scrollRef}
       className="flex-1"
-      contentContainerClassName="py-4"
+      contentContainerClassName={UI_SPACING.MESSAGE_LIST_PADDING_VERTICAL}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
@@ -43,7 +44,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         />
       ))}
       {/* Bottom spacing so last bubble clears the input bar */}
-      <View className="h-2" />
+      <View className="h-4" />
     </ScrollView>
   );
 };

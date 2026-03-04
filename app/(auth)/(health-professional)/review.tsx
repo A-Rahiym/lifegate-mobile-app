@@ -67,8 +67,7 @@ export default function ReviewScreen() {
       )}
 
       {validationErrors.length > 0 && (
-        <View className="mb-6 rounded-lg border border-red-300 bg-red-100 p-4">
-          <Text className="mb-2 font-semibold text-red-700">Validation Errors:</Text>
+        <View className="mb-6 p-2">
           {validationErrors.map((err, idx) => (
             <Text key={idx} className="text-sm text-red-600">
               • {err.message}

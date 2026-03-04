@@ -6,7 +6,6 @@ import {
   StatusBar,
   View,
   Text,
-  Alert,
 } from 'react-native';
 
 import { Background } from 'components/Background';
@@ -18,6 +17,7 @@ import { useChatStore } from 'stores/chat-store';
 import { useAuthStore } from 'stores/auth-store';
 import { GreetingSection } from 'components';
 import { router } from 'expo-router';
+import { UI_SPACING } from 'constants/constants';
 
 const ChatScreen: React.FC = () => {
   // ✅ Zustand selectors (optimized)
@@ -74,17 +74,13 @@ const ChatScreen: React.FC = () => {
     [sendMessage]
   );
 
-  // ✅ FIX 4: Safe error alert
+  // ✅ Error auto-dismiss after 4 seconds
   useEffect(() => {
     if (error) {
-      Alert.alert('Error', error, [
-        {
-          text: 'OK',
-          onPress: () => {
-            clearError();
-          },
-        },
-      ]);
+      const timer = setTimeout(() => {
+        clearError();
+      }, 4000);
+      return () => clearTimeout(timer);
     }
   }, [error, clearError]);
 
@@ -113,10 +109,19 @@ const ChatScreen: React.FC = () => {
                 <GreetingSection userName={user?.name || 'there'} />
               </View>
             ) : (
-              <MessageList messages={displayMessages} />
+              <View className="flex-1">
+                <MessageList messages={displayMessages} />
+              </View>
             )}
 
             {isThinking && <TypingIndicator />}
+
+            {/* Error banner - shows inline instead of Alert */}
+            {error && (
+              <View className="mx-4 mb-3 bg-red-100 border border-red-400 rounded-lg px-3 py-2">
+                <Text className="text-red-700 text-sm font-medium">{error}</Text>
+              </View>
+            )}
 
             <ChatInputBar
               onSend={handleSend}
@@ -135,7 +140,6 @@ export default ChatScreen;
 export const TypingIndicator = () => {
   return (
     <View className="flex-row items-center gap-2 px-4 py-2">
-      <Text className="text-sm text-gray-500">LifeGate is typing</Text>
       <View className="flex-row gap-1">
         {[0, 1, 2].map((i) => (
           <View

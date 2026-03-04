@@ -4,22 +4,22 @@ export const USER_TYPE_OPTIONS = [
 ];
 
 export const GENDER_OPTIONS = [
-  { label: 'Male', value: 'male' },
-  { label: 'Female', value: 'female' },
+  { label: 'Male', value: 'Male' },
+  { label: 'Female', value: 'Female' },
 ];
 
 export const LANGUAGE_OPTIONS = [
-  { label: 'English', value: 'english' },
-  { label: 'Hausa', value: 'hausa' },
-  { label: 'Yoruba', value: 'yoruba' },
-  { label: 'Igbo', value: 'igbo' },
+  { label: 'English', value: 'English' },
+  { label: 'Hausa', value: 'Hausa' },
+  { label: 'Yoruba', value: 'Yoruba' },
+  { label: 'Igbo', value: 'Igbo' },
 ];
 
 export const SPECIALTY_OPTIONS = [
-  { label: 'General Practitioner', value: 'general' },
-  { label: 'Cardiologist', value: 'cardiology' },
-  { label: 'Dermatologist', value: 'dermatology' },
-  { label: 'Pediatrician', value: 'pediatrics' },
+  { label: 'General Practitioner', value: 'General' },
+  { label: 'Cardiologist', value: 'Cardiology' },
+  { label: 'Dermatologist', value: 'Dermatology' },
+  { label: 'Pediatrician', value: 'Pediatrics' },
 ];
 
 export const STEP_TITLES: Record<number, string> = {
@@ -27,4 +27,26 @@ export const STEP_TITLES: Record<number, string> = {
   2: 'Complete Profile Setup',
   3: 'Add Certification',
   4: 'Review & Submit',
+};
+
+/**
+ * UI Font Sizes - Modifiable for consistent sizing across chat screen
+ */
+export const UI_FONT_SIZES = {
+  MESSAGE_TEXT: 14, // Message bubble text size
+  MESSAGE_TIMESTAMP: 11, // Timestamp text size
+  MESSAGE_STATUS: 12, // Status indicator text size
+  INPUT_TEXT: 14, // Chat input text size
+  TYPING_INDICATOR: 14, // "LifeGate is typing" text size
+};
+
+/**
+ * UI Spacing - Modifiable spacing constants
+ */
+export const UI_SPACING = {
+  SCREEN_PADDING_HORIZONTAL: 'px-4',
+  SCREEN_PADDING_BOTTOM: 'pb-6',
+  MESSAGE_MARGIN_BOTTOM: 'mb-2',
+  MESSAGE_HORIZONTAL_PADDING: 'px-4',
+  MESSAGE_LIST_PADDING_VERTICAL: 'py-4',
 };
