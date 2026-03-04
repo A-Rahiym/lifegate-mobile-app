@@ -10,3 +10,8 @@ export { MessageList } from './MessageList';
 export { MessageBubble } from './MessageBubble';
 export { ErrorMessage } from './ErrorMessage';
 export { SubmissionModal } from './SubmissionModal';
+export { PhysicianHeader } from './PhysicianHeader';
+export { SearchBar } from './SearchBar';
+export { PatientReportCard } from './PatientReportCard';
+export { ReportList } from './ReportList';
+export { BottomTabBar } from './BottomTabBar';
