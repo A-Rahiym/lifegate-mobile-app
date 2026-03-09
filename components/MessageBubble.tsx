@@ -74,7 +74,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       >
         <Text
           className={`leading-5 ${
-            isSent ? 'text-white font-medium' : 'text-teal-900 font-normal'
+            isSent ? 'text-white font-medium' : 'text-black font-normal'
           }`}
           style={{ fontSize: UI_FONT_SIZES.MESSAGE_TEXT }}
         >
