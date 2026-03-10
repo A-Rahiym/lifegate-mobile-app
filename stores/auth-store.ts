@@ -31,6 +31,10 @@ type AuthState = {
   passwordRecoveryEmail: string | null;
   signupOtpEmail: string | null;
 
+  // New Registration Flow state
+  pendingRegistrationEmail: string | null; // Email awaiting OTP verification
+  otpExpiresIn: number | null; // Expiration time in seconds
+
   // Actions
   setUserField: (field: keyof UserDraft, value: string) => void;
   resetForm: () => void;
@@ -42,6 +46,10 @@ type AuthState = {
   setPasswordRecoveryEmail: (email: string) => void;
   clearPasswordRecoveryState: () => void;
   setSignupOtpEmail: (email: string | null) => void;
+  // New Registration Flow Actions
+  startRegistration: (role: 'user' | 'professional') => Promise<boolean>;
+  verifyRegistration: (email: string, otp: string) => Promise<boolean>;
+  resendRegistrationOTP: (email: string) => Promise<boolean>;
   // Password recovery actions
   sendOtpForPasswordRecovery: (email: string) => Promise<boolean>;
   verifyOtpForPasswordRecovery: (email: string, otp: string) => Promise<boolean>;
@@ -89,6 +97,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   passwordRecoveryEmail: null,
   signupOtpEmail: null,
+  pendingRegistrationEmail: null,
+  otpExpiresIn: null,
 
   // -------- Actions --------
 
@@ -242,6 +252,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       userDraft: emptyDraft,
       passwordRecoveryEmail: null,
       signupOtpEmail: null,
+      pendingRegistrationEmail: null,
+      otpExpiresIn: null,
     });
     console.log('User logged out');
   },
@@ -375,6 +387,156 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       set({ loading: false, error: null });
       console.log(`Code resent for ${type}`);
+      return true;
+    } catch (err: any) {
+      const message = err.message || 'Failed to resend code';
+      set({ loading: false, error: message });
+      return false;
+    }
+  },
+
+  // -------- NEW REGISTRATION FLOW: STAGE 1 --------
+  startRegistration: async (role: 'user' | 'professional') => {
+    set({ loading: true, error: null });
+    const formData = get().userDraft;
+
+    // Comprehensive validation
+    const validationErrors = validateRegistration(formData, role);
+    if (hasErrors(validationErrors)) {
+      const errorMessages = validationErrors.map((err) => err.message).join('\n');
+      set({ loading: false, error: errorMessages });
+      Alert.alert('Validation Error', errorMessages);
+      return false;
+    }
+
+    const {
+      name,
+      email,
+      password,
+      phone,
+      dob,
+      gender,
+      language,
+      healthHistory,
+      specialization,
+      licenseNumber,
+      certificateName,
+      certificateId,
+      certificateIssueDate,
+      yearsOfExperience,
+    } = formData;
+
+    try {
+      const registrationPayload = {
+        name,
+        email,
+        password,
+        role,
+        phone,
+        dob,
+        gender: gender.toLowerCase(),
+        language: language.toLowerCase(),
+        healthHistory,
+        ...(role === 'professional' && {
+          specialization,
+          licenseNumber,
+          certificateName,
+          certificateId,
+          certificateIssueDate,
+          yearsOfExperience,
+        }),
+      };
+
+      console.log('Starting registration with payload:', registrationPayload);
+      const response = await AuthService.startRegistration(registrationPayload);
+
+      if (!response.success || !response.data) {
+        set({ loading: false, error: response.message ?? 'Failed to start registration' });
+        console.error('Registration start failed:', response.message);
+        return false;
+      }
+
+      // Store email and OTP expiration, clear password from memory
+      set({
+        pendingRegistrationEmail: email,
+        otpExpiresIn: response.data.otpExpiresIn,
+        userDraft: { ...formData, password: '', confirmPassword: '' }, // Clear password
+        loading: false,
+        error: null,
+      });
+
+      console.log('Registration started - OTP sent to email, password cleared from state');
+      return true;
+    } catch (err: any) {
+      const message = err.message || 'Failed to start registration';
+      set({ loading: false, error: message });
+      return false;
+    }
+  },
+
+  // -------- NEW REGISTRATION FLOW: STAGE 2 - VERIFY OTP --------
+  verifyRegistration: async (email: string, otp: string) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await AuthService.verifyRegistration({ email, otp });
+
+      if (!response.success || !response.data) {
+        // Handle specific error cases
+        const errorMessage = response.message;
+        
+        if (errorMessage?.includes('expired')) {
+          set({ loading: false, error: 'OTP expired. Please request a new code.' });
+        } else if (errorMessage?.includes('Invalid')) {
+          set({ loading: false, error: 'Invalid verification code' });
+        } else if (errorMessage?.includes('already')) {
+          set({ loading: false, error: 'Email already registered' });
+        } else {
+          set({ loading: false, error: errorMessage ?? 'Verification failed' });
+        }
+        return false;
+      }
+
+      const { user } = response.data;
+
+      // User is now logged in with JWT
+      set({
+        user,
+        isAuthenticated: true,
+        pendingRegistrationEmail: null,
+        otpExpiresIn: null,
+        userDraft: emptyDraft, // Clear form after successful registration
+        loading: false,
+        error: null,
+      });
+
+      console.log('Registration verified - user logged in successfully');
+      return true;
+    } catch (err: any) {
+      const message = err.message || 'Verification failed';
+      set({ loading: false, error: message });
+      return false;
+    }
+  },
+
+  // -------- NEW REGISTRATION FLOW: RESEND OTP --------
+  resendRegistrationOTP: async (email: string) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await AuthService.resendRegistrationOTP(email);
+
+      if (!response.success || !response.data) {
+        set({ loading: false, error: response.message ?? 'Failed to resend code' });
+        return false;
+      }
+
+      // Update OTP expiration timer
+      set({
+        otpExpiresIn: response.data.otpExpiresIn,
+        loading: false,
+        error: null,
+      });
+
+      console.log('Registration OTP resent successfully');
       return true;
     } catch (err: any) {
       const message = err.message || 'Failed to resend code';

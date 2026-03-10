@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, Alert, ScrollView, Linking } from 'react-native';
 import { PrimaryButton } from 'components/Button';
-import { SubmissionModal } from 'components/SubmissionModal';
 import { useAuthStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 import { validateRegistration } from 'utils/validation';
 import { InfoRow } from 'components/infoRow';
 
 export default function ReviewScreen() {
-  const { userDraft, register, error: backendError } = useAuthStore();
-  const [modalVisible, setModalVisible] = useState(false);
+  const { userDraft, error: backendError, startRegistration, clearError } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<any[]>([]);
   const [agreed, setAgreed] = useState(false);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  
   const handleFinalSubmit = async () => {
     setLoading(true);
     setValidationErrors([]);
@@ -29,28 +27,27 @@ export default function ReviewScreen() {
     }
 
     try {
-      await register('professional');
-      // If no error was set, registration succeeded
-      const { error } = useAuthStore.getState();
-      if (!error) {
-        setSubmissionSuccess(true);
+      clearError();
+      // Call startRegistration (NEW OTP FLOW)
+      const success = await startRegistration('professional');
+      
+      if (success) {
+        // Get pending email from store
+        const { pendingRegistrationEmail } = useAuthStore.getState();
+        // Navigate to OTP verification
+        router.replace({
+          pathname: '/(auth)/verify-signup-otp',
+          params: { email: pendingRegistrationEmail }
+        });
       } else {
-        setSubmissionSuccess(false);
+        // Error is already in store
+        Alert.alert('Registration Failed', backendError || 'An error occurred. Please try again.');
       }
-      setModalVisible(true);
     } catch (error) {
       console.error('Registration failed', error);
-      setSubmissionSuccess(false);
-      setModalVisible(true);
+      Alert.alert('Registration Failed', 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleModalConfirm = () => {
-    setModalVisible(false);
-    if (submissionSuccess) {
-      router.replace('/(auth)/login');
     }
   };
 
@@ -118,20 +115,6 @@ export default function ReviewScreen() {
         onPress={handleFinalSubmit}
         disabled={loading}
       />
-      {modalVisible && (
-        <SubmissionModal
-          visible={modalVisible}
-          isSuccess={submissionSuccess}
-          title={submissionSuccess ? 'Application Submitted' : 'Submission Failed'}
-          message={
-            submissionSuccess
-              ? "We've received your application. We'll get back to you soon!"
-              : backendError || 'An error occurred. Please try again.'
-          }
-          onConfirm={handleModalConfirm}
-          confirmButtonText={submissionSuccess ? 'Go to Login' : 'Try Again'}
-        />
-      )}
     </ScrollView>
   );
 }

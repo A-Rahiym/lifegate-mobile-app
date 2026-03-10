@@ -1,14 +1,15 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { getToken, removeToken } from '../utils/tokenStorage';
 
-const BASE_URL = 'https://lifegatemobilebackend-1.onrender.com/api';
+const BASE_URL = 'https://lifegatemobilebackend-2.onrender.com/api';
+// const BASE_URL = 'https://lifegatemobilebackend-1.onrender.com/api';
 
 /**
  * Create and configure axios instance with interceptors
  */
 const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },

@@ -1,6 +1,16 @@
 import api from './api';
 import { saveToken } from '../utils/tokenStorage';
-import { BackendLoginResponse, LoginPayload, RegisterPayload, AuthResponse } from '../types/auth-types';
+import {
+  BackendLoginResponse,
+  LoginPayload,
+  RegisterPayload,
+  AuthResponse,
+  RegistrationStartPayload,
+  RegistrationStartResponse,
+  RegistrationVerifyPayload,
+  RegistrationVerifyResponse,
+  RegistrationResendResponse,
+} from '../types/auth-types';
 
 /**
  * Extract error message from various backend response formats
@@ -16,13 +26,11 @@ const extractErrorMessage = (error: any): string => {
   if (error.response?.data?.details) {
     return error.response.data.details;
   }
-  
+
   // For validation errors - combine field errors
   if (error.response?.data?.errors && typeof error.response.data.errors === 'object') {
     const errors = error.response.data.errors;
-    const messages = Object.values(errors)
-      .flat()
-      .join(', ');
+    const messages = Object.values(errors).flat().join(', ');
     return messages || 'Validation failed';
   }
 
@@ -41,7 +49,6 @@ const extractErrorMessage = (error: any): string => {
 };
 
 export const AuthService = {
-
   /**
    * Login user with email and password
    * Calls POST /auth/login
@@ -88,7 +95,7 @@ export const AuthService = {
    * Calls POST /auth/register
    * Saves token to secure storage
    * Returns user data
-   * 
+   *
    * Works for both regular users and health professionals
    * Role is explicitly set in the payload
    */
@@ -120,7 +127,115 @@ export const AuthService = {
     } catch (error: any) {
       console.error('Registration error:', error);
       const message = extractErrorMessage(error);
-      console.log("extracted message: ",message)
+      console.log('extracted message: ', message);
+      return {
+        success: false,
+        message,
+      };
+    }
+  },
+
+  /**
+   * NEW TWO-STAGE REGISTRATION FLOW
+   * Stage 1: Submit registration details and receive OTP
+   * POST /api/auth/register/start
+   */
+  async startRegistration(payload: RegistrationStartPayload): Promise<RegistrationStartResponse> {
+    try {
+      console.log('Starting registration with payload:', payload);
+
+      const { data } = await api.post<RegistrationStartResponse>('/auth/register/start', payload);
+
+      if (!data.success) {
+        console.log('Registration start failed:', data.message);
+      }
+
+      return data;
+    } catch (error: any) {
+      console.error('Start registration error:', error);
+
+      return {
+        success: false,
+        message: extractErrorMessage(error),
+      };
+    }
+  },
+
+  /**
+   * NEW TWO-STAGE REGISTRATION FLOW
+   * Stage 2: Verify OTP and complete registration
+   * POST /api/auth/register/verify
+   * Returns JWT token and user data
+   */
+  async verifyRegistration(
+    payload: RegistrationVerifyPayload
+  ): Promise<RegistrationVerifyResponse> {
+    try {
+      console.log('Verifying registration with email:', payload.email);
+
+      const response = await api.post<RegistrationVerifyResponse>('/auth/register/verify', payload);
+
+      if (!response.data.success || !response.data.data) {
+        console.log('Registration verification failed:', response.data.message);
+        return {
+          success: false,
+          message: response.data.message || 'Verification failed',
+        };
+      }
+
+      const { token, user } = response.data.data;
+
+      // Save token to secure storage
+      await saveToken(token);
+
+      console.log('Registration verified - user logged in, token saved');
+
+      return {
+        success: true,
+        message: response.data.message,
+        data: { token, user },
+      };
+    } catch (error: any) {
+      console.error('Verify registration error:', error);
+      const message = extractErrorMessage(error);
+      return {
+        success: false,
+        message,
+      };
+    }
+  },
+
+  /**
+   * NEW TWO-STAGE REGISTRATION FLOW
+   * Resend OTP during registration verification
+   * POST /api/auth/register/resend
+   */
+  async resendRegistrationOTP(email: string): Promise<RegistrationResendResponse> {
+    try {
+      console.log('Resending registration OTP to:', email);
+
+      const response = await api.post<RegistrationResendResponse>('/auth/register/resend', {
+        email,
+      });
+
+      if (!response.data.success) {
+        console.log('Resend OTP failed:', response.data.message);
+        return {
+          success: false,
+          message: response.data.message || 'Failed to resend code',
+        };
+      }
+
+      console.log('OTP resent successfully');
+
+      return {
+        success: true,
+        message: response.data.message,
+        data: response.data.data,
+      };
+    } catch (error: any) {
+      console.error('Resend registration OTP error:', error);
+      const message = extractErrorMessage(error);
       return {
         success: false,
         message,
@@ -135,11 +250,11 @@ export const AuthService = {
   async sendOtpForPasswordRecovery(email: string): Promise<{ success: boolean; message: string }> {
     try {
       console.log('Sending OTP for password recovery to:', email);
-      
+
       // TODO: Implement actual API call when backend is ready
       // const response = await api.post('/auth/forgot-password/send-otp', { email });
       // return { success: response.data.success, message: response.data.message };
-      
+
       // Placeholder: Simulate success
       return {
         success: true,
@@ -158,14 +273,17 @@ export const AuthService = {
    * Verify OTP for password recovery
    * TODO: Call POST /auth/forgot-password/verify-otp when backend is ready
    */
-  async verifyOtpForPasswordRecovery(email: string, otp: string): Promise<{ success: boolean; message: string }> {
+  async verifyOtpForPasswordRecovery(
+    email: string,
+    otp: string
+  ): Promise<{ success: boolean; message: string }> {
     try {
       console.log('Verifying OTP for password recovery:', { email, otp });
-      
+
       // TODO: Implement actual API call when backend is ready
       // const response = await api.post('/auth/forgot-password/verify-otp', { email, otp });
       // return { success: response.data.success, message: response.data.message };
-      
+
       // Placeholder: Simulate success
       return {
         success: true,
@@ -184,14 +302,18 @@ export const AuthService = {
    * Reset password with verified OTP
    * TODO: Call POST /auth/forgot-password/reset when backend is ready
    */
-  async resetPassword(email: string, newPassword: string, otp: string): Promise<{ success: boolean; message: string }> {
+  async resetPassword(
+    email: string,
+    newPassword: string,
+    otp: string
+  ): Promise<{ success: boolean; message: string }> {
     try {
       console.log('Resetting password for:', email);
-      
+
       // TODO: Implement actual API call when backend is ready
       // const response = await api.post('/auth/forgot-password/reset', { email, newPassword, otp });
       // return { success: response.data.success, message: response.data.message };
-      
+
       // Placeholder: Simulate success
       return {
         success: true,
@@ -213,11 +335,11 @@ export const AuthService = {
   async sendOtpForSignup(email: string): Promise<{ success: boolean; message: string }> {
     try {
       console.log('Sending OTP for signup to:', email);
-      
+
       // TODO: Implement actual API call when backend is ready
       // const response = await api.post('/auth/signup/send-otp', { email });
       // return { success: response.data.success, message: response.data.message };
-      
+
       // Placeholder: Simulate success
       return {
         success: true,
@@ -236,14 +358,17 @@ export const AuthService = {
    * Verify OTP during signup
    * TODO: Call POST /auth/signup/verify-otp when backend is ready
    */
-  async verifyOtpForSignup(email: string, otp: string): Promise<{ success: boolean; message: string }> {
+  async verifyOtpForSignup(
+    email: string,
+    otp: string
+  ): Promise<{ success: boolean; message: string }> {
     try {
       console.log('Verifying OTP for signup:', { email, otp });
-      
+
       // TODO: Implement actual API call when backend is ready
       // const response = await api.post('/auth/signup/verify-otp', { email, otp });
       // return { success: response.data.success, message: response.data.message };
-      
+
       // Placeholder: Simulate success
       return {
         success: true,
@@ -262,14 +387,17 @@ export const AuthService = {
    * Resend OTP (both password reset and signup)
    * TODO: Call POST /auth/otp/resend when backend is ready
    */
-  async resendOtp(email: string, type: 'password-reset' | 'signup'): Promise<{ success: boolean; message: string }> {
+  async resendOtp(
+    email: string,
+    type: 'password-reset' | 'signup'
+  ): Promise<{ success: boolean; message: string }> {
     try {
       console.log(`Resending OTP for ${type} to:`, email);
-      
+
       // TODO: Implement actual API call when backend is ready
       // const response = await api.post('/auth/otp/resend', { email, type });
       // return { success: response.data.success, message: response.data.message };
-      
+
       // Placeholder: Simulate success
       return {
         success: true,

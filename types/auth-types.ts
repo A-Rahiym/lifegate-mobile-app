@@ -86,3 +86,59 @@ export type AuthResponse = {
   user?: User;
   message?: string;
 };
+
+// Registration start request payload
+export type RegistrationStartPayload = {
+  name: string;
+  email: string;
+  password: string;
+  role: 'user' | 'professional';
+  phone: string;
+  dob: string;
+  gender: string;
+  language: string;
+  healthHistory?: string;
+  // Professional fields
+  specialization?: string;
+  licenseNumber?: string;
+  certificateName?: string;
+  certificateId?: string;
+  certificateIssueDate?: string;
+  yearsOfExperience?: string;
+};
+
+// Registration start response from backend
+export type RegistrationStartResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    email: string;
+    otpExpiresIn: number; // in seconds
+  };
+};
+
+// Registration verification request payload
+export type RegistrationVerifyPayload = {
+  email: string;
+  otp: string;
+};
+
+// Registration verification response from backend (contains JWT and user)
+export type RegistrationVerifyResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    token: string;
+    user: User;
+  };
+};
+
+// Registration resend OTP response
+export type RegistrationResendResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    email: string;
+    otpExpiresIn: number;
+  };
+};

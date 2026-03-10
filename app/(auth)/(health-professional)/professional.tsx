@@ -5,11 +5,11 @@ import { LabeledInput } from 'components/LabeledInput';
 import { Dropdown } from 'components/DropDown';
 import { ErrorMessage } from 'components/ErrorMessage';
 import { PrimaryButton } from 'components/Button';
-import { GENDER_OPTIONS, SPECIALTY_OPTIONS, LANGUAGE_OPTIONS } from 'constants/constants';
+import { GENDER_OPTIONS,  LANGUAGE_OPTIONS } from 'constants/constants';
 import { DOBInput } from 'components/DobPicker';
 import { useState } from 'react';
 import { validateSingleField } from 'utils/validation';
-import PhoneInput from 'react-native-international-phone-number';
+
 const VALID_FIELDS = {
   phone: true,
   dob: true,

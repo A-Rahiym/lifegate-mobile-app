@@ -22,7 +22,9 @@ export const PhoneNumberInput: React.FC<PhoneInputProps> = ({
   const [selectedCountry, setSelectedCountry] = useState<null | ICountry>(null);
 
   function handleInputValue(phoneNumber: string) {
-    onChangePhoneNumber(phoneNumber);
+    // Remove all non-digit characters to store only the phone number
+    const cleanedNumber = phoneNumber.replace(/\D/g, '');
+    onChangePhoneNumber(cleanedNumber);
   }
 
   function handleSelectedCountry(country: ICountry) {

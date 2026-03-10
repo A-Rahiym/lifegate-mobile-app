@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput } from 'react-native';
 import { PrimaryButton } from 'components/Button';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -7,12 +7,46 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from 'stores/auth-store';
 
 export default function VerifySignupOtpScreen() {
-  const { email, role } = useLocalSearchParams<{ email: string; role: string }>();
-  const [otp, setOtp] = useState(['', '', '', '', '']);
+  const { email } = useLocalSearchParams<{ email: string }>();
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
-  const inputRefs = useRef<(TextInput | null)[]>([null, null, null, null, null]);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const inputRefs = useRef<(TextInput | null)[]>([null, null, null, null, null, null]);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const { otpExpiresIn } = useAuthStore();
+
+  // Initialize countdown timer
+  useEffect(() => {
+    if (otpExpiresIn && otpExpiresIn > 0) {
+      setTimeRemaining(otpExpiresIn);
+    }
+  }, [otpExpiresIn]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (timeRemaining === null || timeRemaining <= 0) return;
+
+    timerIntervalRef.current = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev === null || prev <= 1) {
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, [timeRemaining]);
 
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
@@ -23,7 +57,7 @@ export default function VerifySignupOtpScreen() {
     setError('');
 
     // Auto-focus to next input
-    if (value && index < 4) {
+    if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -36,11 +70,16 @@ export default function VerifySignupOtpScreen() {
   };
 
   const otpString = otp.join('');
-  const isComplete = otpString.length === 5;
+  const isComplete = otpString.length === 6;
 
   const handleVerify = async () => {
     if (!isComplete) {
-      setError('Please enter all 5 digits');
+      setError('Please enter all 6 digits');
+      return;
+    }
+
+    if (!email) {
+      setError('Email information missing. Please try again.');
       return;
     }
 
@@ -48,22 +87,15 @@ export default function VerifySignupOtpScreen() {
     setError('');
 
     try {
-      const { verifyOtpForSignup } = useAuthStore.getState();
-      const success = await verifyOtpForSignup(email, otpString);
-      
+      const { verifyRegistration } = useAuthStore.getState();
+      const success = await verifyRegistration(email, otpString);
+
       if (success) {
-        // Navigate to appropriate next screen based on role
-        if (role === 'user') {
-          router.push('/(auth)/(user)/profile');
-        } else if (role === 'professional') {
-          router.push('/(auth)/(health-professional)/professional');
-        } else {
-          // Fallback
-          router.back();
-        }
+        // User is now logged in - navigate to authenticated home screen
+        router.replace('/(tab)/homescreen');
       } else {
-        const { error } = useAuthStore.getState();
-        setError(error || 'Invalid verification code');
+        const { error: storeError } = useAuthStore.getState();
+        setError(storeError || 'Verification failed');
       }
     } catch (err) {
       setError('Verification failed. Please try again.');
@@ -74,19 +106,25 @@ export default function VerifySignupOtpScreen() {
   };
 
   const handleResend = async () => {
+    if (!email) {
+      setError('Email information missing. Cannot resend OTP.');
+      return;
+    }
+
     setResendLoading(true);
     setError('');
 
     try {
-      const { resendOtp } = useAuthStore.getState();
-      const success = await resendOtp(email, 'signup');
-      
+      const { resendRegistrationOTP } = useAuthStore.getState();
+      const success = await resendRegistrationOTP(email);
+
       if (success) {
-        setOtp(['', '', '', '', '']);
+        setOtp(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
+        setError(''); // Clear any previous errors
       } else {
-        const { error } = useAuthStore.getState();
-        setError(error || 'Failed to resend code');
+        const { error: storeError } = useAuthStore.getState();
+        setError(storeError || 'Failed to resend code');
       }
     } catch (err) {
       setError('Failed to resend code. Please try again.');
@@ -94,6 +132,12 @@ export default function VerifySignupOtpScreen() {
     } finally {
       setResendLoading(false);
     }
+  };
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -105,7 +149,7 @@ export default function VerifySignupOtpScreen() {
       style={{ flex: 1 }}>
       
       {/* Header */}
-      <View className="flex-row items-center justify-between px- pt-24 pb-6">
+      <View className="flex-row items-center justify-between px-4 pt-24 pb-6">
         <Pressable onPress={() => router.back()} className="p-2">
           <Ionicons name="chevron-back" size={24} color="white" />
         </Pressable>
@@ -121,7 +165,7 @@ export default function VerifySignupOtpScreen() {
           Verify Your Email
         </Text>
         <Text className="mb-8 text-center text-base text-gray-600">
-          Enter 5-digit verification code sent to {email}
+          Enter 6-digit verification code sent to {email}
         </Text>
 
         {/* Error Message */}
@@ -131,8 +175,8 @@ export default function VerifySignupOtpScreen() {
           </View>
         )}
 
-        {/* OTP Input Boxes */}
-        <View className="mb-6 flex-row justify-center gap-4">
+        {/* OTP Input Boxes (6 digits) */}
+        <View className="mb-6 flex-row justify-center gap-3">
           {otp.map((digit, index) => (
             <TextInput
               key={index}
@@ -145,13 +189,25 @@ export default function VerifySignupOtpScreen() {
               onChangeText={(value) => handleOtpChange(index, value)}
               onKeyPress={({ nativeEvent }) => handleOtpKeyPress(index, nativeEvent.key)}
               placeholder=""
-              className="h-16 w-14 rounded-lg border-2 border-gray-300 text-center text-2xl font-bold text-gray-900"
+              className="h-16 w-12 rounded-lg border-2 border-gray-300 text-center text-2xl font-bold text-gray-900"
               placeholderTextColor="#D1D5DB"
               editable={!loading}
               selectTextOnFocus
             />
           ))}
         </View>
+
+        {/* Countdown Timer */}
+        {timeRemaining !== null && timeRemaining > 0 && (
+          <View className="mb-6 items-center">
+            <Text className="text-sm text-gray-600">
+              Code expires in:{' '}
+              <Text className={`font-semibold ${timeRemaining < 60 ? 'text-red-600' : 'text-gray-900'}`}>
+                {formatTime(timeRemaining)}
+              </Text>
+            </Text>
+          </View>
+        )}
 
         {/* Verify Button */}
         <View className="mb-6">
@@ -165,7 +221,7 @@ export default function VerifySignupOtpScreen() {
 
         {/* Resend Code Link */}
         <View className="flex-row items-center justify-center gap-2">
-          <Text className="text-sm text-gray-600">Didn't you receive code?</Text>
+          <Text className="text-sm text-gray-600">Didn&apos;t you receive code?</Text>
           <Pressable
             onPress={handleResend}
             disabled={resendLoading || loading}
