@@ -10,6 +10,8 @@ import {
   RegistrationVerifyPayload,
   RegistrationVerifyResponse,
   RegistrationResendResponse,
+  VerifyResetCodeResponse,
+  ResetPasswordResponse,
 } from '../types/auth-types';
 
 /**
@@ -270,55 +272,69 @@ export const AuthService = {
   },
 
   /**
-   * Verify OTP for password recovery
-   * TODO: Call POST /auth/forgot-password/verify-otp when backend is ready
+   * Verify reset code for password recovery
+   * Now accepts 6-digit code and returns resetToken
+   * POST /auth/password/verify-reset-code
    */
   async verifyOtpForPasswordRecovery(
     email: string,
-    otp: string
-  ): Promise<{ success: boolean; message: string }> {
+    code: string
+  ): Promise<VerifyResetCodeResponse> {
     try {
-      console.log('Verifying OTP for password recovery:', { email, otp });
+      console.log('Verifying reset code for password recovery:', { email, code });
 
-      // TODO: Implement actual API call when backend is ready
-      const response = await api.post('/auth/password/verify-reset-code', { email, otp });
-      return { success: response.data.success, message: response.data.message };
+      const response = await api.post<VerifyResetCodeResponse>('/auth/password/verify-reset-code', {
+        email,
+        code,
+      });
 
-      // // Placeholder: Simulate success
-      // return {
-      //   success: true,
-      //   message: 'OTP verified successfully',
-      // };
+      if (!response.data.success) {
+        console.log('Reset code verification failed:', response.data.message);
+        return {
+          success: false,
+          message: response.data.message || 'Verification failed',
+          data: { resetToken: '' },
+        };
+      }
+
+      console.log('Reset code verified successfully');
+      return response.data;
     } catch (error: any) {
-      console.error('Verify OTP error:', error);
+      console.error('Verify reset code error:', error);
       return {
         success: false,
         message: extractErrorMessage(error),
+        data: { resetToken: '' },
       };
     }
   },
 
   /**
-   * Reset password with verified OTP
-   * TODO: Call POST /auth/forgot-password/reset when backend is ready
+   * Reset password with verified reset token
+   * POST /auth/password/reset-password
    */
   async resetPassword(
-    email: string,
-    newPassword: string,
-    otp: string
-  ): Promise<{ success: boolean; message: string }> {
+    token: string,
+    newPassword: string
+  ): Promise<ResetPasswordResponse> {
     try {
-      console.log('Resetting password for:', email);
+      console.log('Resetting password with token');
 
-      // TODO: Implement actual API call when backend is ready
-      const response = await api.post('/auth/password/reset', { email, newPassword, otp });
-      return { success: response.data.success, message: response.data.message };
+      const response = await api.post<ResetPasswordResponse>('/auth/password/reset', {
+        token,
+        newPassword,
+      });
 
-      // // Placeholder: Simulate success
-      // return {
-      //   success: true,
-      //   message: 'Password reset successfully',
-      // };
+      if (!response.data.success) {
+        console.log('Password reset failed:', response.data.message);
+        return {
+          success: false,
+          message: response.data.message || 'Password reset failed',
+        };
+      }
+
+      console.log('Password reset successfully');
+      return response.data;
     } catch (error: any) {
       console.error('Reset password error:', error);
       return {

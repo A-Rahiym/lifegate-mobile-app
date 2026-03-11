@@ -57,22 +57,22 @@ export default function LoginScreen() {
       end={{ x: 0, y: 0.2 }}
       style={{ flex: 1 }}>
       <View className="h-12" />
-        <View className="items-center mb-6">
-          <Logo width={72} height={72} />
-        </View>
+      <View className="mb-6 items-center">
+        <Logo width={72} height={72} />
+      </View>
       <View className="flex-1 rounded rounded-t-[36px] bg-[#F7FEFD] px-10 pt-7">
         <Text className="mb-6 text-center text-2xl font-bold text-[#0EA5A4]">Welcome Back!</Text>
-        
         Backend Error Message
         {error && (
-          <View className=" p-2 mb-2">
-            <Text className="text-red-700 text-sm">{error.message}</Text>
-          </View>
-        )
-        }
-
+          <>
+            <Text className="mb-2 text-sm text-gray-600">Backend Error Message</Text>
+            <View className="mb-2 p-2">
+              <Text className="text-sm text-red-700">{error.message}</Text>
+            </View>
+          </>
+        )}
         {validationErrors.email && (
-          <Text className="text-red-500 text-sm font-medium mb-1">{validationErrors.email}</Text>
+          <Text className="mb-1 text-sm font-medium text-red-500">{validationErrors.email}</Text>
         )}
         <LabeledInput
           label="Email Address"
@@ -88,9 +88,10 @@ export default function LoginScreen() {
             }
           }}
         />
-
         {validationErrors.password && (
-          <Text className="text-red-500 text-sm font-medium mb-1 mt-3">{validationErrors.password}</Text>
+          <Text className="mb-1 mt-3 text-sm font-medium text-red-500">
+            {validationErrors.password}
+          </Text>
         )}
         <LabeledInput
           label="Password"
@@ -119,16 +120,14 @@ export default function LoginScreen() {
             <Text className="text-[12px] font-semibold text-[#0EA5A4]">Forgot Password?</Text>
           </Pressable>
         </View>
-
         <View className="mt-5">
-          <PrimaryButton 
-            title="Login" 
+          <PrimaryButton
+            title="Login"
             onPress={onLogin}
             loading={loading}
             disabled={isLoginDisabled}
           />
         </View>
-                
         <View className="mt-5 flex-row justify-center">
           <Text className="text-gray-500">Don’t have an account? </Text>
           <Pressable onPress={() => router.push('/(auth)/register-choice')}>

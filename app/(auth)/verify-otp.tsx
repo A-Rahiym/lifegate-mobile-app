@@ -8,11 +8,11 @@ import { useAuthStore } from 'stores/auth-store';
 
 export default function VerifyOtpScreen() {
   const { email, mode } = useLocalSearchParams<{ email: string; mode: string }>();
-  const [otp, setOtp] = useState(['', '', '', '', '']);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendLoading, setResendLoading] = useState(false);
-  const inputRefs = useRef<(TextInput | null)[]>([null, null, null, null, null]);
+  const inputRefs = useRef<(TextInput | null)[]>([null, null, null, null, null, null]);
 
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
@@ -23,7 +23,7 @@ export default function VerifyOtpScreen() {
     setError('');
 
     // Auto-focus to next input
-    if (value && index < 4) {
+    if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -36,11 +36,11 @@ export default function VerifyOtpScreen() {
   };
 
   const otpString = otp.join('');
-  const isComplete = otpString.length === 5;
+  const isComplete = otpString.length === 6;
 
   const handleVerify = async () => {
     if (!isComplete) {
-      setError('Please enter all 5 digits');
+      setError('Please enter all 6 digits');
       return;
     }
 
@@ -48,14 +48,16 @@ export default function VerifyOtpScreen() {
     setError('');
 
     try {
-      const { verifyOtpForPasswordRecovery, verifyOtpForSignup } = useAuthStore.getState();
+      const { verifyOtpForPasswordRecovery, verifyOtpForSignup, resetToken } = useAuthStore.getState();
 
       if (mode === 'passwordReset') {
         const success = await verifyOtpForPasswordRecovery(email, otpString);
         if (success) {
+          // Get the resetToken that was just stored
+          const token = useAuthStore.getState().resetToken;
           router.push({
             pathname: '/(auth)/reset-password',
-            params: { email },
+            params: { token },
           });
         } else {
           const { error } = useAuthStore.getState();
@@ -126,7 +128,7 @@ export default function VerifyOtpScreen() {
         <Text className="mb-10 text-center text-2xl font-bold text-gray-900">Verify OTP Now</Text>
         <View className="flex min-h-5 justify-center">
           <Text className="text-center text-base text-gray-600">
-            Enter 5-digit verification code sent to
+            Enter 6-digit verification code sent to
           </Text>
           <Text className="mb-8 text-center text-base text-gray-600">
             {email.toString()[0] + email.toString()[1] + '***' + email.toString().slice(-10)}

@@ -161,3 +161,44 @@ export type RegistrationResendResponse = {
     otpExpiresIn: number;
   };
 };
+
+// Password reset - send reset code payload
+export type SendResetCodePayload = {
+  email: string;
+};
+
+// Password reset - send reset code response
+export type SendResetCodeResponse = {
+  success: boolean;
+  message: string;
+};
+
+// Password reset - verify reset code payload
+export type VerifyResetCodePayload = {
+  email: string;
+  code: string;
+};
+
+// Password reset - verify reset code response (contains resetToken)
+export type VerifyResetCodeResponse = {
+  success: boolean;
+  message: string;
+  data: {
+    resetToken: string;
+  };
+};
+
+// Password reset - reset password payload
+export type ResetPasswordPayload = {
+  token: string;
+  newPassword: string;
+};
+
+// Password reset - reset password response
+export type ResetPasswordResponse = {
+  success: boolean;
+  message: string;
+  data?: {
+    message: string;
+  };
+};

@@ -9,7 +9,7 @@ const BASE_URL = 'https://lifegatemobilebackend-2.onrender.com/api';
  */
 const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 60000,
+  timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
   },

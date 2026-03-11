@@ -21,7 +21,7 @@ const isValidField = (fieldName: string): fieldName is ValidFieldName => {
 };
 
 export default function ResetPasswordScreen() {
-  const { email } = useLocalSearchParams<{ email: string }>();
+  const { token } = useLocalSearchParams<{ token: string }>();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,8 +70,8 @@ export default function ResetPasswordScreen() {
     try {
       const { resetPassword: storeResetPassword } = useAuthStore.getState();
       
-      // For now, we'll use a placeholder OTP - the actual OTP was verified in previous screen
-      const success = await storeResetPassword(email, newPassword, '');
+      // Call with new signature: token and newPassword only
+      const success = await storeResetPassword(token, newPassword);
       
       if (success) {
         setSuccess(true);
