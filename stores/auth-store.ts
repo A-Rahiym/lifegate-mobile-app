@@ -11,6 +11,30 @@ import { getToken, removeToken } from 'utils/tokenStorage';
 import { validateRegistration, hasErrors } from 'utils/validation';
 import { Alert } from 'react-native';
 
+/**
+ * Extract error message from various error formats
+ * Handles axios errors, string errors, and error objects
+ */
+const extractErrorMessage = (error: any): any => {
+  // Axios response errors
+  if (error.response?.data?.message) {
+    return error.response.data.message;
+  }
+  if (error.response?.data?.error) {
+    return error.response.data.error;
+  }
+  if (error.response?.data?.details) {
+    return error.response.data.details;
+  }
+  // Direct error message
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error?.message) {
+    return error.message;
+  }
+  return 'An error occurred. Please try again.';
+};
 
 // ---------------------------
 // What the store exposes
@@ -155,10 +179,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       return true;
     } catch (err: any) {
-      const message = err.message || 'Network error. Please try again.';
+      console.log('Login error=========================================:', extractErrorMessage(err));
       set({
         loading: false,
-        error: message,
+        error: extractErrorMessage(err),
       });
       return false;
     }
@@ -236,10 +260,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       get().resetForm();
       // router.push('/(auth)/login');
     } catch (err: any) {
-      const message = err.message || 'Network error. Please try again.';
       set({
         loading: false,
-        error: message,
+        error: extractErrorMessage(err),
       });
     }
   },
@@ -289,8 +312,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('OTP sent for password recovery');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to send OTP';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -314,8 +336,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Reset code verified - token stored');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to verify reset code';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -340,8 +361,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Password reset successfully - token cleared');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to reset password';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -363,8 +383,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('OTP sent for signup');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to send verification code';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -382,8 +401,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('OTP verified for signup');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to verify email';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -401,8 +419,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log(`Code resent for ${type}`);
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to resend code';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -480,8 +497,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Registration started - OTP sent to email, password cleared from state');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to start registration';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -524,8 +540,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Registration verified - user logged in successfully');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Verification failed';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -551,8 +566,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Registration OTP resent successfully');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to resend code';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -570,8 +584,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Profile fetched successfully');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to fetch profile';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },
@@ -589,8 +602,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Password changed successfully');
       return true;
     } catch (err: any) {
-      const message = err.message || 'Failed to change password';
-      set({ loading: false, error: message });
+      set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
   },

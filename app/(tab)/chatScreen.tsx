@@ -83,7 +83,7 @@ const ChatScreen: React.FC = () => {
     <>
       <StatusBar barStyle="dark-content" translucent backgroundColor="white" />
       <Background>
-        <SafeAreaView className="flex-1">
+        <SafeAreaView className="flex-1 pb-2">
           <KeyboardAvoidingView
             className="flex-1"
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

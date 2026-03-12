@@ -62,14 +62,10 @@ export default function LoginScreen() {
       </View>
       <View className="flex-1 rounded rounded-t-[36px] bg-[#F7FEFD] px-10 pt-7">
         <Text className="mb-6 text-center text-2xl font-bold text-[#0EA5A4]">Welcome Back!</Text>
-        Backend Error Message
         {error && (
-          <>
-            <Text className="mb-2 text-sm text-gray-600">Backend Error Message</Text>
-            <View className="mb-2 p-2">
-              <Text className="text-sm text-red-700">{error.message}</Text>
-            </View>
-          </>
+          <View className="mb-3">
+            <Text className="text-sm text-red-700">{error.message}</Text>
+          </View>
         )}
         {validationErrors.email && (
           <Text className="mb-1 text-sm font-medium text-red-500">{validationErrors.email}</Text>

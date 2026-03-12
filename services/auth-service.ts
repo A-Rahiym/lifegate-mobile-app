@@ -83,8 +83,8 @@ export const AuthService = {
         user,
       };
     } catch (error: any) {
-      console.error('Login error:', error);
       const message = extractErrorMessage(error);
+      console.error('Login error:', message.message);
       return {
         success: false,
         message,
