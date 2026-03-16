@@ -3,10 +3,11 @@ import { View, Text } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PrimaryButton } from 'components/Button';
-import { useAuthStore } from 'stores/auth-store';
+import { useRegistrationStore } from 'stores/auth/registration-store';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function RegisterChoiceScreen() {
-  const { setUserField, userDraft } = useAuthStore();
+  const { setUserField, userDraft } = useRegistrationStore();
 
   const handleRegisterAsUser = () => {
     setUserField('role', 'user' as string);
@@ -21,15 +22,17 @@ export default function RegisterChoiceScreen() {
     router.push('/(prof-tab)/review');
   };
 
+
   return (
+    <SafeAreaView className='flex-1'>
     <LinearGradient
       colors={['#0AADA5', '#043B3C']}
-      className="flex-1"
+      className="flex-grow"
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 0.4 }}
       style={{ flex: 1 }}>
-      <View className="h-56" />
 
+      <View className="h-40" />
       <View className="flex-1 rounded-t-[36px] bg-gray-100 px-12 pt-7">
         <Text className="mb-12 text-center text-2xl font-bold text-[#0EA5A4]">Create Your Account</Text>
 
@@ -37,15 +40,12 @@ export default function RegisterChoiceScreen() {
           Please select the type of account you like to create:
         </Text>
 
-        {/* Normal User Button */}
         <View className="mb-6">
           <PrimaryButton
             title="Register as User"
             onPress={handleRegisterAsUser}
           />
         </View>
-
-        {/* Healthcare Professional Button */}
         <View className="mb-8">
           <PrimaryButton
             title="Register as Medical Professional"
@@ -64,5 +64,6 @@ export default function RegisterChoiceScreen() {
         </View>
       </View>
     </LinearGradient>
+  </SafeAreaView>
   );
 }

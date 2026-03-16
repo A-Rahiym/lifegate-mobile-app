@@ -1,12 +1,14 @@
 // File: app/(auth)/login.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { LabeledInput } from 'components/LabeledInput';
 import { PrimaryButton } from 'components/Button';
-import { useAuthStore } from 'stores/auth-store';
+import { useRegistrationStore } from 'stores/auth/registration-store';
+import { useAuthStore } from 'stores/auth/auth-store';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Logo from 'assets/logo.svg';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function LoginScreen() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -15,7 +17,14 @@ export default function LoginScreen() {
     email?: string;
     password?: string;
   }>({});
-  const { userDraft, setUserField, login, error } = useAuthStore();
+  const { userDraft, setUserField, resetForm } = useRegistrationStore();
+
+  useEffect(() => {
+    resetForm();
+  }, []);
+
+
+  const { login, error } = useAuthStore();
 
   const validateInputs = (): boolean => {
     const errors: { email?: string; password?: string } = {};
@@ -55,7 +64,9 @@ export default function LoginScreen() {
       className="flex-1"
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 0.2 }}
-      style={{ flex: 1 }}>
+      >
+      <SafeAreaView className="flex-1">
+
       <View className="h-12" />
       <View className="mb-6 items-center">
         <Logo width={72} height={72} />
@@ -64,7 +75,7 @@ export default function LoginScreen() {
         <Text className="mb-6 text-center text-2xl font-bold text-[#0EA5A4]">Welcome Back!</Text>
         {error && (
           <View className="mb-3">
-            <Text className="text-sm text-red-700">{error.message}</Text>
+            <Text className="text-sm text-red-700">{error}</Text>
           </View>
         )}
         {validationErrors.email && (
@@ -103,7 +114,7 @@ export default function LoginScreen() {
           }}
         />
         <View className="mt-1 flex-row items-center justify-between">
-          <Pressable className="flex-row items-center" onPress={() => setRemember((v) => !v)}>
+          <Pressable className="flex-row items-center" onPress={() => setRemember((value) => !value)}>
             <View
               className={`mr-2 h-6 w-6 rounded-2xl border border-[#0EA5A4] ${
                 remember ? 'bg-[#0EA5A4]' : 'bg-transparent'
@@ -131,6 +142,7 @@ export default function LoginScreen() {
           </Pressable>
         </View>
       </View>
+        </SafeAreaView>
     </LinearGradient>
   );
 }

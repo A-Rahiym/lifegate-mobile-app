@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, SafeAreaView, ScrollView } from 'react-native';
+import { View,ScrollView } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 
 /**
  * ProfileSkeleton - Animated skeleton loader for profile screen

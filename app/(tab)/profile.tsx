@@ -4,20 +4,22 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Modal,
   Alert,
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useAuthStore } from 'stores/auth-store';
+import { useAuthStore } from 'stores/auth/auth-store';
+import { useProfileStore } from 'stores/auth/profile-store';
 import { ProfileSkeleton } from 'components/ProfileSkeleton';
 import { LabeledInput } from 'components/LabeledInput';
 import { PrimaryButton } from 'components/Button';
+import {SafeAreaView} from 'react-native-safe-area-context';
 
 export default function PatientProfileScreen() {
-  const { user, changePassword, loading, getProfile, error } = useAuthStore();
+  const { user } = useAuthStore();
+  const { changePassword, loading, getProfile, error } = useProfileStore();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -35,7 +37,7 @@ export default function PatientProfileScreen() {
 
   useEffect(() => {
     getProfile();
-  }, []);
+  }, [getProfile]);
 
   useEffect(() => {
     if (user) {

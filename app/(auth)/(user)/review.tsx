@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, Alert, ScrollView, Linking } from 'react-native';
 import { PrimaryButton } from 'components/Button';
-import { useAuthStore } from 'stores/auth-store';
+import { useRegistrationStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 import { validateRegistration } from 'utils/validation';
 import { InfoRow } from 'components/infoRow';
 
 export default function UserReviewStep() {
-  const { userDraft, error: backendError, startRegistration, clearError } = useAuthStore();
+  const { userDraft, error: backendError, startRegistration, clearError } = useRegistrationStore();
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<any[]>([]);
   const [agreed, setAgreed] = useState(false);
@@ -37,7 +37,7 @@ export default function UserReviewStep() {
 
       if (success) {
         // Get pending email from store
-        const { pendingRegistrationEmail } = useAuthStore.getState();
+        const { pendingRegistrationEmail } = useRegistrationStore.getState();
         // Navigate to OTP verification
         router.replace({
           pathname: '/(auth)/verify-signup-otp',
@@ -45,11 +45,11 @@ export default function UserReviewStep() {
         });
       } else {
         // Error is already in store
-        Alert.alert('Registration Failed', backendError || 'An error occurred. Please try again.');
+        // Alert.alert('Registration Failed', backendError || 'An error occurred. Please try again.');
       }
     } catch (error) {
-      console.error('Registration failed', error);
-      Alert.alert('Registration Failed', 'An unexpected error occurred. Please try again.');
+      // console.error('Registration failed', error);
+      // Alert.alert('Registration Failed', 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }

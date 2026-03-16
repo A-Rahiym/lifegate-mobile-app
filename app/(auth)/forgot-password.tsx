@@ -5,7 +5,7 @@ import { PrimaryButton } from 'components/Button';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from 'stores/auth-store';
+import { usePasswordRecoveryStore } from 'stores/auth/password-recovery-store';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -27,7 +27,7 @@ export default function ForgotPasswordScreen() {
     setError('');
 
     try {
-      const { sendOtpForPasswordRecovery } = useAuthStore.getState();
+      const { sendOtpForPasswordRecovery } = usePasswordRecoveryStore.getState();
       const success = await sendOtpForPasswordRecovery(email);
       
       if (success) {
@@ -37,7 +37,7 @@ export default function ForgotPasswordScreen() {
           params: { email, mode: 'passwordReset' }
         });
       } else {
-        const { error } = useAuthStore.getState();
+        const { error } = usePasswordRecoveryStore.getState();
         setError(error || 'Failed to send reset code');
       }
     } catch (err) {
@@ -45,7 +45,7 @@ export default function ForgotPasswordScreen() {
       console.error('Forgot password error:', err);
     } finally {
       setLoading(false);
-    }
+      }
   };
 
   return (

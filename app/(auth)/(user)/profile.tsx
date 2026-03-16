@@ -4,7 +4,7 @@ import { PrimaryButton } from 'components/Button';
 import { Dropdown } from 'components/DropDown';
 import { ErrorMessage } from 'components/ErrorMessage';
 import { GENDER_OPTIONS, LANGUAGE_OPTIONS } from 'constants/constants';
-import { useAuthStore } from 'stores/auth-store';
+import { useRegistrationStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 import { DOBInput } from 'components/DobPicker';
 import { PhoneNumberInput } from 'components/PhoneInput';
@@ -25,7 +25,7 @@ const isValidField = (fieldName: string): fieldName is ValidFieldName => {
 };
 
 export default function UserProfileStep() {
-  const { userDraft, setUserField } = useAuthStore();
+  const { userDraft, setUserField } = useRegistrationStore();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleFieldChange = (fieldName: string, value: string) => {

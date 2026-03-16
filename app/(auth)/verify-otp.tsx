@@ -4,7 +4,8 @@ import { PrimaryButton } from 'components/Button';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from 'stores/auth-store';
+import { usePasswordRecoveryStore } from 'stores/auth/password-recovery-store';
+import { useRegistrationStore } from 'stores/auth/registration-store';
 
 export default function VerifyOtpScreen() {
   const { email, mode } = useLocalSearchParams<{ email: string; mode: string }>();
@@ -48,30 +49,30 @@ export default function VerifyOtpScreen() {
     setError('');
 
     try {
-      const { verifyOtpForPasswordRecovery, verifyOtpForSignup, resetToken } = useAuthStore.getState();
-
       if (mode === 'passwordReset') {
+        const { verifyOtpForPasswordRecovery } = usePasswordRecoveryStore.getState();
         const success = await verifyOtpForPasswordRecovery(email, otpString);
         if (success) {
           // Get the resetToken that was just stored
-          const token = useAuthStore.getState().resetToken;
+          const token = usePasswordRecoveryStore.getState().resetToken;
           router.push({
             pathname: '/(auth)/reset-password',
             params: { token },
           });
         } else {
-          const { error } = useAuthStore.getState();
+          const { error } = usePasswordRecoveryStore.getState();
           setError(error || 'Invalid verification code');
         }
       } else if (mode === 'signup') {
-        const success = await verifyOtpForSignup(email, otpString);
+        const { verifyRegistration } = useRegistrationStore.getState();
+        const success = await verifyRegistration(email, otpString);
         if (success) {
           router.push({
             pathname: '/(auth)/(user)/profile',
             params: { emailVerified: 'true' },
           });
         } else {
-          const { error } = useAuthStore.getState();
+          const { error } = useRegistrationStore.getState();
           setError(error || 'Invalid verification code');
         }
       }
@@ -88,16 +89,26 @@ export default function VerifyOtpScreen() {
     setError('');
 
     try {
-      const { resendOtp } = useAuthStore.getState();
-      const type = mode === 'passwordReset' ? 'password-reset' : 'signup';
-      const success = await resendOtp(email, type);
-
-      if (success) {
-        setOtp(['', '', '', '', '']);
-        inputRefs.current[0]?.focus();
-      } else {
-        const { error } = useAuthStore.getState();
-        setError(error || 'Failed to resend code');
+      if (mode === 'passwordReset') {
+        const { resendOtp } = usePasswordRecoveryStore.getState();
+        const success = await resendOtp(email, 'password-reset');
+        if (success) {
+          setOtp(['', '', '', '', '', '']);
+          inputRefs.current[0]?.focus();
+        } else {
+          const { error } = usePasswordRecoveryStore.getState();
+          setError(error || 'Failed to resend code');
+        }
+      } else if (mode === 'signup') {
+        const { resendRegistrationOTP } = useRegistrationStore.getState();
+        const success = await resendRegistrationOTP(email);
+        if (success) {
+          setOtp(['', '', '', '', '', '']);
+          inputRefs.current[0]?.focus();
+        } else {
+          const { error } = useRegistrationStore.getState();
+          setError(error || 'Failed to resend code');
+        }
       }
     } catch (err) {
       setError('Failed to resend code. Please try again.');
@@ -115,7 +126,7 @@ export default function VerifyOtpScreen() {
       end={{ x: 0, y: 0.2 }}
       style={{ flex: 1 }}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-6 pb-6 pt-24Set ">
+      <View className="flex-row items-center justify-between px-6 pb-6 pt-24">
         <Pressable onPress={() => router.back()} className="p-2">
           <Ionicons name="chevron-back" size={24} color="white" />
         </Pressable>

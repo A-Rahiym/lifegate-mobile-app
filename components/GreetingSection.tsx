@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated } from 'react-native';
-import { useAuthStore } from 'stores/auth-store';
 
 interface GreetingSectionProps {
   userName?: string;

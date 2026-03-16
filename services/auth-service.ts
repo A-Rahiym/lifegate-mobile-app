@@ -1,5 +1,6 @@
 import api from './api';
 import { saveToken } from '../utils/tokenStorage';
+import { extractErrorMessage } from '../utils/error-utils';
 import {
   BackendLoginResponse,
   LoginPayload,
@@ -13,42 +14,6 @@ import {
   VerifyResetCodeResponse,
   ResetPasswordResponse,
 } from '../types/auth-types';
-
-/**
- * Extract error message from various backend response formats
- */
-const extractErrorMessage = (error: any): string => {
-  // Try different error response formats
-  if (error.response?.data?.message) {
-    return error.response.data.message;
-  }
-  if (error.response?.data?.error) {
-    return error.response.data.error;
-  }
-  if (error.response?.data?.details) {
-    return error.response.data.details;
-  }
-
-  // For validation errors - combine field errors
-  if (error.response?.data?.errors && typeof error.response.data.errors === 'object') {
-    const errors = error.response.data.errors;
-    const messages = Object.values(errors).flat().join(', ');
-    return messages || 'Validation failed';
-  }
-
-  // Network errors
-  if (error.code === 'ECONNABORTED') {
-    return 'Request timeout. Please check your connection.';
-  }
-  if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-    return 'Cannot connect to server. Please try again.';
-  }
-  if (error.message === 'Network Error') {
-    return 'Network error. Please check your connection.';
-  }
-
-  return error.message || 'An unexpected error occurred';
-};
 
 export const AuthService = {
   /**

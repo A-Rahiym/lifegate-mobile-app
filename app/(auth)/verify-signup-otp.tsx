@@ -4,7 +4,7 @@ import { PrimaryButton } from 'components/Button';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from 'stores/auth-store';
+import { useRegistrationStore } from 'stores/auth/registration-store';
 
 export default function VerifySignupOtpScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -16,7 +16,7 @@ export default function VerifySignupOtpScreen() {
   const inputRefs = useRef<(TextInput | null)[]>([null, null, null, null, null, null]);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { otpExpiresIn } = useAuthStore();
+  const { otpExpiresIn } = useRegistrationStore();
 
   // Initialize countdown timer
   useEffect(() => {
@@ -87,14 +87,14 @@ export default function VerifySignupOtpScreen() {
     setError('');
 
     try {
-      const { verifyRegistration } = useAuthStore.getState();
+      const { verifyRegistration } = useRegistrationStore.getState();
       const success = await verifyRegistration(email, otpString);
 
       if (success) {
         // User is now logged in - navigate to authenticated home screen
         router.replace('/(tab)/chatScreen');
       } else {
-        const { error: storeError } = useAuthStore.getState();
+        const { error: storeError } = useRegistrationStore.getState();
         setError(storeError || 'Verification failed');
       }
     } catch (err) {
@@ -115,7 +115,7 @@ export default function VerifySignupOtpScreen() {
     setError('');
 
     try {
-      const { resendRegistrationOTP } = useAuthStore.getState();
+      const { resendRegistrationOTP } = useRegistrationStore.getState();
       const success = await resendRegistrationOTP(email);
 
       if (success) {
@@ -123,7 +123,7 @@ export default function VerifySignupOtpScreen() {
         inputRefs.current[0]?.focus();
         setError(''); // Clear any previous errors
       } else {
-        const { error: storeError } = useAuthStore.getState();
+        const { error: storeError } = useRegistrationStore.getState();
         setError(storeError || 'Failed to resend code');
       }
     } catch (err) {

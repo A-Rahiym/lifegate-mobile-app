@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import {
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
@@ -8,6 +7,7 @@ import {
   Text,
   TouchableOpacity,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
@@ -17,7 +17,7 @@ import type { Message as ChatMessage } from 'components/MessageList';
 import { ChatInputBar } from 'components/ChatInputBar';
 import { ProfileMenu } from 'components/ProfileMenu';
 import { useChatStore } from 'stores/chat-store';
-import { useAuthStore } from 'stores/auth-store';
+import { useAuthStore } from 'stores/auth/auth-store';
 import { GreetingSection } from 'components';
 import { TypingIndicator } from 'components/TypingIndicator';
 
