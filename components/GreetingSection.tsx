@@ -9,7 +9,8 @@ export const GreetingSection: React.FC<GreetingSectionProps> = ({ userName }) =>
   const headingFade = useRef(new Animated.Value(0)).current;
   const headingSlide = useRef(new Animated.Value(30)).current;
   const subtitleFade = useRef(new Animated.Value(0)).current;
-
+  
+  const displayName = userName ? userName.split(' ')[1] : 'there';
    useEffect(() => {
     Animated.sequence([
       Animated.parallel([
@@ -38,7 +39,7 @@ export const GreetingSection: React.FC<GreetingSectionProps> = ({ userName }) =>
         style={{ opacity: headingFade, transform: [{ translateY: headingSlide }] }}
         className="text-4xl font-extrabold text-teal-900 text-center leading-tight tracking-tight mb-5"
       >
-        {`Hello ${userName},\nHow are you\nfeeling today?`}
+        {`Hello ${displayName},\nHow are you\nfeeling today?`}
       </Animated.Text>
 
       <Animated.Text

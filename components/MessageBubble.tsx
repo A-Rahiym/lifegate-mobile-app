@@ -52,7 +52,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     >
       <View
         className={`
-          max-w-[72%] px-4 py-3
+          max-w-[90%] px-4 py-3
           ${isSent
             ? 'bg-teal-700 rounded-3xl rounded-br-md'
             : 'bg-teal-50 border border-teal-100 rounded-3xl rounded-bl-md '

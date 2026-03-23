@@ -39,13 +39,12 @@ export const AuthService = {
       const { token, user } = response.data.data;
 
       // Save token to secure storage
-      await saveToken(token);
-
-      console.log('Login successful - token saved');
+      console.log('Login successful');
 
       return {
         success: true,
         user,
+        token,
       };
     } catch (error: any) {
       const message = extractErrorMessage(error);

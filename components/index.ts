@@ -18,3 +18,6 @@ export { ConsultationSummary } from './ConsultationSummary';
 export { ActivityChart } from './ActivityChart';
 export { ActivityList } from './ActivityList';
 export { ProfileSkeleton } from './ProfileSkeleton';
+export { ProfileHeader } from './ProfileHeader';
+export { EditProfileModal } from './EditProfileModal';
+export { ChangePasswordModal } from './ChangePasswordModal';

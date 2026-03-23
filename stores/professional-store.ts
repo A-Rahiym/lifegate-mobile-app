@@ -29,8 +29,7 @@ export const useProfessionalStore = create<ProfessionalStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const reports = await ProfessionalService.getProfessionalReports();
-      const stats = await ProfessionalService.getProfessionalStats();
-      
+      const stats = await ProfessionalService.getProfessionalStats();  
       set({
         reports,
         filteredReports: reports,

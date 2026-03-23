@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
-  Modal,
-  TextInput,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -13,42 +11,41 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from 'stores/auth-store';
-
-// Mock physician data
-const mockPhysicianData = {
-  id: 'LG-202685',
-  name: 'Kayode Hammed',
-  email: 'Dockay@gmail.com',
-  phone: '+234 810 123 4567',
-  specialization: 'Optician',
-  yearsOfExperience: '8',
-  isVerified: true,
-};
+import { useProfileStore } from 'stores/auth/profile-store';
+import { ProfileHeader } from 'components/ProfileHeader';
+import { EditProfileModal } from 'components/EditProfileModal';
+import { ChangePasswordModal } from 'components/ChangePasswordModal';
 
 export default function PhysicianProfileScreen() {
+  const { user, logout } = useAuthStore();
+  const { getProfile, loading } = useProfileStore();
+
   // Modal visibility states
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [editFormLoading, setEditFormLoading] = useState(false);
+  const [passwordFormLoading, setPasswordFormLoading] = useState(false);
 
   // Edit profile form state
   const [editForm, setEditForm] = useState({
-    firstName: mockPhysicianData.name.split(' ')[0],
-    lastName: mockPhysicianData.name.split(' ').slice(1).join(' '),
-    phone: mockPhysicianData.phone,
+    firstName: user?.name?.split(' ')[0] || '',
+    lastName: user?.name?.split(' ').slice(1).join(' ') || '',
+    phone: user?.phone || '',
   });
 
-  // Change password form state
-  const [passwordForm, setPasswordForm] = useState({
-    current: '',
-    new: '',
-    confirm: '',
-    showCurrent: false,
-    showNew: false,
-    showConfirm: false,
-  });
-
-  const { logout } = useAuthStore();
+  useEffect(() => {
+    // Fetch profile on mount
+    getProfile();
+    // Update edit form with user data
+    if (user?.name) {
+      const [firstName, ...lastNameArr] = user.name.split(' ');
+      setEditForm({
+        firstName,
+        lastName: lastNameArr.join(' '),
+        phone: user.phone || '',
+      });
+    }
+  }, [getProfile, user]);
 
   const handleLogout = async () => {
     try {
@@ -59,61 +56,46 @@ export default function PhysicianProfileScreen() {
     }
   };
 
-  const handleSaveEdit = () => {
-    if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
-      Alert.alert('Validation', 'Please fill in all fields');
-      return;
-    }
-    Alert.alert('Success', 'Profile updated successfully');
-    setShowEditModal(false);
+  const handleSaveEdit = (values: { firstName: string; lastName: string; phone: string }) => {
+    // For now, just show success (no backend logic as per requirements)
+    setEditFormLoading(true);
+    setTimeout(() => {
+      Alert.alert('Success', 'Profile updated successfully');
+      setEditFormLoading(false);
+      setShowEditModal(false);
+    }, 500);
   };
 
-  const handleChangePassword = async () => {
-    if (!passwordForm.current.trim() || !passwordForm.new.trim() || !passwordForm.confirm.trim()) {
-      Alert.alert('Validation', 'Please fill in all password fields');
-      return;
-    }
-
-    if (passwordForm.new !== passwordForm.confirm) {
-      Alert.alert('Validation', 'New password and confirm password do not match');
-      return;
-    }
-
-    if (passwordForm.new.length < 6) {
-      Alert.alert('Validation', 'Password must be at least 6 characters');
-      return;
-    }
-
-    setLoading(true);
+  const handleChangePassword = async (values: {
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) => {
+    setPasswordFormLoading(true);
     try {
+      // For now, just simulate (no backend logic as per requirements)
       await new Promise((resolve) => setTimeout(resolve, 1000));
       Alert.alert('Success', 'Password changed successfully');
-      setPasswordForm({
-        current: '',
-        new: '',
-        confirm: '',
-        showCurrent: false,
-        showNew: false,
-        showConfirm: false,
-      });
       setShowPasswordModal(false);
     } catch {
       Alert.alert('Error', 'Failed to change password. Please try again.');
     } finally {
-      setLoading(false);
+      setPasswordFormLoading(false);
     }
   };
 
-  const getInitials = (name: string) => {
-    const names = name.split(' ');
-    return names.map((n) => n.charAt(0).toUpperCase()).join('');
-  };
+  if (loading) {
+    return (
+      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+        <ActivityIndicator size="large" color="#0AADA2" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-white">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View className="flex-row items-center border-b border-gray-200 px-6 pb-4 pt-12">
+        <View className="flex-row items-center px-6 pb-4 pt-12">
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={28} color="#0AADA2" />
           </TouchableOpacity>
@@ -121,31 +103,16 @@ export default function PhysicianProfileScreen() {
             Physician Profile
           </Text>
         </View>
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
 
         {/* Content Section */}
         <View className="px-6 py-6">
-          {/* Profile Header with Avatar */}
-          <View className="mb-8 flex-row items-center gap-4">
-            {/* Avatar */}
-            <View className="h-16 w-16 items-center justify-center rounded-full bg-teal-600">
-              <Text className="text-xl font-bold text-white">
-                {getInitials(mockPhysicianData.name)}
-              </Text>
-            </View>
-
-            {/* Name and Specialization */}
-            <View className="flex-1">
-              <View className="flex-row items-center gap-2">
-                <Text className="text-lg font-bold text-gray-800">
-                  Dr. {mockPhysicianData.name.split(' ')[0]}
-                </Text>
-                {mockPhysicianData.isVerified && (
-                  <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                )}
-              </View>
-              <Text className="mt-1 text-sm text-gray-600">{mockPhysicianData.specialization}</Text>
-            </View>
-          </View>
+          {/* Profile Header Component */}
+          <ProfileHeader
+            name={user?.name || 'User'}
+            specialization={user?.specialization || 'Not available'}
+            isVerified={true}
+          />
 
           {/* Personal Information Section */}
           <View className="mb-8">
@@ -166,19 +133,19 @@ export default function PhysicianProfileScreen() {
               {/* Full Name */}
               <View className="border-b border-gray-200 pb-3">
                 <Text className="mb-1 text-xs font-semibold text-gray-500">Full Name</Text>
-                <Text className="text-base text-gray-800">{mockPhysicianData.name}</Text>
+                <Text className="text-base text-gray-800">{user?.name || 'Not available'}</Text>
               </View>
 
               {/* Email */}
               <View className="border-b border-gray-200 pb-3">
                 <Text className="mb-1 text-xs font-semibold text-gray-500">Email</Text>
-                <Text className="text-base text-gray-800">{mockPhysicianData.email}</Text>
+                <Text className="text-base text-gray-800">{user?.email || 'Not available'}</Text>
               </View>
 
               {/* Phone */}
               <View className="pb-3">
                 <Text className="mb-1 text-xs font-semibold text-gray-500">Phone</Text>
-                <Text className="text-base text-gray-800">{mockPhysicianData.phone}</Text>
+                <Text className="text-base text-gray-800">{user?.phone || 'Not available'}</Text>
               </View>
             </View>
           </View>
@@ -193,7 +160,9 @@ export default function PhysicianProfileScreen() {
               {/* Specialization */}
               <View className="border-b border-gray-200 pb-3">
                 <Text className="mb-1 text-xs font-semibold text-gray-500">Specialization</Text>
-                <Text className="text-base text-gray-800">{mockPhysicianData.specialization}</Text>
+                <Text className="text-base text-gray-800">
+                  {user?.specialization || 'Not available'}
+                </Text>
               </View>
               {/* Years of Experience */}
               <View className="pb-3">
@@ -201,7 +170,7 @@ export default function PhysicianProfileScreen() {
                   Years of Experience
                 </Text>
                 <Text className="text-base text-gray-800">
-                  {mockPhysicianData.yearsOfExperience} years
+                  {user?.yearsOfExperience ? `${user.yearsOfExperience} years` : 'Not available'}
                 </Text>
               </View>
             </View>
@@ -230,7 +199,8 @@ export default function PhysicianProfileScreen() {
             </View>
           </View>
         </View>
-        <View className=" flex-row items-center justify-center">
+
+        <View className="flex-row items-center justify-center">
           <TouchableOpacity
             onPress={handleLogout}
             className="w-3/4 items-center rounded-lg bg-red-600 py-4">
@@ -240,207 +210,21 @@ export default function PhysicianProfileScreen() {
       </ScrollView>
 
       {/* Edit Profile Modal */}
-      <Modal visible={showEditModal} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/50">
-          <View className="rounded-t-3xl bg-white p-6 pb-8">
-            {/* Header */}
-            <View className="mb-6 flex-row items-center justify-between">
-              <Text className="text-xl font-bold text-gray-800">Edit Profile</Text>
-              <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                <Ionicons name="close" size={24} color="#999" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Form Fields */}
-            <ScrollView showsVerticalScrollIndicator={false} className="mb-6">
-              {/* First Name */}
-              <View className="mb-4">
-                <Text className="mb-2 text-sm font-semibold text-gray-700">First Name</Text>
-                <TextInput
-                  className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800"
-                  placeholder="First Name"
-                  value={editForm.firstName}
-                  onChangeText={(text) => setEditForm({ ...editForm, firstName: text })}
-                  placeholderTextColor="#999"
-                />
-              </View>
-
-              {/* Last Name */}
-              <View className="mb-4">
-                <Text className="mb-2 text-sm font-semibold text-gray-700">Last Name</Text>
-                <TextInput
-                  className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800"
-                  placeholder="Last Name"
-                  value={editForm.lastName}
-                  onChangeText={(text) => setEditForm({ ...editForm, lastName: text })}
-                  placeholderTextColor="#999"
-                />
-              </View>
-
-              {/* Phone Number */}
-              <View className="mb-4">
-                <Text className="mb-2 text-sm font-semibold text-gray-700">Phone Number</Text>
-                <TextInput
-                  className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800"
-                  placeholder="Phone Number"
-                  value={editForm.phone}
-                  onChangeText={(text) => setEditForm({ ...editForm, phone: text })}
-                  keyboardType="phone-pad"
-                  placeholderTextColor="#999"
-                />
-              </View>
-
-              {/* Info Text */}
-              <View className="rounded-lg bg-gray-100 p-3">
-                <Text className="text-xs text-gray-600">
-                  <Text className="font-semibold">Note:</Text> Email and Professional Information
-                  cannot be changed.
-                </Text>
-              </View>
-            </ScrollView>
-
-            {/* Buttons */}
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                onPress={() => setShowEditModal(false)}
-                className="flex-1 rounded-lg border border-gray-300 bg-white py-3">
-                <Text className="text-center font-semibold text-gray-700">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSaveEdit}
-                className="flex-1 rounded-lg bg-teal-600 py-3">
-                <Text className="text-center font-semibold text-white">Save Changes</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <EditProfileModal
+        visible={showEditModal}
+        initialValues={editForm}
+        loading={editFormLoading}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleSaveEdit}
+      />
 
       {/* Change Password Modal */}
-      <Modal visible={showPasswordModal} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/50">
-          <View className="rounded-t-3xl bg-white p-6 pb-8">
-            {/* Header */}
-            <View className="mb-6 flex-row items-center justify-between">
-              <Text className="text-xl font-bold text-gray-800">Change Password</Text>
-              <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
-                <Ionicons name="close" size={24} color="#999" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Form Fields */}
-            <ScrollView showsVerticalScrollIndicator={false} className="mb-6">
-              {/* Current Password */}
-              <View className="mb-4">
-                <Text className="mb-2 text-sm font-semibold text-gray-700">Current Password</Text>
-                <View className="relative">
-                  <TextInput
-                    className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 pr-12 text-gray-800"
-                    placeholder="Enter current password"
-                    value={passwordForm.current}
-                    onChangeText={(text) => setPasswordForm({ ...passwordForm, current: text })}
-                    secureTextEntry={!passwordForm.showCurrent}
-                    placeholderTextColor="#999"
-                  />
-                  <TouchableOpacity
-                    onPress={() =>
-                      setPasswordForm({
-                        ...passwordForm,
-                        showCurrent: !passwordForm.showCurrent,
-                      })
-                    }
-                    className="absolute right-3 top-3.5">
-                    <Ionicons
-                      name={passwordForm.showCurrent ? 'eye-off' : 'eye'}
-                      size={20}
-                      color="#999"
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* New Password */}
-              <View className="mb-4">
-                <Text className="mb-2 text-sm font-semibold text-gray-700">New Password</Text>
-                <View className="relative">
-                  <TextInput
-                    className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 pr-12 text-gray-800"
-                    placeholder="Enter new password"
-                    value={passwordForm.new}
-                    onChangeText={(text) => setPasswordForm({ ...passwordForm, new: text })}
-                    secureTextEntry={!passwordForm.showNew}
-                    placeholderTextColor="#999"
-                  />
-                  <TouchableOpacity
-                    onPress={() =>
-                      setPasswordForm({
-                        ...passwordForm,
-                        showNew: !passwordForm.showNew,
-                      })
-                    }
-                    className="absolute right-3 top-3.5">
-                    <Ionicons
-                      name={passwordForm.showNew ? 'eye-off' : 'eye'}
-                      size={20}
-                      color="#999"
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Confirm Password */}
-              <View className="mb-4">
-                <Text className="mb-2 text-sm font-semibold text-gray-700">
-                  Confirm New Password
-                </Text>
-                <View className="relative">
-                  <TextInput
-                    className="rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 pr-12 text-gray-800"
-                    placeholder="Confirm new password"
-                    value={passwordForm.confirm}
-                    onChangeText={(text) => setPasswordForm({ ...passwordForm, confirm: text })}
-                    secureTextEntry={!passwordForm.showConfirm}
-                    placeholderTextColor="#999"
-                  />
-                  <TouchableOpacity
-                    onPress={() =>
-                      setPasswordForm({
-                        ...passwordForm,
-                        showConfirm: !passwordForm.showConfirm,
-                      })
-                    }
-                    className="absolute right-3 top-3.5">
-                    <Ionicons
-                      name={passwordForm.showConfirm ? 'eye-off' : 'eye'}
-                      size={20}
-                      color="#999"
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView>
-
-            {/* Buttons */}
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                onPress={() => setShowPasswordModal(false)}
-                className="flex-1 rounded-lg border border-gray-300 bg-white py-3">
-                <Text className="text-center font-semibold text-gray-700">Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleChangePassword}
-                disabled={loading}
-                className="flex-1 rounded-lg bg-teal-600 py-3">
-                {loading ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <Text className="text-center font-semibold text-white">Change Password</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <ChangePasswordModal
+        visible={showPasswordModal}
+        loading={passwordFormLoading}
+        onClose={() => setShowPasswordModal(false)}
+        onSave={handleChangePassword}
+      />
     </SafeAreaView>
   );
 }

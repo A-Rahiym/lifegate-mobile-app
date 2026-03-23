@@ -46,7 +46,7 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const success = await login(loginDraft.email, loginDraft.password);
+      const success = await login(loginDraft.email, loginDraft.password, remember);
       if (success) {
       // Get the authenticated user to check their role
       const { user } = useAuthStore.getState();

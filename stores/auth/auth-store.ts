@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { AuthService } from 'services/auth-service';
 import { User } from 'types/auth-types';
-import { getToken, removeToken } from 'utils/tokenStorage';
+import { getToken, removeToken, saveToken } from 'utils/tokenStorage';
 import { extractErrorMessage } from 'utils/error-utils';
 
 type AuthState = {
@@ -27,7 +27,7 @@ type AuthState = {
   // Actions
   setLoginField: (field: 'email' | 'password', value: string) => void;
   clearLoginDraft: () => void;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, remember: boolean) => Promise<boolean>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   clearError: () => void;
@@ -67,9 +67,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       const token = await getToken();
       if (token) {
         console.log('Token found - user session valid');
-        set({
-          isAuthenticated: true,
-        });
+
+        // Fetch user profile to restore user data
+        const response = await AuthService.getProfile();
+        if (response.success && response.user) {
+          set({
+            user: response.user,
+            isAuthenticated: true,
+          });
+        } else {
+          // Token exists but profile fetch failed
+          set({
+            isAuthenticated: false,
+            user: null,
+          });
+        }
       } else {
         console.log('No token found - user needs to login');
         set({
@@ -78,18 +90,22 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     } catch (error) {
       console.error('Failed to restore session:', error);
-      set({ isAuthenticated: false });
+      set({ isAuthenticated: false, user: null });
     }
   },
 
   // -------- LOGIN --------
-  login: async (email, password) => {
+  login: async (email, password, rememberMe) => {
     set({ loading: true, error: null });
     try {
       const response = await AuthService.login({ email, password });
       if (!response.success || !response.user) {
         set({ loading: false, error: response.message ?? 'Login failed' });
         return false;
+      }
+      if (rememberMe && response.token) {
+        await saveToken(response.token);
+        console.log('Token saved for session persistence');
       }
 
       set({

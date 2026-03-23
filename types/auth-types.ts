@@ -100,6 +100,7 @@ export type BackendLoginResponse = {
 export type AuthResponse = {
   success: boolean;
   user?: User;
+  token?: string;
   message?: string;
 };
 
