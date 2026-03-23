@@ -19,7 +19,7 @@ export const LabeledInput: React.FC<InputProps> = ({
   const [hidden, setHidden] = useState<boolean>(!!secureToggle);
 
   return (
-    <View className="mb-5">
+    <View className="mb-3">
       <Text className="mb-1.5 font-medium text-gray-700">
         {label} {required && <Text className="text-red-500">*</Text>}
       </Text>

@@ -30,7 +30,6 @@ export type User = {
   
   // Health professional specific fields
   specialization?: string;
-  licenseNumber?: string;
   certificateName?: string;
   certificateId?: string;
   certificateIssueDate?: string;
@@ -53,7 +52,6 @@ export type UserDraft = {
   role?: 'user' | 'professional'; // Set based on registration choice
   // Health professional specific fields
   specialization?: string;
-  licenseNumber?: string;
   certificateName?: string;
   certificateId?: string;
   certificateIssueDate?: string;
@@ -82,7 +80,6 @@ export type RegisterPayload = {
   role: 'user' | 'professional';
   // Health professional specific fields (optional)
   specialization?: string;
-  licenseNumber?: string;
   certificateName?: string;
   certificateId?: string;
   certificateIssueDate?: string;
@@ -119,7 +116,6 @@ export type RegistrationStartPayload = {
   healthHistory?: string;
   // Professional fields
   specialization?: string;
-  licenseNumber?: string;
   certificateName?: string;
   certificateId?: string;
   certificateIssueDate?: string;

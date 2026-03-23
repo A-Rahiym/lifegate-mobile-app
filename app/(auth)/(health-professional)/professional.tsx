@@ -7,6 +7,7 @@ import { ErrorMessage } from 'components/ErrorMessage';
 import { PrimaryButton } from 'components/Button';
 import { GENDER_OPTIONS,  LANGUAGE_OPTIONS } from 'constants/constants';
 import { DOBInput } from 'components/DobPicker';
+import { PhoneNumberInput } from 'components/PhoneInput';
 import { useState } from 'react';
 import { validateSingleField } from 'utils/validation';
 
@@ -67,12 +68,11 @@ export default function ProfessionalScreen() {
 
   return (
     <View className="flex-1 justify-start bg-white p-6">
-      <LabeledInput
+      <PhoneNumberInput
         label="Phone Number"
-        placeholder="Enter your Phone Number"
         required
         value={userDraft.phone}
-        onChangeText={(v) => handleFieldChange('phone', v)}
+        onChangePhoneNumber={(v) => handleFieldChange('phone', v)}
       />
       <ErrorMessage fieldName="phone" fieldErrors={fieldErrors} />
 
@@ -119,16 +119,6 @@ export default function ProfessionalScreen() {
         onChangeText={(v) => handleFieldChange('specialization', v)}
       />
       <ErrorMessage fieldName="specialization" fieldErrors={fieldErrors} />
-
-      {/* <Dropdown
-        label="Specialization"
-
-        value={userDraft.specialization || ''}
-        onChange={(v) => handleFieldChange('specialization', v)}
-        placeholder="Select Specialization"
-        options={SPECIALTY_OPTIONS}
-      />
-      <ErrorMessage fieldName="specialization" fieldErrors={fieldErrors} /> */}
 
       <PrimaryButton
         title="Next"

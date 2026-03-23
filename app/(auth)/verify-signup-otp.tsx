@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRegistrationStore } from 'stores/auth/registration-store';
+import { useAuthStore } from 'stores/auth-store';
 
 export default function VerifySignupOtpScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
@@ -91,8 +92,16 @@ export default function VerifySignupOtpScreen() {
       const success = await verifyRegistration(email, otpString);
 
       if (success) {
-        // User is now logged in - navigate to authenticated home screen
-        router.replace('/(tab)/chatScreen');
+        // Get the authenticated user from auth store to check role
+        const { user } = useAuthStore.getState();
+
+        if (user?.role === 'professional') {
+          // Route professional users to their review/consultation screen
+          router.replace('/(prof-tab)/consultation');
+        } else {
+          // Route regular users to chat screen
+          router.replace('/(tab)/chatScreen');
+        }
       } else {
         const { error: storeError } = useRegistrationStore.getState();
         setError(storeError || 'Verification failed');
@@ -147,30 +156,25 @@ export default function VerifySignupOtpScreen() {
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 0.2 }}
       style={{ flex: 1 }}>
-      
       {/* Header */}
-      <View className="flex-row items-center justify-between px-4 pt-24 pb-6">
+      <View className="flex-row items-center justify-between px-4 pb-6 pt-24">
         <Pressable onPress={() => router.back()} className="p-2">
           <Ionicons name="chevron-back" size={24} color="white" />
         </Pressable>
-        <Text className="flex-1 text-center text-xl font-bold text-white">
-          Verify Email
-        </Text>
+        <Text className="flex-1 text-center text-xl font-bold text-white">Verify Email</Text>
         <View className="w-10" />
       </View>
 
       {/* Content */}
       <ScrollView className="flex-1 rounded-t-[36px] bg-[#F7FEFD] px-12 pt-12">
-        <Text className="mb-2 text-center text-2xl font-bold text-gray-900">
-          Verify Your Email
-        </Text>
+        <Text className="mb-2 text-center text-2xl font-bold text-gray-900">Verify Your Email</Text>
         <Text className="mb-8 text-center text-base text-gray-600">
           Enter 6-digit verification code sent to {email}
         </Text>
 
         {/* Error Message */}
         {error && (
-          <View className="mb-6 rounded-lg border border-red-400 bg-red-100 p-3">
+          <View className="mb-6">
             <Text className="text-sm text-red-700">{error}</Text>
           </View>
         )}
@@ -202,7 +206,8 @@ export default function VerifySignupOtpScreen() {
           <View className="mb-6 items-center">
             <Text className="text-sm text-gray-600">
               Code expires in:{' '}
-              <Text className={`font-semibold ${timeRemaining < 60 ? 'text-red-600' : 'text-gray-900'}`}>
+              <Text
+                className={`font-semibold ${timeRemaining < 60 ? 'text-red-600' : 'text-gray-900'}`}>
                 {formatTime(timeRemaining)}
               </Text>
             </Text>
@@ -222,10 +227,7 @@ export default function VerifySignupOtpScreen() {
         {/* Resend Code Link */}
         <View className="flex-row items-center justify-center gap-2">
           <Text className="text-sm text-gray-600">Didn&apos;t you receive code?</Text>
-          <Pressable
-            onPress={handleResend}
-            disabled={resendLoading || loading}
-            className="p-1">
+          <Pressable onPress={handleResend} disabled={resendLoading || loading} className="p-1">
             <Text
               className={`text-sm font-semibold ${
                 resendLoading || loading ? 'text-gray-400' : 'text-[#0EA5A4]'

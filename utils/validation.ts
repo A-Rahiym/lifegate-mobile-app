@@ -212,20 +212,7 @@ const validateSpecialization = (specialization: string, isHealthProfessional: bo
   return errors;
 };
 
-/**
- * Validate license number (required for health professionals)
- */
-const validateLicenseNumber = (licenseNumber: string, isHealthProfessional: boolean): ValidationError[] => {
-  const errors: ValidationError[] = [];
 
-  if (isHealthProfessional) {
-    if (!licenseNumber || licenseNumber.trim().length === 0) {
-      errors.push({ field: 'licenseNumber', message: 'License number is required for professionals' });
-    }
-  }
-
-  return errors;
-};
 
 /**
  * Validate certificate name (required for health professionals)
@@ -399,7 +386,6 @@ export const validateRegistration = (
   // Health professional specific
   if (isHealthProfessional) {
     allErrors.push(...validateSpecialization(formData.specialization || '', isHealthProfessional));
-    allErrors.push(...validateLicenseNumber(formData.licenseNumber || '', isHealthProfessional));
     allErrors.push(...validateCertificateName(formData.certificateName || '', isHealthProfessional));
     allErrors.push(...validateCertificateId(formData.certificateId || '', isHealthProfessional));
     allErrors.push(...validateCertificateIssueDate(formData.certificateIssueDate || '', isHealthProfessional));
@@ -468,9 +454,7 @@ export const validateSingleField = (
     case 'specialization':
       errors = validateSpecialization(value, isHealthProfessional);
       break;
-    case 'licenseNumber':
-      errors = validateLicenseNumber(value, isHealthProfessional);
-      break;
+   
     case 'certificateName':
       errors = validateCertificateName(value, isHealthProfessional);
       break;

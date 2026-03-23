@@ -14,7 +14,6 @@ import { CERTIFICATE_TYPE_OPTIONS } from 'constants/constants';
 const VALID_FIELDS = {
   certificateName: true,
   certificateId: true,
-  licenseNumber: true,
   certificateIssueDate: true,
 } as const;
 
@@ -99,14 +98,7 @@ export default function LicenseScreen() {
         onChange={(date: Date) => handleDateChange('certificateIssueDate', date)}
       />
       <ErrorMessage fieldName="certificateIssueDate" fieldErrors={fieldErrors} />
-      {/* <LabeledInput
-        label="License ID"
-        required
-        placeholder="Type license ID"
-        value={userDraft.licenseNumber}
-        onChangeText={(v) => handleFieldChange('licenseNumber', v)}
-      />
-      <ErrorMessage fieldName="licenseNumber" fieldErrors={fieldErrors} /> */}
+    
 
       <View className="mb-6">
         <Dropdown

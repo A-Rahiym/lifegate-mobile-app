@@ -43,7 +43,6 @@ const emptyDraft: UserDraft = {
   healthHistory: '',
   role: undefined,
   specialization: '',
-  licenseNumber: '',
   certificateName: '',
   certificateId: '',
   certificateIssueDate: '',
@@ -95,7 +94,6 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
       language,
       healthHistory,
       specialization,
-      licenseNumber,
       certificateName,
       certificateId,
       certificateIssueDate,
@@ -115,7 +113,6 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
         healthHistory,
         ...(role === 'professional' && {
           specialization,
-          licenseNumber,
           certificateName,
           certificateId,
           certificateIssueDate,
@@ -157,6 +154,7 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
 
       if (!response.success || !response.data) {
         const errorMessage = response.message;
+        console.error('OTP verification failed:', errorMessage);
 
         if (errorMessage?.includes('expired')) {
           set({ loading: false, error: 'OTP expired. Please request a new code.' });

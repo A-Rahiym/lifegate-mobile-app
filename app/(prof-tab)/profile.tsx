@@ -20,7 +20,6 @@ const mockPhysicianData = {
   email: 'Dockay@gmail.com',
   phone: '+234 810 123 4567',
   specialization: 'Optician',
-  licenseNumber: 'OPT-2019-001',
   yearsOfExperience: '8',
   isVerified: true,
 };
@@ -187,13 +186,6 @@ export default function PhysicianProfileScreen() {
                 <Text className="mb-1 text-xs font-semibold text-gray-500">Specialization</Text>
                 <Text className="text-base text-gray-800">{mockPhysicianData.specialization}</Text>
               </View>
-
-              {/* License Number */}
-              <View className="border-b border-gray-200 pb-3">
-                <Text className="mb-1 text-xs font-semibold text-gray-500">License Number</Text>
-                <Text className="text-base text-gray-800">{mockPhysicianData.licenseNumber}</Text>
-              </View>
-
               {/* Years of Experience */}
               <View className="pb-3">
                 <Text className="mb-1 text-xs font-semibold text-gray-500">Years of Experience</Text>

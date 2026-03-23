@@ -48,8 +48,17 @@ export default function LoginScreen() {
     try {
       const success = await login(loginDraft.email, loginDraft.password);
       if (success) {
+      // Get the authenticated user to check their role
+      const { user } = useAuthStore.getState();
+      
+      if (user?.role === 'professional') {
+        // Route professional users to their consultation screen
+        router.replace('/(prof-tab)/consultation');
+      } else {
+        // Route regular users to chat screen
         router.replace('/(tab)/chatScreen');
       }
+    }
     } finally {
       setLoading(false);
     }

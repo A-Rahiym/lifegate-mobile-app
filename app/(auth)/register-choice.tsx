@@ -18,8 +18,8 @@ export default function RegisterChoiceScreen() {
   const handleRegisterAsHealthProfessional = () => {
     setUserField('role', 'professional' as string);
     console.log('User role set to professional', userDraft.role);
-    // router.push('/(auth)/(health-professional)');
-    router.push('/(prof-tab)/review');
+    router.push('/(auth)/(health-professional)');
+    // router.push('/(prof-tab)/review');
   };
 
 

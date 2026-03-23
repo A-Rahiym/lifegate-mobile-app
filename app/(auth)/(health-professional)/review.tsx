@@ -20,8 +20,6 @@ export default function ReviewScreen() {
     const errors = validateRegistration(userDraft, 'professional');
     if (errors.length > 0) {
       setValidationErrors(errors);
-      const errorMessages = errors.map((err) => err.message).join('\n');
-      Alert.alert('Validation Error', errorMessages);
       setLoading(false);
       return;
     }
@@ -30,7 +28,6 @@ export default function ReviewScreen() {
       clearError();
       // Call startRegistration (NEW OTP FLOW)
       const success = await startRegistration('professional');
-      
       if (success) {
         // Get pending email from store
         const { pendingRegistrationEmail } = useRegistrationStore.getState();
@@ -41,7 +38,7 @@ export default function ReviewScreen() {
         });
       } else {
         // Error is already in store
-        Alert.alert('Registration Failed', backendError || 'An error occurred. Please try again.');
+        // Alert.alert('Registration Failed', backendError || 'An error occurred. Please try again.');
       }
     } catch (error) {
       console.error('Registration failed', error);
@@ -53,16 +50,14 @@ export default function ReviewScreen() {
 
   return (
     <ScrollView className="flex-1 px-6 py-4">
-      <Text className="mb-6 mt-4 text-lg font-semibold">
-        Review your information and submit your application.
-      </Text>
-
       {backendError && (
-        <View className="mb-6 rounded-lg border border-red-400 bg-red-100 p-4">
+        <View className="mb-3">
           <Text className="text-center text-red-700">{backendError}</Text>
         </View>
       )}
-
+      <Text className="mb-6 mt-4 text-lg font-semibold">
+        Review your information and submit your application.
+      </Text>
       {validationErrors.length > 0 && (
         <View className="mb-6 p-2">
           {validationErrors.map((err, idx) => (
@@ -72,7 +67,6 @@ export default function ReviewScreen() {
           ))}
         </View>
       )}
-
       {/* Summary of filled details */}
       <View className="mb-6 w-full rounded-lg bg-gray-100 p-4 px-3">
         <InfoRow label="Name" value={userDraft.name} />
@@ -80,7 +74,6 @@ export default function ReviewScreen() {
         <InfoRow label="Date of Birth" value={userDraft.dob} />
         <InfoRow label="Gender" value={userDraft.gender} />
         <InfoRow label="Specialization" value={userDraft.specialization} />
-        <InfoRow label="License Number" value={userDraft.licenseNumber} />
         <InfoRow label="Years of Experience" value={userDraft.yearsOfExperience} />
         <InfoRow label="Certificate" value={userDraft.certificateName} />
         <InfoRow label="Language" value={userDraft.language} />
