@@ -24,13 +24,12 @@ export default function SplashScreen() {
           if (isAuthenticated) {
             router.replace('/(tab)/chatScreen');
           } else {
-            router.replace('/welcome');
+            router.replace('/login');
           }
         }, 1500); // Show splash for 1.5 seconds
       } catch (error) {
         console.error('Error initializing app:', error);
-        // router.replace('/(auth)/login');
-        router.replace('/welcome');
+        router.replace('/login');
       }
     };
 

@@ -153,17 +153,18 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
       const response = await AuthService.verifyRegistration({ email, otp });
 
       if (!response.success || !response.data) {
-        const errorMessage = response.message;
+        const errorMessage = extractErrorMessage({ response: { data: { message: response.message } } });
         console.error('OTP verification failed:', errorMessage);
 
-        if (errorMessage?.includes('expired')) {
+        // Instead of directly using errorMessage, ensure it's a string
+       if (errorMessage.toLowerCase().includes('expired')) {
           set({ loading: false, error: 'OTP expired. Please request a new code.' });
-        } else if (errorMessage?.includes('Invalid')) {
+        } else if (errorMessage.toLowerCase().includes('invalid')) {
           set({ loading: false, error: 'Invalid verification code' });
-        } else if (errorMessage?.includes('already')) {
+        } else if (errorMessage.toLowerCase().includes('already')) {
           set({ loading: false, error: 'Email already registered' });
         } else {
-          set({ loading: false, error: errorMessage ?? 'Verification failed' });
+          set({ loading: false, error: errorMessage });
         }
         return false;
       }
@@ -182,6 +183,7 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
       return true;
     } catch (err: any) {
       set({ loading: false, error: extractErrorMessage(err) });
+      console.error('OTP verification error:', extractErrorMessage(err));
       return false;
     }
   },

@@ -1,19 +1,35 @@
-/**
- * Shared error extraction utility
- * Handles axios errors, string errors, and error objects
- * Used by auth service and stores
- */
+export const extractErrorMessage = (error: any): string => {
+  // Helper function to convert any value to string
+  const toString = (value: any): string => {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value === 'object' && value !== null) {
+      // If object has a message field, extract it
+      if (value.message && typeof value.message === 'string') {
+        return value.message;
+      }
+      // Try to stringify the object
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value || '');
+  };
 
-export const extractErrorMessage = (error: any): any => {
-  // Axios response errors
+  // Axios response errors - extract message string
   if (error.response?.data?.message) {
-    return error.response.data.message;
+    return toString(error.response.data.message);
   }
+
   if (error.response?.data?.error) {
-    return error.response.data.error;
+    return toString(error.response.data.error);
   }
+
   if (error.response?.data?.details) {
-    return error.response.data.details;
+    return toString(error.response.data.details);
   }
 
   // For validation errors - combine field errors
@@ -38,8 +54,6 @@ export const extractErrorMessage = (error: any): any => {
   if (typeof error === 'string') {
     return error;
   }
-  if (error?.message) {
-    return error.message;
-  }
-  return 'An error occurred. Please try again.';
+  
+  return toString(error?.message) || 'An error occurred. Please try again.';
 };

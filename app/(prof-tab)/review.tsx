@@ -46,8 +46,8 @@ export default function ReviewScreen() {
     <View className="flex-1 bg-gray-50">
       <SafeAreaView />
       {/* Header */}
-      <View className="border-b border-gray-200 bg-white px-6 py-4">
-        <View className="flex-row items-center">
+      <View className=" bg-white px-6 py-4">
+        <View className="flex-row items-center justify-between">
           <Pressable className="-ml-2 p-2" onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={24} color="#0AADA2" />
           </Pressable>

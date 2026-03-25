@@ -39,7 +39,7 @@ export const AuthService = {
       const { token, user } = response.data.data;
 
       // Save token to secure storage
-      console.log('Login successful');
+      console.log('Login successful:', token);
 
       return {
         success: true,

@@ -45,7 +45,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       console.log('Unauthorized (401) - clearing token and user session');
       try {
-        await removeToken();
+        // await removeToken();
         // Trigger logout in the app - this would be handled by the auth store
         // The store checks for this error and clears state appropriately
       } catch (err) {

@@ -95,7 +95,7 @@ export default function VerifySignupOtpScreen() {
         // Get the authenticated user from auth store to check role
         const { user } = useAuthStore.getState();
 
-        if (user?.role === 'professional') {
+        if (user.role === 'professional') {
           // Route professional users to their review/consultation screen
           router.replace('/(prof-tab)/consultation');
         } else {
