@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView , Platform} from 'react-native';
 import { router } from 'expo-router';
 import { useRegistrationStore } from 'stores/auth-store';
 import { LabeledInput } from 'components/LabeledInput';
@@ -10,6 +10,7 @@ import { DOBInput } from 'components/DobPicker';
 import { Dropdown } from 'components/DropDown';
 import { validateSingleField } from 'utils/validation';
 import { CERTIFICATE_TYPE_OPTIONS } from 'constants/constants';
+import * as DocumentPicker from 'expo-document-picker';
 
 const VALID_FIELDS = {
   certificateName: true,
@@ -24,9 +25,10 @@ const isValidField = (fieldName: string): fieldName is ValidFieldName => {
 };
 
 export default function LicenseScreen() {
-  const { userDraft, setUserField } = useRegistrationStore();
+  const { userDraft, setUserField, setCertificateFile } = useRegistrationStore();
   const [isAdding, setIsAdding] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [certificateError, setCertificateError] = useState<string>('');
 
   const handleFieldChange = (fieldName: string, value: string) => {
     if (!isValidField(fieldName)) return;
@@ -38,6 +40,20 @@ export default function LicenseScreen() {
     }));
   };
 
+// Add this function in the component
+const canProceed = () => {
+  // Check all required fields are filled
+  const hasAllTextFields = 
+    userDraft.certificateName &&
+    userDraft.certificateId &&
+    userDraft.certificateIssueDate;
+  
+  // Check certificate file is uploaded
+  const hasCertificateFile = !!userDraft.certificate;
+  
+  return hasAllTextFields && hasCertificateFile;
+};  
+
   const handleDateChange = (fieldName: string, date: Date) => {
     if (!isValidField(fieldName)) return;
     const new_date = date.toISOString().split('T')[0];
@@ -48,6 +64,52 @@ export default function LicenseScreen() {
       [fieldName]: error || '',
     }));
     console.log('New Date set:', new_date);
+  };
+
+const handlePickCertificate = async () => {
+  try {
+    setCertificateError('');
+    const result = await DocumentPicker.getDocumentAsync({
+      type: [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'image/jpeg',
+        'image/png',
+      ],
+      copyToCacheDirectory: true,
+    });
+
+    if (result.canceled) return;
+
+    const asset = result.assets[0];
+    
+    // Validate size < 5MB
+    const maxSize = 5 * 1024 * 1024;
+    if (asset.size && asset.size > maxSize) {
+      setCertificateError('File size must be less than 5MB');
+      return;
+    }
+
+    // Prepare file for FormData
+    const fileObject = {
+      uri: asset.uri,
+      name: asset.name,
+      type: asset.mimeType || 'application/octet-stream',
+    };
+
+    setCertificateFile(fileObject as any);
+    console.log('Certificate selected:', asset.name);
+  } catch (err) {
+    console.error('File pick error:', err);
+    setCertificateError('Failed to pick file');
+  }
+};
+
+  const handleRemoveCertificate = () => {
+    setCertificateFile(null);
+    setCertificateError('');
+    console.log('Certificate file removed');
   };
 
   if (!isAdding) {
@@ -114,17 +176,44 @@ export default function LicenseScreen() {
         <Text className="mb-2 font-medium text-[#475569]">
           Attachment <Text className="text-red-500">*</Text>
         </Text>
-        <TouchableOpacity className="items-center rounded-2xl border border-gray-100 bg-[#F1F5F9] py-10">
-          <Ionicons name="cloud-upload-outline" size={30} color="#64748b" />
-          <Text className="mt-2 text-[#64748b]">Upload Certificate</Text>
-          <Text className="text-xs text-[#94a3b8]">PDF or Image</Text>
-        </TouchableOpacity>
+        
+        {userDraft.certificate ? (
+          <View className="rounded-2xl border border-green-300 bg-green-50 p-4">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center flex-1">
+                <Ionicons name="checkmark-circle" size={24} color="#16a34a" />
+                <View className="ml-3 flex-1">
+                  <Text className="font-medium text-green-700">File uploaded</Text>
+                  <Text className="text-sm text-green-600">
+                    {userDraft.certificate.name}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={handleRemoveCertificate}>
+                <Ionicons name="close-circle" size={24} color="#dc2626" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            onPress={handlePickCertificate}
+            className="items-center rounded-2xl border border-gray-100 bg-[#F1F5F9] py-10">
+            <Ionicons name="cloud-upload-outline" size={30} color="#64748b" />
+            <Text className="mt-2 text-[#64748b]">Upload Certificate</Text>
+            <Text className="text-xs text-[#94a3b8]">PDF or Image</Text>
+          </TouchableOpacity>
+        )}
+        
+        {certificateError && (
+          <Text className="mt-2 text-sm text-red-600">{certificateError}</Text>
+        )}
       </View>
 
       <PrimaryButton
         title="Next"
         onPress={() => router.push('/(auth)/(health-professional)/review')}
         type="secondary"
+        disabled={!canProceed()}
       />
 
       <View className="h-10" />

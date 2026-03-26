@@ -48,7 +48,7 @@ export const AuthService = {
       };
     } catch (error: any) {
       const message = extractErrorMessage(error);
-      console.error('Login error:', message.message);
+      // console.error('Login error:', message.message);
       return {
         success: false,
         message,
@@ -105,12 +105,23 @@ export const AuthService = {
    * NEW TWO-STAGE REGISTRATION FLOW
    * Stage 1: Submit registration details and receive OTP
    * POST /api/auth/register/start
+   * Accepts FormData for multipart/form-data requests (supports file uploads)
    */
-  async startRegistration(payload: RegistrationStartPayload): Promise<RegistrationStartResponse> {
+  async startRegistration(
+    payload: FormData | RegistrationStartPayload
+  ): Promise<RegistrationStartResponse> {
     try {
-      console.log('Starting registration with payload:', payload);
+      const isFormData = payload instanceof FormData;
+      console.log('Starting registration with', isFormData ? 'FormData' : 'object payload');
+      console.log('Payload content:', payload);
 
-      const { data } = await api.post<RegistrationStartResponse>('/auth/register/start', payload);
+      const { data } = await api.post<RegistrationStartResponse>(
+        '/auth/register/start',
+        payload,
+        isFormData
+          ? { headers: { 'Content-Type': 'multipart/form-data' } } // critical in RN
+          : undefined
+      );
 
       if (!data.success) {
         console.log('Registration start failed:', data.message);
@@ -277,10 +288,7 @@ export const AuthService = {
    * Reset password with verified reset token
    * POST /auth/password/reset-password
    */
-  async resetPassword(
-    token: string,
-    newPassword: string
-  ): Promise<ResetPasswordResponse> {
+  async resetPassword(token: string, newPassword: string): Promise<ResetPasswordResponse> {
     try {
       console.log('Resetting password with token');
 
@@ -425,7 +433,6 @@ export const AuthService = {
       };
     }
   },
-
 
   /**
    * Change user password

@@ -56,6 +56,8 @@ export type UserDraft = {
   certificateId?: string;
   certificateIssueDate?: string;
   yearsOfExperience?: string;
+  // File upload for professionals
+  certificate?: any | null;
 };
 
 // Login payload
@@ -104,7 +106,8 @@ export type AuthResponse = {
   message?: string;
 };
 
-// Registration start request payload
+// Registration start request payload - can be FormData or object
+// Note: When certificate file is present, this must be sent as FormData
 export type RegistrationStartPayload = {
   name: string;
   email: string;
@@ -121,6 +124,8 @@ export type RegistrationStartPayload = {
   certificateId?: string;
   certificateIssueDate?: string;
   yearsOfExperience?: string;
+  // File upload for professionals - included when building FormData
+  certificate?: File;
 };
 
 // Registration start response from backend

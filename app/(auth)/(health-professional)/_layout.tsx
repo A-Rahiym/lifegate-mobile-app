@@ -64,7 +64,7 @@ export default function RegisterLayout() {
       </View>
 
       {/* ================= SCREEN CONTENT ================= */}
-      <View className="flex-1 rounded-t-[40px] bg-[#F7FEFD] pt-12 px-6">
+      <View className="flex-1 rounded-t-[40px] bg-[#F7FEFD] pt-6 px-6">
         <Stack
           screenOptions={{
             headerShown: false,

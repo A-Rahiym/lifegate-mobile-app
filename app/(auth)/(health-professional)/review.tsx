@@ -5,7 +5,7 @@ import { useRegistrationStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 import { validateRegistration } from 'utils/validation';
 import { InfoRow } from 'components/infoRow';
-
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ReviewScreen() {
   const { userDraft, error: backendError, startRegistration, clearError } = useRegistrationStore();
   const [loading, setLoading] = useState(false);
@@ -49,12 +49,13 @@ export default function ReviewScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 px-6 py-4">
-      {backendError && (
-        <View className="mb-3">
-          <Text className="text-center text-red-700">{backendError}</Text>
-        </View>
-      )}
+    <SafeAreaView className="flex-1">
+      <ScrollView className="flex-1 px-6 ">
+        {backendError && (
+          <View className="mb-3">
+            <Text className="text-center text-red-700">{backendError}</Text>
+          </View>
+        )}
       <Text className="mb-6 mt-4 text-lg font-semibold">
         Review your information and submit your application.
       </Text>
@@ -76,6 +77,10 @@ export default function ReviewScreen() {
         <InfoRow label="Specialization" value={userDraft.specialization} />
         <InfoRow label="Years of Experience" value={userDraft.yearsOfExperience} />
         <InfoRow label="Certificate" value={userDraft.certificateName} />
+        <InfoRow 
+          label="Certificate File" 
+          value={userDraft.certificate ? userDraft.certificate.name : 'Not uploaded'} 
+        />
         <InfoRow label="Language" value={userDraft.language} />
       </View>
       <Text className="mb-6 text-center font-light">
@@ -109,5 +114,6 @@ export default function ReviewScreen() {
         disabled={loading}
       />
     </ScrollView>
+  </SafeAreaView>
   );
 }

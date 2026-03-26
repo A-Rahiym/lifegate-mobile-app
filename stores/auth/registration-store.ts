@@ -8,7 +8,6 @@ import { AuthService } from 'services/auth-service';
 import { UserDraft } from 'types/auth-types';
 import { validateRegistration, hasErrors } from 'utils/validation';
 import { extractErrorMessage } from 'utils/error-utils';
-import { Alert } from 'react-native';
 
 type RegistrationState = {
   // Form state
@@ -24,6 +23,7 @@ type RegistrationState = {
 
   // Actions
   setUserField: (field: keyof UserDraft, value: string) => void;
+  setCertificateFile: (file: File | null) => void;
   resetForm: () => void;
   clearError: () => void;
   startRegistration: (role: 'user' | 'professional') => Promise<boolean>;
@@ -47,6 +47,7 @@ const emptyDraft: UserDraft = {
   certificateId: '',
   certificateIssueDate: '',
   yearsOfExperience: '',
+  certificate: null,
 };
 
 export const useRegistrationStore = create<RegistrationState>((set, get) => ({
@@ -63,6 +64,12 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
   setUserField: (field, value) =>
     set((state) => ({
       userDraft: { ...state.userDraft, [field]: value },
+    })),
+
+  // Set certificate file for professional registration
+  setCertificateFile: (file) =>
+    set((state) => ({
+      userDraft: { ...state.userDraft, certificate: file },
     })),
 
   // Reset form to initial state
@@ -98,30 +105,43 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
       certificateId,
       certificateIssueDate,
       yearsOfExperience,
+      certificate,
     } = formData;
 
     try {
-      const registrationPayload = {
-        name,
-        email,
-        password,
-        role,
-        phone,
-        dob,
-        gender: gender.toLowerCase(),
-        language: language.toLowerCase(),
-        healthHistory,
-        ...(role === 'professional' && {
-          specialization,
-          certificateName,
-          certificateId,
-          certificateIssueDate,
-          yearsOfExperience,
-        }),
-      };
-
-      console.log('Starting registration with payload:', registrationPayload);
-      const response = await AuthService.startRegistration(registrationPayload);
+      // Build FormData for multipart/form-data request
+      const payload = new FormData();
+      payload.append('name', name);
+      payload.append('email', email);
+      payload.append('password', password);
+      payload.append('role', role);
+      payload.append('phone', phone);
+      payload.append('dob', dob);
+      payload.append('gender', gender.toLowerCase());
+      payload.append('language', language.toLowerCase());
+      if (healthHistory) {
+        payload.append('healthHistory', healthHistory);
+      }
+      // Add professional-specific fields
+      if (role === 'professional') {
+        if (specialization) payload.append('specialization', specialization);
+        if (certificateName) payload.append('certificateName', certificateName);
+        if (certificateId) payload.append('certificateId', certificateId);
+        if (certificateIssueDate) payload.append('certificateIssueDate', certificateIssueDate);
+        if (yearsOfExperience) payload.append('yearsOfExperience', yearsOfExperience);
+        if (certificate) {
+          payload.append('certificate', {
+            uri: certificate.uri,
+            name: certificate.name,
+            type: certificate.type,
+          } as any);
+        }
+      }
+      console.log(
+        certificate ? 'Certificate file included in payload:' : 'No certificate file included'
+      );
+      console.log('Starting registration with FormData payload for role:', role);
+      const response = await AuthService.startRegistration(payload);
 
       if (!response.success || !response.data) {
         set({ loading: false, error: response.message ?? 'Failed to start registration' });
@@ -153,11 +173,13 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
       const response = await AuthService.verifyRegistration({ email, otp });
 
       if (!response.success || !response.data) {
-        const errorMessage = extractErrorMessage({ response: { data: { message: response.message } } });
+        const errorMessage = extractErrorMessage({
+          response: { data: { message: response.message } },
+        });
         console.error('OTP verification failed:', errorMessage);
 
         // Instead of directly using errorMessage, ensure it's a string
-       if (errorMessage.toLowerCase().includes('expired')) {
+        if (errorMessage.toLowerCase().includes('expired')) {
           set({ loading: false, error: 'OTP expired. Please request a new code.' });
         } else if (errorMessage.toLowerCase().includes('invalid')) {
           set({ loading: false, error: 'Invalid verification code' });

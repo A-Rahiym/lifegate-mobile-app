@@ -289,6 +289,33 @@ const validateYearsOfExperience = (yearsOfExperience: string, isHealthProfession
 };
 
 /**
+ * Validate certificate file (required for health professionals)
+ * Checks file exists, size, and format
+ */
+const validateCertificateFile = (certificate: File | null | undefined, isHealthProfessional: boolean): ValidationError[] => {
+  const errors: ValidationError[] = [];
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+
+  if (isHealthProfessional) {
+    if (!certificate) {
+      errors.push({ field: 'certificate', message: 'Certificate file upload is required for professionals' });
+      return errors;
+    }
+
+    if (certificate.size && certificate.size > maxSize) {
+      errors.push({ field: 'certificate', message: 'Certificate file size must be less than 5MB' });
+    }
+
+    if (!allowedTypes.includes(certificate.type)) {
+      errors.push({ field: 'certificate', message: 'Certificate must be a PDF or image file (JPEG, PNG)' });
+    }
+  }
+
+  return errors;
+};
+
+/**
  * Validate OTP (5 digit code)
  */
 export const validateOtp = (otp: string): string | null => {
@@ -390,6 +417,7 @@ export const validateRegistration = (
     allErrors.push(...validateCertificateId(formData.certificateId || '', isHealthProfessional));
     allErrors.push(...validateCertificateIssueDate(formData.certificateIssueDate || '', isHealthProfessional));
     allErrors.push(...validateYearsOfExperience(formData.yearsOfExperience || '', isHealthProfessional));
+    allErrors.push(...validateCertificateFile(formData.certificate, isHealthProfessional));
   }
 
   return allErrors;
