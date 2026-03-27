@@ -57,7 +57,7 @@ export default function RegisterChoiceScreen() {
         <View className="mt-6 flex-row justify-center">
           <Text className="text-gray-500">Already have an account? </Text>
           <Text
-            onPress={() => router.push('/(prof-tab)/review')}
+            onPress={() => router.push('/(auth)/login')}
             className="font-semibold text-[#0EA5A4]">
             Login
           </Text>

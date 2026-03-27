@@ -92,10 +92,11 @@ export default function VerifySignupOtpScreen() {
       const success = await verifyRegistration(email, otpString);
 
       if (success) {
-        // Get the authenticated user from auth store to check role
-        // const { user } = useAuthStore.getState();
+        // Role is preserved in userDraft after verifyRegistration clears the form.
+        // Auth store is also populated with the verified user at this point.
         const { userDraft } = useRegistrationStore.getState();
-        const userRole = userDraft.role;
+        const { user } = useAuthStore.getState();
+        const userRole = user?.role ?? userDraft.role;
 
         if (userRole === 'professional') {
           // Route professional users to their review/consultation screen

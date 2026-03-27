@@ -13,6 +13,11 @@ export default function ReviewScreen() {
   const [agreed, setAgreed] = useState(false);
   
   const handleFinalSubmit = async () => {
+    if (!agreed) {
+      Alert.alert('Agreement Required', 'Please agree to the Privacy Policy.');
+      return;
+    }
+
     setLoading(true);
     setValidationErrors([]);
 

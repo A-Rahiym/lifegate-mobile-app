@@ -3,6 +3,9 @@
     "name": "LifeGate",
     "slug": "lifegate",
     "version": "1.0.0",
+    "updates": {
+      "enabled": false
+    },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
@@ -38,10 +41,7 @@
       "package": "com.lazyapp.lifegatemobile"
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "dcbcc80b-1678-4703-87aa-bbd99581ecb4"
-      }
+      "router": {}
     }
   }
 }

@@ -191,17 +191,23 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
         return false;
       }
       console.log('OTP verification response:', response);
+
+      // Capture role BEFORE clearing the draft, then update auth store with verified user
+      const capturedRole = get().userDraft.role;
+      if (response.data.user) {
+        useAuthStore.setState({ user: response.data.user, isAuthenticated: true });
+      }
+
       // Clear registration state after successful verification
-      // User is now logged in via AuthService, but this store clears its own state
       set({
         pendingRegistrationEmail: null,
         otpExpiresIn: null,
-        userDraft: emptyDraft, // Clear form after successful registration
+        userDraft: { ...emptyDraft, role: capturedRole }, // preserve role for post-verify routing
         loading: false,
         error: null,
       });
 
-      console.log('Registration verified');
+      console.log('Registration verified, role:', capturedRole);
       return true;
     } catch (err: any) {
       set({ loading: false, error: extractErrorMessage(err) });
