@@ -278,13 +278,13 @@ return token.SignedString([]byte(s.cfg.JWTSecret))
 
 func (s *Service) sendOTPEmail(to, name, otp string) error {
 subject := "LifeGate — Verify your email"
-body := fmt.Sprintf("Hi %s,\n\nYour OTP code is: %s\n\nThis code expires in 10 minutes.\n\nDo not share this code with anyone.", name, otp)
+body := fmt.Sprintf("Hi %s,\r\n\r\nYour OTP code is: %s\r\n\r\nThis code expires in 10 minutes.\r\n\r\nDo not share this code with anyone.", name, otp)
 return s.sendEmail(to, subject, body)
 }
 
 func (s *Service) sendPasswordResetEmail(to, code string) error {
 subject := "LifeGate — Password Reset Code"
-body := fmt.Sprintf("Your password reset code is: %s\n\nThis code expires in 15 minutes.", code)
+body := fmt.Sprintf("Your password reset code is: %s\r\n\r\nThis code expires in 15 minutes.", code)
 return s.sendEmail(to, subject, body)
 }
 

@@ -3,6 +3,8 @@ package auth
 import (
 "database/sql"
 "errors"
+"io"
+"log"
 "net/http"
 "os"
 "path/filepath"
@@ -11,10 +13,7 @@ import (
 )
 
 type Handler struct {
-svc *Service
-cfg interface {
-GetUploadDir() string
-}
+svc       *Service
 uploadDir string
 }
 
@@ -120,21 +119,20 @@ payload.Role = "user"
 // Handle certificate file upload
 if file, header, err := c.Request.FormFile("certificate"); err == nil {
 defer file.Close()
-if err := os.MkdirAll(h.uploadDir, 0750); err == nil {
-dst := filepath.Join(h.uploadDir, header.Filename)
-if f, err := os.OpenFile(filepath.Clean(dst), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600); err == nil {
+if mkErr := os.MkdirAll(h.uploadDir, 0750); mkErr != nil {
+log.Printf("Failed to create upload dir: %v", mkErr)
+} else {
+dst := filepath.Join(h.uploadDir, filepath.Base(header.Filename))
+f, openErr := os.OpenFile(filepath.Clean(dst), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+if openErr != nil {
+log.Printf("Failed to open upload file: %v", openErr)
+} else {
 defer f.Close()
-buf := make([]byte, 32*1024)
-for {
-n, readErr := file.Read(buf)
-if n > 0 {
-f.Write(buf[:n])
-}
-if readErr != nil {
-break
-}
-}
+if _, copyErr := io.Copy(f, file); copyErr != nil {
+log.Printf("Failed to save certificate: %v", copyErr)
+} else {
 payload.CertificateURL = dst
+}
 }
 }
 }

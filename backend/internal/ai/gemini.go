@@ -33,7 +33,6 @@ Parts []part `json:"parts"`
 }
 
 var contents []content
-// Prepend system prompt as first user message
 contents = append(contents, content{
 Role:  "user",
 Parts: []part{{Text: systemPrompt}},
@@ -68,7 +67,7 @@ return nil, err
 }
 req.Header.Set("Content-Type", "application/json")
 
-resp, err := http.DefaultClient.Do(req)
+resp, err := httpClient.Do(req)
 if err != nil {
 return nil, err
 }

@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS pending_registrations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
     otp VARCHAR(10) NOT NULL,
     otp_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     payload JSONB NOT NULL,

@@ -20,13 +20,12 @@ return &Service{aiProvider: aiProvider, db: db, nats: nats}
 }
 
 type ChatRequest struct {
-Message          string       `json:"message"`
+Message          string           `json:"message"`
 PreviousMessages []ai.ChatMessage `json:"previousMessages"`
 UserID           string
 }
 
 func (s *Service) Chat(ctx context.Context, req ChatRequest) (*ai.AIResponse, error) {
-// Publish symptom submitted event
 eventData, _ := json.Marshal(map[string]string{
 "user_id": req.UserID,
 "message": req.Message,
@@ -39,12 +38,10 @@ if err != nil {
 return nil, err
 }
 
-// Save diagnosis to DB
 if req.UserID != "" {
 s.saveDiagnosis(req.UserID, req.Message, resp)
 }
 
-// Publish preliminary diagnosis event
 if resp.Diagnosis != nil {
 diagData, _ := json.Marshal(map[string]interface{}{
 "user_id":   req.UserID,
@@ -58,9 +55,10 @@ return resp, nil
 
 func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse) {
 aiJSON, _ := json.Marshal(resp)
+runes := []rune(message)
 title := message
-if len(title) > 100 {
-title = title[:100]
+if len(runes) > 100 {
+title = string(runes[:100])
 }
 
 condition := ""

@@ -2,6 +2,7 @@ package physician
 
 import (
 "database/sql"
+"log"
 "time"
 )
 
@@ -18,7 +19,7 @@ Status         string         `json:"status"`
 PatientName    sql.NullString `json:"-"`
 CreatedAt      time.Time      `json:"created_at"`
 UpdatedAt      time.Time      `json:"updated_at"`
-// Exported for JSON
+// Exported flattened fields for JSON response
 TitleStr          string `json:"title,omitempty"`
 DescriptionStr    string `json:"description,omitempty"`
 ConditionStr      string `json:"condition,omitempty"`
@@ -28,10 +29,10 @@ PatientNameStr    string `json:"patient_name,omitempty"`
 }
 
 type Stats struct {
-TotalReports   int `json:"totalReports"`
-PendingCount   int `json:"pendingCount"`
-ActiveCount    int `json:"activeCount"`
-CompletedCount int `json:"completedCount"`
+TotalReports    int `json:"totalReports"`
+PendingCount    int `json:"pendingCount"`
+ActiveCount     int `json:"activeCount"`
+CompletedCount  int `json:"completedCount"`
 }
 
 type Repository struct {
@@ -65,6 +66,7 @@ if err := rows.Scan(
 &rpt.Condition, &rpt.Urgency, &rpt.PhysicianNotes, &rpt.Status,
 &rpt.PatientName, &rpt.CreatedAt, &rpt.UpdatedAt,
 ); err != nil {
+log.Printf("physician: scan report row: %v", err)
 continue
 }
 rpt.TitleStr = rpt.Title.String

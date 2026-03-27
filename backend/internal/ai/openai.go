@@ -8,9 +8,12 @@ import (
 "io"
 "net/http"
 "strings"
+"time"
 
 "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/config"
 )
+
+var httpClient = &http.Client{Timeout: 60 * time.Second}
 
 type openAIProvider struct {
 apiKey string
@@ -55,7 +58,7 @@ return nil, err
 req.Header.Set("Content-Type", "application/json")
 req.Header.Set("Authorization", "Bearer "+o.apiKey)
 
-resp, err := http.DefaultClient.Do(req)
+resp, err := httpClient.Do(req)
 if err != nil {
 return nil, err
 }
@@ -84,7 +87,6 @@ return parseAIResponse(result.Choices[0].Message.Content)
 }
 
 func parseAIResponse(content string) (*AIResponse, error) {
-// Extract JSON from the response (may be wrapped in markdown code fences)
 content = strings.TrimSpace(content)
 if idx := strings.Index(content, "```json"); idx != -1 {
 content = content[idx+7:]
@@ -101,7 +103,6 @@ content = strings.TrimSpace(content)
 
 var aiResp AIResponse
 if err := json.Unmarshal([]byte(content), &aiResp); err != nil {
-// Fallback: return raw text
 return &AIResponse{Text: content}, nil
 }
 return &aiResp, nil

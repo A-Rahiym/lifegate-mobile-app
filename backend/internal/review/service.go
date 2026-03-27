@@ -2,18 +2,19 @@ package review
 
 import (
 "database/sql"
+"log"
 "time"
 )
 
 type AnalysisRow struct {
-Date           string `json:"date"`
-TotalDiagnoses int    `json:"totalDiagnoses"`
-LowUrgency     int    `json:"lowUrgency"`
-MediumUrgency  int    `json:"mediumUrgency"`
-HighUrgency    int    `json:"highUrgency"`
-CriticalUrgency int   `json:"criticalUrgency"`
-Completed      int    `json:"completed"`
-Pending        int    `json:"pending"`
+Date            string `json:"date"`
+TotalDiagnoses  int    `json:"totalDiagnoses"`
+LowUrgency      int    `json:"lowUrgency"`
+MediumUrgency   int    `json:"mediumUrgency"`
+HighUrgency     int    `json:"highUrgency"`
+CriticalUrgency int    `json:"criticalUrgency"`
+Completed       int    `json:"completed"`
+Pending         int    `json:"pending"`
 }
 
 type Service struct {
@@ -48,6 +49,7 @@ var results []AnalysisRow
 for rows.Next() {
 var r AnalysisRow
 if err := rows.Scan(&r.Date, &r.TotalDiagnoses, &r.LowUrgency, &r.MediumUrgency, &r.HighUrgency, &r.CriticalUrgency, &r.Completed, &r.Pending); err != nil {
+log.Printf("review: scan analysis row: %v", err)
 continue
 }
 results = append(results, r)
