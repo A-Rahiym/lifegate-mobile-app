@@ -21,3 +21,6 @@ export { ProfileSkeleton } from './ProfileSkeleton';
 export { ProfileHeader } from './ProfileHeader';
 export { EditProfileModal } from './EditProfileModal';
 export { ChangePasswordModal } from './ChangePasswordModal';
+export { PrimaryCalendar } from './Calendar';
+export { InfoRow } from './InfoRow';
+export { WizardProgress } from './ProgressIndicator';

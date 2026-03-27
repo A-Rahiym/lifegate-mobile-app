@@ -2,7 +2,7 @@ import { Stack, router, useSegments } from 'expo-router';
 import { View, Text, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { WizardProgress } from 'components/progress-indicator';
+import { WizardProgress } from 'components/ProgressIndicator';
 import { STEP_TITLES } from 'constants/constants';
 
 /**
