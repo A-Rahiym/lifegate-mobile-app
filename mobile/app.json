@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "life-gate-mobile",
-    "slug": "life-gate-mobile",
+    "name": "LifeGate",
+    "slug": "lifegate",
     "version": "1.0.0",
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "scheme": "your-app-scheme",
+    "scheme": "lifegate",
     "experiments": {
       "tsconfigPaths": true
     },
