@@ -260,6 +260,21 @@ return err
 return s.repo.MarkPasswordResetUsed(pr.ID)
 }
 
+func (s *Service) ChangePassword(userID, currentPassword, newPassword string) error {
+hash, err := s.repo.GetPasswordHashByID(userID)
+if err != nil {
+return fmt.Errorf("user not found")
+}
+if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(currentPassword)); err != nil {
+return fmt.Errorf("current password is incorrect")
+}
+newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+if err != nil {
+return err
+}
+return s.repo.UpdatePasswordByID(userID, string(newHash))
+}
+
 func (s *Service) generateJWT(u *User) (string, error) {
 expiry, err := time.ParseDuration(s.cfg.JWTExpiry)
 if err != nil {

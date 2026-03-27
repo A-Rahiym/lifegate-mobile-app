@@ -205,3 +205,14 @@ func (r *Repository) UpdatePassword(email, hash string) error {
 _, err := r.db.Exec(`UPDATE users SET password_hash=$1, updated_at=NOW() WHERE email=$2`, hash, email)
 return err
 }
+
+func (r *Repository) GetPasswordHashByID(userID string) (string, error) {
+var hash string
+err := r.db.QueryRow(`SELECT password_hash FROM users WHERE id = $1`, userID).Scan(&hash)
+return hash, err
+}
+
+func (r *Repository) UpdatePasswordByID(userID, hash string) error {
+_, err := r.db.Exec(`UPDATE users SET password_hash=$1, updated_at=NOW() WHERE id=$2`, hash, userID)
+return err
+}

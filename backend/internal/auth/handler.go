@@ -243,3 +243,25 @@ return
 }
 respond(c, http.StatusOK, true, "User fetched", gin.H{"user": user})
 }
+
+func (h *Handler) ChangePassword(c *gin.Context) {
+userID, _ := c.Get("userID")
+uid, ok := userID.(string)
+if !ok || uid == "" {
+respond(c, http.StatusUnauthorized, false, "Unauthorized", nil)
+return
+}
+var req struct {
+CurrentPassword string `json:"currentPassword" binding:"required"`
+NewPassword     string `json:"newPassword" binding:"required"`
+}
+if err := c.ShouldBindJSON(&req); err != nil {
+respond(c, http.StatusBadRequest, false, err.Error(), nil)
+return
+}
+if err := h.svc.ChangePassword(uid, req.CurrentPassword, req.NewPassword); err != nil {
+respond(c, http.StatusBadRequest, false, err.Error(), nil)
+return
+}
+respond(c, http.StatusOK, true, "Password changed successfully", nil)
+}

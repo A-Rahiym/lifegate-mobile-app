@@ -376,7 +376,6 @@ async startRegistration(
 
   /**
    * Resend OTP (both password reset and signup)
-   * TODO: Call POST /auth/otp/resend when backend is ready
    */
   async resendOtp(
     email: string,
@@ -385,15 +384,17 @@ async startRegistration(
     try {
       console.log(`Resending OTP for ${type} to:`, email);
 
-      // TODO: Implement actual API call when backend is ready
-      // const response = await api.post('/auth/otp/resend', { email, type });
-      // return { success: response.data.success, message: response.data.message };
+      if (type === 'signup') {
+        const result = await this.resendRegistrationOTP(email);
+        return { success: result.success, message: result.message ?? 'Code resent' };
+      }
 
-      // Placeholder: Simulate success
-      return {
-        success: true,
-        message: 'Code resent successfully',
-      };
+      // type === 'password-reset': re-trigger send-reset-code
+      const response = await api.post<{ success: boolean; message: string }>(
+        '/auth/password/send-reset-code',
+        { email }
+      );
+      return { success: response.data.success, message: response.data.message };
     } catch (error: any) {
       console.error('Resend OTP error:', error);
       return {
@@ -433,12 +434,13 @@ async startRegistration(
     }
 
     console.log('Profile fetched successfully');
-    const user = response.data.data;
+    const data = response.data.data as any;
+    const user = data?.user ?? data;
     console.log('User profile:', user);
 
     return {
       success: true,
-      user: user,
+      user,
     };
   } catch (error: any) {
     console.error('Get profile error:', extractErrorMessage(error));
@@ -452,26 +454,20 @@ async startRegistration(
 
   /**
    * Change user password
-   * Calls POST /auth/change-password
+   * Calls PUT /auth/change-password
    */
   async changePassword(
     currentPassword: string,
     newPassword: string,
-    confirmPassword: string
+    _confirmPassword: string
   ): Promise<{ success: boolean; message: string }> {
     try {
       console.log('Changing password...');
-      // TODO: Implement actual API call when backend is ready
-      // const response = await api.post('/auth/change-password', {
-      //   currentPassword,
-      //   newPassword,
-      //   confirmPassword,
-      // });
-      // return { success: response.data.success, message: response.data.message };
-      return {
-        success: true,
-        message: 'Password changed successfully',
-      };
+      const response = await api.put<{ success: boolean; message: string }>(
+        '/auth/change-password',
+        { currentPassword, newPassword }
+      );
+      return { success: response.data.success, message: response.data.message };
     } catch (error: any) {
       console.error('Change password error:', error);
       return {

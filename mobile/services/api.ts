@@ -37,14 +37,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-api.interceptors.request.use(async (config) => {
-  const token = await getToken().catch(() => null);
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 
 /**
  * Response interceptor: Handle 401 errors (unauthorized)

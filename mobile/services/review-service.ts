@@ -1,68 +1,75 @@
-import { ReviewAnalysis, Activity, ActivityMetric } from '../types/professional-types';
+import api from './api';
+import { ReviewAnalysis, ActivityMetric } from '../types/professional-types';
 
-/**
- * Mock Activities Data
- */
-const generateMockActivities = (): Activity[] => [
-  {
-    id: '1',
-    patientId: 'PT-1023',
-    caseType: 'Verified',
-    condition: 'Hypertension',
-    timestamp: new Date().toISOString(),
-    timeAgo: '1h ago',
-  },
-  {
-    id: '2',
-    patientId: 'PT-2045',
-    caseType: 'Escalated',
-    condition: 'Severe Asthma',
-    timestamp: new Date().toISOString(),
-    timeAgo: '3h ago',
-  },
-  {
-    id: '3',
-    patientId: 'PT-3108',
-    caseType: 'Rejected',
-    condition: 'Routine Checkup',
-    timestamp: new Date().toISOString(),
-    timeAgo: '6h ago',
-  },
-];
+// Shape returned by GET /review/analysis
+interface AnalysisRow {
+  date: string;
+  totalDiagnoses: number;
+  lowUrgency: number;
+  mediumUrgency: number;
+  highUrgency: number;
+  criticalUrgency: number;
+  completed: number;
+  pending: number;
+}
 
-/**
- * Mock Metrics Data - Chart percentages with colors matching screenshot
- * Pending: 19% (Orange)
- * Active: 44% (Blue)
- * Completed: 37% (Green)
- */
-const generateMockMetrics = (): ActivityMetric[] => [
-  { label: 'Pending', percentage: 19, color: '#F59E0B' },
-  { label: 'Active', percentage: 44, color: '#3B82F6' },
-  { label: 'Completed', percentage: 37, color: '#10B981' },
-];
+const buildReviewAnalysis = (rows: AnalysisRow[], date: Date): ReviewAnalysis => {
+  const totals = rows.reduce(
+    (acc, r) => ({
+      total: acc.total + r.totalDiagnoses,
+      pending: acc.pending + r.pending,
+      completed: acc.completed + r.completed,
+    }),
+    { total: 0, pending: 0, completed: 0 }
+  );
+
+  const active = Math.max(0, totals.total - totals.pending - totals.completed);
+
+  const metrics: ActivityMetric[] =
+    totals.total > 0
+      ? [
+          { label: 'Pending', percentage: Math.round((totals.pending / totals.total) * 100), color: '#F59E0B' },
+          { label: 'Active', percentage: Math.round((active / totals.total) * 100), color: '#3B82F6' },
+          { label: 'Completed', percentage: Math.round((totals.completed / totals.total) * 100), color: '#10B981' },
+        ]
+      : [
+          { label: 'Pending', percentage: 0, color: '#F59E0B' },
+          { label: 'Active', percentage: 0, color: '#3B82F6' },
+          { label: 'Completed', percentage: 0, color: '#10B981' },
+        ];
+
+  return {
+    date,
+    totalReview: totals.total,
+    pendingCases: totals.pending,
+    activeCases: active,
+    completedCases: totals.completed,
+    activities: [],
+    metrics,
+    loading: false,
+    error: null,
+  };
+};
+
+const formatDate = (d: Date): string => d.toISOString().split('T')[0];
 
 export const ReviewService = {
   /**
    * Get review analysis for a specific date
-   * Returns all review data including stats, activities, and chart metrics
+   * GET /review/analysis?date=YYYY-MM-DD
    */
   async getReviewAnalysis(date: Date): Promise<ReviewAnalysis> {
     try {
-      // Simulate API call duration
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const response = await api.get<{ success: boolean; data: AnalysisRow[] }>(
+        '/review/analysis',
+        { params: { date: formatDate(date) } }
+      );
 
-      return {
-        date,
-        totalReview: 64,
-        pendingCases: 12,
-        activeCases: 28,
-        completedCases: 24,
-        activities: generateMockActivities(),
-        metrics: generateMockMetrics(),
-        loading: false,
-        error: null,
-      };
+      if (!response.data.success) {
+        throw new Error('Failed to fetch review analysis');
+      }
+
+      return buildReviewAnalysis(response.data.data ?? [], date);
     } catch (error) {
       console.error('Error fetching review analysis:', error);
       return {
@@ -72,7 +79,11 @@ export const ReviewService = {
         activeCases: 0,
         completedCases: 0,
         activities: [],
-        metrics: [],
+        metrics: [
+          { label: 'Pending', percentage: 0, color: '#F59E0B' },
+          { label: 'Active', percentage: 0, color: '#3B82F6' },
+          { label: 'Completed', percentage: 0, color: '#10B981' },
+        ],
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch review analysis',
       };
@@ -81,22 +92,20 @@ export const ReviewService = {
 
   /**
    * Get date range analysis
+   * GET /review/analysis?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
    */
   async getDateRangeAnalysis(startDate: Date, endDate: Date): Promise<ReviewAnalysis> {
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const response = await api.get<{ success: boolean; data: AnalysisRow[] }>(
+        '/review/analysis',
+        { params: { startDate: formatDate(startDate), endDate: formatDate(endDate) } }
+      );
 
-      return {
-        date: startDate,
-        totalReview: 64,
-        pendingCases: 12,
-        activeCases: 28,
-        completedCases: 24,
-        activities: generateMockActivities(),
-        metrics: generateMockMetrics(),
-        loading: false,
-        error: null,
-      };
+      if (!response.data.success) {
+        throw new Error('Failed to fetch date range analysis');
+      }
+
+      return buildReviewAnalysis(response.data.data ?? [], startDate);
     } catch (error) {
       console.error('Error fetching date range analysis:', error);
       return {
@@ -106,7 +115,11 @@ export const ReviewService = {
         activeCases: 0,
         completedCases: 0,
         activities: [],
-        metrics: [],
+        metrics: [
+          { label: 'Pending', percentage: 0, color: '#F59E0B' },
+          { label: 'Active', percentage: 0, color: '#3B82F6' },
+          { label: 'Completed', percentage: 0, color: '#10B981' },
+        ],
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to fetch analysis',
       };
