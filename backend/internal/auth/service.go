@@ -33,41 +33,64 @@ Token string `json:"token"`
 User  *User  `json:"user"`
 }
 
-func (s *Service) Login(ctx context.Context, email, password string) (*TokenPair, error) {
-email = strings.ToLower(strings.TrimSpace(email))
+func (s *Service) Login(ctx context.Context, email, password, clientIP string) (*TokenPair, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
 
-// Rate limiting: max 5 failed attempts per 15-minute fixed window.
-const maxAttempts = 5
-const windowSecs = 15 * 60
-rateLimitKey := "login:attempts:" + email
-attempts, _ := s.redis.IncrWithTTL(ctx, rateLimitKey, windowSecs)
-if attempts > maxAttempts {
-return nil, fmt.Errorf("too many login attempts, please try again later")
-}
+	const maxAttempts = 5
+	const windowSecs = 15 * 60
 
-hash, err := s.repo.GetPasswordHash(email)
-if err != nil {
-if errors.Is(err, sql.ErrNoRows) {
-return nil, fmt.Errorf("invalid credentials")
-}
-return nil, err
-}
-if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
-return nil, fmt.Errorf("invalid credentials")
-}
+	// Per-account rate limit (prevents brute force against a known email).
+	accountKey := "login:attempts:" + email
+	actCount, _ := s.redis.GetInt64(ctx, accountKey)
+	if actCount >= maxAttempts {
+		return nil, fmt.Errorf("too many login attempts, please try again later")
+	}
 
-// Successful auth: reset the brute-force counter.
-_ = s.redis.Del(ctx, rateLimitKey)
+	// Per-IP rate limit (prevents distributed lockout attacks).
+	if clientIP != "" {
+		ipKey := "login:ip:" + clientIP
+		ipCount, _ := s.redis.GetInt64(ctx, ipKey)
+		if ipCount >= maxAttempts*3 {
+			return nil, fmt.Errorf("too many login attempts from your network, please try again later")
+		}
+	}
 
-user, err := s.repo.FindUserByEmail(email)
-if err != nil {
-return nil, err
-}
-token, err := s.generateJWT(user)
-if err != nil {
-return nil, err
-}
-return &TokenPair{Token: token, User: user}, nil
+	hash, err := s.repo.GetPasswordHash(email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Increment failure counters so unknown-email probing is also rate-limited.
+			_, _ = s.redis.IncrWithTTL(ctx, accountKey, windowSecs)
+			if clientIP != "" {
+				_, _ = s.redis.IncrWithTTL(ctx, "login:ip:"+clientIP, windowSecs)
+			}
+			return nil, fmt.Errorf("invalid credentials")
+		}
+		return nil, err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
+		// Only increment on wrong password, not on every request.
+		_, _ = s.redis.IncrWithTTL(ctx, accountKey, windowSecs)
+		if clientIP != "" {
+			_, _ = s.redis.IncrWithTTL(ctx, "login:ip:"+clientIP, windowSecs)
+		}
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Successful auth: reset both rate-limit counters.
+	_ = s.redis.Del(ctx, accountKey)
+	if clientIP != "" {
+		_ = s.redis.Del(ctx, "login:ip:"+clientIP)
+	}
+
+	user, err := s.repo.FindUserByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	token, err := s.generateJWT(user)
+	if err != nil {
+		return nil, err
+	}
+	return &TokenPair{Token: token, User: user}, nil
 }
 
 func (s *Service) Register(u *User, password string) (*TokenPair, error) {
@@ -320,19 +343,23 @@ return s.repo.UpdatePasswordByID(userID, string(newHash))
 }
 
 func (s *Service) generateJWT(u *User) (string, error) {
-expiry, err := time.ParseDuration(s.cfg.JWTExpiry)
-if err != nil {
-expiry = 24 * time.Hour
-}
-claims := jwt.MapClaims{
-"user_id": u.ID,
-"email":   u.Email,
-"role":    u.Role,
-"exp":     time.Now().Add(expiry).Unix(),
-"iat":     time.Now().Unix(),
-}
-token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-return token.SignedString([]byte(s.cfg.JWTSecret))
+	expiry, err := time.ParseDuration(s.cfg.JWTExpiry)
+	if err != nil {
+		expiry = 24 * time.Hour
+	}
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"jti":     randomHex(16), // unique token ID — enables future revocation
+		"iss":     "lifegate",
+		"user_id": u.ID,
+		"email":   u.Email,
+		"role":    u.Role,
+		"iat":     now.Unix(),
+		"nbf":     now.Unix(),
+		"exp":     now.Add(expiry).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.cfg.JWTSecret))
 }
 
 func (s *Service) sendOTPEmail(to, name, otp string) error {

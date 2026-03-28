@@ -50,6 +50,19 @@ return nil
 return c.rdb.Del(ctx, key).Err()
 }
 
+// GetInt64 returns the integer value stored at key, or 0 if the key does not
+// exist or Redis is unavailable.
+func (c *Client) GetInt64(ctx context.Context, key string) (int64, error) {
+	if c.rdb == nil {
+		return 0, nil
+	}
+	val, err := c.rdb.Get(ctx, key).Int64()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	return val, err
+}
+
 // IncrWithTTL atomically increments the integer at key and, on the first
 // increment (count == 1), sets a TTL to enforce a fixed-window expiry.
 // Returns the new count. Returns 0 if Redis is unavailable (fail-open).

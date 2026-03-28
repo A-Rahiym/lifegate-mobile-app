@@ -57,21 +57,21 @@ c.JSON(code, body)
 }
 
 func (h *Handler) Login(c *gin.Context) {
-var req struct {
-Email    string `json:"email" binding:"required,email"`
-Password string `json:"password" binding:"required"`
-}
-if err := c.ShouldBindJSON(&req); err != nil {
-respond(c, http.StatusBadRequest, false, err.Error(), nil)
-return
-}
+	var req struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond(c, http.StatusBadRequest, false, err.Error(), nil)
+		return
+	}
 
-pair, err := h.svc.Login(c.Request.Context(), req.Email, req.Password)
-if err != nil {
-respond(c, http.StatusUnauthorized, false, err.Error(), nil)
-return
-}
-respond(c, http.StatusOK, true, "Login successful", gin.H{"token": pair.Token, "user": pair.User})
+	pair, err := h.svc.Login(c.Request.Context(), req.Email, req.Password, c.ClientIP())
+	if err != nil {
+		respond(c, http.StatusUnauthorized, false, err.Error(), nil)
+		return
+	}
+	respond(c, http.StatusOK, true, "Login successful", gin.H{"token": pair.Token, "user": pair.User})
 }
 
 func (h *Handler) Register(c *gin.Context) {

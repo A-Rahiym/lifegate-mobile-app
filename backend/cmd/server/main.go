@@ -18,9 +18,14 @@ wshub "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/websocket"
 )
 
 func main() {
-cfg := config.Load()
+	cfg := config.Load()
 
-// Infrastructure
+	// Fail fast on a weak JWT secret — minimum 32 bytes for HS256 security.
+	if len(cfg.JWTSecret) < 32 {
+		log.Fatal("FATAL: JWT_SECRET must be at least 32 characters. Set a strong secret in .env")
+	}
+
+	// Infrastructure
 database := db.Connect(cfg.DatabaseURL)
 defer database.Close()
 

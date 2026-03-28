@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -163,3 +165,93 @@ func TestGenerateJWT_DifferentRolesProduceDifferentTokens(t *testing.T) {
 		t.Error("tokens for different roles should differ (role is in claims)")
 	}
 }
+
+// parseJWTPayload decodes the claims section of a JWT without verifying the signature.
+func parseJWTPayload(t *testing.T, tok string) map[string]interface{} {
+	t.Helper()
+	parts := strings.Split(tok, ".")
+	if len(parts) != 3 {
+		t.Fatalf("expected 3 JWT parts, got %d", len(parts))
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("base64 decode payload: %v", err)
+	}
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	return claims
+}
+
+func TestGenerateJWT_HasIssuerClaim(t *testing.T) {
+	svc := &Service{cfg: newTestCfg()}
+	tok, _ := svc.generateJWT(makeTestUser())
+	claims := parseJWTPayload(t, tok)
+	if iss, ok := claims["iss"]; !ok || iss != "lifegate" {
+		t.Errorf("expected iss=lifegate, got %v", claims["iss"])
+	}
+}
+
+func TestGenerateJWT_HasNbfClaim(t *testing.T) {
+	svc := &Service{cfg: newTestCfg()}
+	tok, _ := svc.generateJWT(makeTestUser())
+	claims := parseJWTPayload(t, tok)
+	if _, ok := claims["nbf"]; !ok {
+		t.Error("expected nbf claim to be present")
+	}
+}
+
+func TestGenerateJWT_HasJtiClaim(t *testing.T) {
+	svc := &Service{cfg: newTestCfg()}
+	tok, _ := svc.generateJWT(makeTestUser())
+	claims := parseJWTPayload(t, tok)
+	jti, ok := claims["jti"]
+	if !ok {
+		t.Fatal("expected jti claim to be present")
+	}
+	if jti == "" {
+		t.Error("jti claim must not be empty")
+	}
+}
+
+func TestGenerateJWT_UniqueJti(t *testing.T) {
+	svc := &Service{cfg: newTestCfg()}
+	u := makeTestUser()
+	seen := make(map[string]struct{})
+	for i := 0; i < 20; i++ {
+		tok, err := svc.generateJWT(u)
+		if err != nil {
+			t.Fatalf("generateJWT error: %v", err)
+		}
+		claims := parseJWTPayload(t, tok)
+		jti := claims["jti"].(string)
+		if _, dup := seen[jti]; dup {
+			t.Errorf("duplicate jti produced: %q", jti)
+		}
+		seen[jti] = struct{}{}
+	}
+}
+
+func TestGenerateJWT_IatEqualsNbf(t *testing.T) {
+	svc := &Service{cfg: newTestCfg()}
+	tok, _ := svc.generateJWT(makeTestUser())
+	claims := parseJWTPayload(t, tok)
+	iat := claims["iat"].(float64)
+	nbf := claims["nbf"].(float64)
+	if iat != nbf {
+		t.Errorf("expected iat == nbf (single time.Now() call), got iat=%v nbf=%v", iat, nbf)
+	}
+}
+
+func TestGenerateJWT_ExpAfterIat(t *testing.T) {
+	svc := &Service{cfg: newTestCfg()}
+	tok, _ := svc.generateJWT(makeTestUser())
+	claims := parseJWTPayload(t, tok)
+	iat := claims["iat"].(float64)
+	exp := claims["exp"].(float64)
+	if exp <= iat {
+		t.Errorf("expected exp > iat, got exp=%v iat=%v", exp, iat)
+	}
+}
+
