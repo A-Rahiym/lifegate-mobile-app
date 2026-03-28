@@ -45,7 +45,11 @@ export default function UserProfileStep() {
 
   const handleDateChange = (fieldName: string, date: Date) => {
     if (!isValidField(fieldName)) return;
-    const new_date = date.toISOString().split('T')[0];
+    // Format as YYYY-MM-DD using local date getters to avoid UTC timezone offset
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const new_date = `${year}-${month}-${day}`;
     setUserField(fieldName, new_date);
     const error = validateSingleField(fieldName, new_date, false);
     setFieldErrors((prev) => ({ ...prev, [fieldName]: error || '' }));
@@ -69,13 +73,17 @@ export default function UserProfileStep() {
 
         <DOBInput
           label="Date of Birth"
-          value={userDraft.dob ? new Date(userDraft.dob) : null}
+          required
+          hasError={!!fieldErrors.dob}
+          value={userDraft.dob ? (() => { const [y, m, d] = userDraft.dob.split('-').map(Number); return new Date(y, m - 1, d); })() : null}
           onChange={(date: Date) => handleDateChange('dob', date)}
         />
         <ErrorMessage fieldName="dob" fieldErrors={fieldErrors} />
 
         <Dropdown
           label="Gender"
+          required
+          hasError={!!fieldErrors.gender}
           value={userDraft.gender || ''}
           onChange={(value: string) => handleFieldChange('gender', value)}
           options={GENDER_OPTIONS}

@@ -32,8 +32,9 @@ export const PhoneNumberInput: React.FC<PhoneInputProps> = ({
   }
 
   return (
-    <View className="w-full mb-4 bg-[#F2F4F7]">
-      <Text className="text-gray-700 font-semibold mb-2">
+    <View className="mb-3 w-full">
+      {/* Label — matches LabeledInput */}
+      <Text className="mb-1.5 font-medium text-gray-700">
         {label} {required && <Text className="text-red-500">*</Text>}
       </Text>
       <View style={{ width: '100%' }}>
