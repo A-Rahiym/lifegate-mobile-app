@@ -47,16 +47,20 @@ export default function LicenseScreen() {
   );
 
   const canProceed = () => {
-    const hasAllTextFields = 
-    userDraft.certificateName &&
-    userDraft.certificateId &&
-    userDraft.certificateIssueDate;
-  
-  // Check certificate file is uploaded
-  const hasCertificateFile = !!userDraft.certificate;
-  
-  return hasAllTextFields && hasCertificateFile;
-};  
+    const hasAllTextFields =
+      !!userDraft.certificateName &&
+      !!userDraft.certificateId &&
+      !!userDraft.certificateIssueDate;
+
+    const hasCertificateFile = !!userDraft.certificate;
+
+    const noFieldErrors =
+      !fieldErrors.certificateName &&
+      !fieldErrors.certificateId &&
+      !fieldErrors.certificateIssueDate;
+
+    return hasAllTextFields && hasCertificateFile && noFieldErrors;
+  };
 
   const handleDateChange = (fieldName: string, date: Date) => {
     if (!isValidField(fieldName)) return;

@@ -8,8 +8,7 @@ import { InfoRow } from 'components/InfoRow';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function UserReviewStep() {
-  const { userDraft, error: backendError, startRegistration, clearError } = useRegistrationStore();
-  const [loading, setLoading] = useState(false);
+  const { userDraft, error: backendError, loading, startRegistration, clearError } = useRegistrationStore();
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [agreed, setAgreed] = useState(false);
 
@@ -24,28 +23,22 @@ export default function UserReviewStep() {
   const handleFinalSubmit = async () => {
     if (!agreed) return;
 
-    setLoading(true);
     setValidationErrors([]);
 
     const errors = validateRegistration(userDraft, 'user');
     if (errors.length > 0) {
       setValidationErrors(errors);
-      setLoading(false);
       return;
     }
 
-    try {
-      clearError();
-      const success = await startRegistration('user');
-      if (success) {
-        const { pendingRegistrationEmail } = useRegistrationStore.getState();
-        router.replace({
-          pathname: '/(auth)/verify-signup-otp',
-          params: { email: pendingRegistrationEmail },
-        });
-      }
-    } finally {
-      setLoading(false);
+    clearError();
+    const success = await startRegistration('user');
+    if (success) {
+      const { pendingRegistrationEmail } = useRegistrationStore.getState();
+      router.replace({
+        pathname: '/(auth)/verify-signup-otp',
+        params: { email: pendingRegistrationEmail },
+      });
     }
   };
 
@@ -117,6 +110,12 @@ export default function UserReviewStep() {
           </View>
           <Text className="ml-3 flex-1 text-sm text-gray-700">
             I confirm the information above is accurate and agree to the{' '}
+            <Text
+              className="font-semibold text-teal-600"
+              onPress={() => Linking.openURL('https://www.lifegate.com/terms')}>
+              Terms of Service
+            </Text>
+            {' '}and{' '}
             <Text
               className="font-semibold text-teal-600"
               onPress={() => Linking.openURL('https://www.lifegate.com/privacy-policy')}>

@@ -105,7 +105,37 @@ CertificateURL       string `json:"certificateUrl"`
 
 const otpTTL = 600
 
+// ErrEmailAlreadyRegistered is returned when registration is attempted with an already-existing email.
+var ErrEmailAlreadyRegistered = errors.New("email is already registered")
+
+// ErrOTPRateLimited is returned when too many OTP requests are sent for a single email.
+var ErrOTPRateLimited = errors.New("too many OTP requests, please try again later")
+
 func (s *Service) StartRegistration(ctx context.Context, payload RegisterStartPayload) (string, int, error) {
+// Normalize email
+payload.Email = strings.ToLower(strings.TrimSpace(payload.Email))
+
+// Reject if email already has a confirmed account
+if _, err := s.repo.FindUserByEmail(payload.Email); err == nil {
+return "", 0, ErrEmailAlreadyRegistered
+}
+
+// OTP send rate limiting: max 3 per hour per email
+const maxOTPSends = 3
+const otpRateWindowSecs = 60 * 60
+otpRateKey := "otp:rate:" + payload.Email
+sends, _ := s.redis.IncrWithTTL(ctx, otpRateKey, otpRateWindowSecs)
+if sends > maxOTPSends {
+return "", 0, ErrOTPRateLimited
+}
+
+// Hash password before persisting so plaintext never reaches the database
+hash, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.DefaultCost)
+if err != nil {
+return "", 0, fmt.Errorf("failed to process credentials: %w", err)
+}
+payload.Password = string(hash)
+
 otp, err := generateOTP(6)
 if err != nil {
 return "", 0, err
@@ -171,7 +201,7 @@ if err := json.Unmarshal(pr.Payload, &payload); err != nil {
 return nil, fmt.Errorf("invalid registration payload")
 }
 
-// Password is already bcrypt-hashed when stored during StartRegistration
+// Password was bcrypt-hashed in StartRegistration before being persisted.
 passwordHash := payload.Password
 
 u := &User{

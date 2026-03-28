@@ -61,13 +61,14 @@ export default function ProfessionalScreen() {
 
   const canProceed = () => {
     return (
-      userDraft.phone &&
-      userDraft.gender &&
-      userDraft.specialization &&
+      !!userDraft.phone &&
+      !!userDraft.dob &&
+      !!userDraft.gender &&
+      !!userDraft.specialization &&
       !fieldErrors.phone &&
+      !fieldErrors.dob &&
       !fieldErrors.gender &&
       !fieldErrors.specialization &&
-      !fieldErrors.dob &&
       !fieldErrors.language &&
       !fieldErrors.yearsOfExperience
     );

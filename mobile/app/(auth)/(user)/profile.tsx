@@ -94,7 +94,8 @@ export default function UserProfileStep() {
 
         <View className="mb-2 mt-1">
           <Text className="mb-1.5 font-medium text-gray-700">
-            Health History <Text className="text-red-500">*</Text>
+            Health History{' '}
+            <Text className="text-xs font-normal text-gray-400">(optional)</Text>
           </Text>
           <TextInput
             value={userDraft.healthHistory}

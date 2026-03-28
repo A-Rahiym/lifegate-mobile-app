@@ -180,7 +180,14 @@ payload.CertificateURL = dst
 
 email, ttl, err := h.svc.StartRegistration(c.Request.Context(), payload)
 if err != nil {
+switch {
+case errors.Is(err, ErrEmailAlreadyRegistered):
+respond(c, http.StatusConflict, false, err.Error(), nil)
+case errors.Is(err, ErrOTPRateLimited):
+respond(c, http.StatusTooManyRequests, false, err.Error(), nil)
+default:
 respond(c, http.StatusInternalServerError, false, err.Error(), nil)
+}
 return
 }
 respond(c, http.StatusOK, true, "OTP sent to your email", gin.H{"email": email, "otpExpiresIn": ttl})
