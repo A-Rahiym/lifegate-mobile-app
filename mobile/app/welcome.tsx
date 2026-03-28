@@ -40,6 +40,11 @@ export default function WelcomeScreen() {
             type="secondary"
             onPress={() => router.push('/(prof-tab)/review')}
           />
+
+          {/* Copyright */}
+          <Text className="mt-8 text-center text-xs text-[#0F8F8B]/60">
+            © {new Date().getFullYear()} LifeGate by DSHub. All rights reserved.
+          </Text>
         </View>
 
       </View>

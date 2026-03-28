@@ -171,6 +171,11 @@ export default function LoginScreen() {
               <Text className="text-sm font-semibold text-[#0EA5A4]">Register</Text>
             </Pressable>
           </View>
+
+          {/* Copyright */}
+          <Text className="mt-8 text-center text-xs text-gray-400">
+            © {new Date().getFullYear()} LifeGate by DSHub. All rights reserved.
+          </Text>
         </ScrollView>
       </LinearGradient>
     </SafeAreaView>

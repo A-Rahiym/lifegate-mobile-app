@@ -42,12 +42,12 @@ export default function RegisterChoiceScreen() {
 
   const handleRegisterAsUser = () => {
     setUserField('role', 'user');
-    router.push('/(auth)/(user)');
+    router.push({ pathname: '/(auth)/consent', params: { role: 'user' } });
   };
 
   const handleRegisterAsHealthProfessional = () => {
     setUserField('role', 'professional');
-    router.push('/(auth)/(health-professional)');
+    router.push({ pathname: '/(auth)/consent', params: { role: 'professional' } });
   };
 
   return (
@@ -91,6 +91,11 @@ export default function RegisterChoiceScreen() {
               <Text className="font-semibold text-[#0EA5A4]">Sign In</Text>
             </Pressable>
           </View>
+
+          {/* Copyright */}
+          <Text className="mt-auto pb-4 pt-6 text-center text-xs text-gray-400">
+            © {new Date().getFullYear()} LifeGate by DSHub. All rights reserved.
+          </Text>
         </View>
       </LinearGradient>
     </SafeAreaView>
