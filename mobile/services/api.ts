@@ -4,12 +4,15 @@ import { getToken, removeToken } from '../utils/tokenStorage';
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'https://lifegatemobilebackend-2.onrender.com/api';
 
+// Render free-tier cold starts can take up to 50 s; use 60 s to be safe.
+const TIMEOUT_MS = 60_000;
+
 /**
  * Create and configure axios instance with interceptors
  */
 const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: TIMEOUT_MS,
 });
 
 /**

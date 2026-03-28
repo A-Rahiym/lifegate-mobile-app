@@ -41,7 +41,7 @@ export const extractErrorMessage = (error: any): string => {
 
   // Network errors
   if (error.code === 'ECONNABORTED') {
-    return 'Request timeout. Please check your connection.';
+    return 'Connection timed out. The server may be waking up — please try again in a moment.';
   }
   if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
     return 'Cannot connect to server. Please try again.';
