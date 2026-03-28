@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, Linking } from 'react-native';
 import { PrimaryButton } from 'components/Button';
 import { useRegistrationStore } from 'stores/auth-store';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { validateRegistration, ValidationError } from 'utils/validation';
 import { InfoRow } from 'components/InfoRow';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,14 @@ export default function UserReviewStep() {
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [agreed, setAgreed] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!userDraft.phone || !userDraft.dob || !userDraft.gender) {
+        router.replace('/(auth)/(user)/profile');
+      }
+    }, [userDraft.phone, userDraft.dob, userDraft.gender])
+  );
 
   const handleFinalSubmit = async () => {
     if (!agreed) return;

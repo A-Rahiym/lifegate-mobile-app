@@ -121,7 +121,7 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
       payload.append('gender', gender.toLowerCase());
       payload.append('language', language.toLowerCase());
       if (healthHistory) {
-        payload.append('healthHistory', healthHistory);
+        payload.append('health_history', healthHistory);
       }
       // Add professional-specific fields
       if (role === 'professional') {
@@ -135,18 +135,13 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
             uri: certificate.uri,
             name: certificate.name,
             type: certificate.type,
-          } as any);
+          } as never);
         }
       }
-      console.log(
-        certificate ? 'Certificate file included in payload:' : 'No certificate file included'
-      );
-      console.log('Starting registration with FormData payload for role:', role);
       const response = await AuthService.startRegistration(payload);
 
       if (!response.success || !response.data) {
         set({ loading: false, error: response.message ?? 'Failed to start registration' });
-        console.error('Registration start failed:', response.message);
         return false;
       }
       // Store email and OTP expiration, clear password from memory
@@ -158,9 +153,8 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
         error: null,
       });
 
-      console.log('Registration started - OTP sent to email, password cleared from state');
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }
@@ -176,8 +170,6 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
         const errorMessage = extractErrorMessage({
           response: { data: { message: response.message } },
         });
-        console.error('OTP verification failed:', errorMessage);
-
         // Instead of directly using errorMessage, ensure it's a string
         if (errorMessage.toLowerCase().includes('expired')) {
           set({ loading: false, error: 'OTP expired. Please request a new code.' });
@@ -190,8 +182,6 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
         }
         return false;
       }
-      console.log('OTP verification response:', response);
-
       // Capture role BEFORE clearing the draft, then update auth store with verified user
       const capturedRole = get().userDraft.role;
       if (response.data.user) {
@@ -207,11 +197,9 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
         error: null,
       });
 
-      console.log('Registration verified, role:', capturedRole);
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       set({ loading: false, error: extractErrorMessage(err) });
-      console.error('OTP verification error:', extractErrorMessage(err));
       return false;
     }
   },
@@ -234,9 +222,8 @@ export const useRegistrationStore = create<RegistrationState>((set, get) => ({
         error: null,
       });
 
-      console.log('Registration OTP resent successfully');
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       set({ loading: false, error: extractErrorMessage(err) });
       return false;
     }

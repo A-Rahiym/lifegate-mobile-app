@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, Linking } from 'react-native';
 import { PrimaryButton } from 'components/Button';
 import { useRegistrationStore } from 'stores/auth-store';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { validateRegistration, ValidationError } from 'utils/validation';
 import { InfoRow } from 'components/InfoRow';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,14 @@ export default function ReviewScreen() {
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [agreed, setAgreed] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!userDraft.certificate || !userDraft.certificateName || !userDraft.certificateId) {
+        router.replace('/(auth)/(health-professional)/license');
+      }
+    }, [userDraft.certificate, userDraft.certificateName, userDraft.certificateId])
+  );
 
   const handleFinalSubmit = async () => {
     if (!agreed) return;

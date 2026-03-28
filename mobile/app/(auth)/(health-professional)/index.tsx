@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { LabeledInput } from 'components/LabeledInput';
 import { PrimaryButton } from 'components/Button';
 import { ErrorMessage } from 'components/ErrorMessage';
+import { PasswordStrengthBar } from 'components/PasswordStrength';
 import { useRegistrationStore } from 'stores/auth-store';
 import { useState } from 'react';
 import { validateSingleField, validateNewPasswordMatch } from 'utils/validation';
@@ -76,6 +77,7 @@ export default function AccountScreen() {
           onChangeText={(v) => handleFieldChange('password', v)}
         />
         <ErrorMessage fieldName="password" fieldErrors={fieldErrors} />
+        <PasswordStrengthBar password={userDraft.password} />
 
         <LabeledInput
           label="Confirm Password"

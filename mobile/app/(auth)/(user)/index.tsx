@@ -3,6 +3,7 @@ import { View, Text, ScrollView } from 'react-native';
 import { PrimaryButton } from 'components/Button';
 import { LabeledInput } from 'components/LabeledInput';
 import { ErrorMessage } from 'components/ErrorMessage';
+import { PasswordStrengthBar } from 'components/PasswordStrength';
 import { useRegistrationStore } from 'stores/auth-store';
 import { router } from 'expo-router';
 import { validateNewPasswordMatch, validateSingleField } from 'utils/validation';
@@ -78,6 +79,7 @@ export default function UserAccountStep() {
           onChangeText={(v) => handleFieldChange('password', v)}
         />
         <ErrorMessage fieldName="password" fieldErrors={fieldErrors} />
+        <PasswordStrengthBar password={userDraft.password} />
 
         <LabeledInput
           label="Confirm Password"

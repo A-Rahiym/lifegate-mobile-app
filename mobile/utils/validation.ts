@@ -295,7 +295,13 @@ const validateYearsOfExperience = (yearsOfExperience: string, isHealthProfession
 const validateCertificateFile = (certificate: File | null | undefined, isHealthProfessional: boolean): ValidationError[] => {
   const errors: ValidationError[] = [];
   const maxSize = 5 * 1024 * 1024; // 5MB
-  const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+  const allowedTypes = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
 
   if (isHealthProfessional) {
     if (!certificate) {
@@ -308,7 +314,7 @@ const validateCertificateFile = (certificate: File | null | undefined, isHealthP
     }
 
     if (!allowedTypes.includes(certificate.type)) {
-      errors.push({ field: 'certificate', message: 'Certificate must be a PDF or image file (JPEG, PNG)' });
+      errors.push({ field: 'certificate', message: 'Certificate must be a PDF, image (JPEG, PNG), or Word document' });
     }
   }
 
@@ -323,8 +329,8 @@ export const validateOtp = (otp: string): string | null => {
     return 'OTP is required';
   }
 
-  if (!/^\d{5}$/.test(otp)) {
-    return 'OTP must be exactly 5 digits';
+  if (!/^\d{6}$/.test(otp)) {
+    return 'OTP must be exactly 6 digits';
   }
 
   return null;

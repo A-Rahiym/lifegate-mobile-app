@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView } from 'react-native';
 import { PrimaryButton } from 'components/Button';
 import { Dropdown } from 'components/DropDown';
 import { ErrorMessage } from 'components/ErrorMessage';
 import { GENDER_OPTIONS, LANGUAGE_OPTIONS } from 'constants/constants';
 import { useRegistrationStore } from 'stores/auth-store';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { DOBInput } from 'components/DobPicker';
 import { PhoneNumberInput } from 'components/PhoneInput';
 import { validateSingleField } from 'utils/validation';
@@ -27,6 +27,14 @@ const isValidField = (fieldName: string): fieldName is ValidFieldName => {
 export default function UserProfileStep() {
   const { userDraft, setUserField } = useRegistrationStore();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!userDraft.name || !userDraft.email || !userDraft.password) {
+        router.replace('/(auth)/(user)');
+      }
+    }, [userDraft.name, userDraft.email, userDraft.password])
+  );
 
   const handleFieldChange = (fieldName: string, value: string) => {
     if (!isValidField(fieldName)) return;

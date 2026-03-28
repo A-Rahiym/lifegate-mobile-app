@@ -110,9 +110,8 @@ export default function VerifySignupOtpScreen() {
         const { error: storeError } = useRegistrationStore.getState();
         setError(storeError || 'Verification failed');
       }
-    } catch (err) {
+    } catch {
       setError('Verification failed. Please try again.');
-      console.error('OTP verification error:', err);
     } finally {
       setLoading(false);
     }
@@ -134,14 +133,15 @@ export default function VerifySignupOtpScreen() {
       if (success) {
         setOtp(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
-        setError(''); // Clear any previous errors
+        setError('');
+        const { otpExpiresIn: newExpiry } = useRegistrationStore.getState();
+        if (newExpiry && newExpiry > 0) setTimeRemaining(newExpiry);
       } else {
         const { error: storeError } = useRegistrationStore.getState();
         setError(storeError || 'Failed to resend code');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to resend code. Please try again.');
-      console.error('Resend OTP error:', err);
     } finally {
       setResendLoading(false);
     }
@@ -244,12 +244,21 @@ export default function VerifySignupOtpScreen() {
         {/* Resend Code */}
         <View className="flex-row items-center justify-center gap-1">
           <Text className="text-sm text-gray-500">Didn&apos;t receive the code?</Text>
-          <Pressable onPress={handleResend} disabled={resendLoading || loading} className="p-1">
+          <Pressable
+            onPress={handleResend}
+            disabled={resendLoading || loading || (timeRemaining !== null && timeRemaining > 0)}
+            className="p-1">
             <Text
               className={`text-sm font-semibold ${
-                resendLoading || loading ? 'text-gray-400' : 'text-[#0EA5A4]'
+                resendLoading || loading || (timeRemaining !== null && timeRemaining > 0)
+                  ? 'text-gray-400'
+                  : 'text-[#0EA5A4]'
               }`}>
-              {resendLoading ? 'Sending...' : 'Resend'}
+              {resendLoading
+                ? 'Sending...'
+                : timeRemaining !== null && timeRemaining > 0
+                  ? `Resend in ${formatTime(timeRemaining)}`
+                  : 'Resend'}
             </Text>
           </Pressable>
         </View>

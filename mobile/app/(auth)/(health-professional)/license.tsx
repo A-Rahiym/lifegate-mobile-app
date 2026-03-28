@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useRegistrationStore } from 'stores/auth-store';
 import { LabeledInput } from 'components/LabeledInput';
 import { PrimaryButton } from 'components/Button';
@@ -38,10 +38,16 @@ export default function LicenseScreen() {
     }));
   };
 
-// Add this function in the component
-const canProceed = () => {
-  // Check all required fields are filled
-  const hasAllTextFields = 
+  useFocusEffect(
+    useCallback(() => {
+      if (!userDraft.phone || !userDraft.gender || !userDraft.specialization) {
+        router.replace('/(auth)/(health-professional)/professional');
+      }
+    }, [userDraft.phone, userDraft.gender, userDraft.specialization])
+  );
+
+  const canProceed = () => {
+    const hasAllTextFields = 
     userDraft.certificateName &&
     userDraft.certificateId &&
     userDraft.certificateIssueDate;

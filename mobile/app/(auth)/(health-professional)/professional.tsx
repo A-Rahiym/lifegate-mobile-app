@@ -1,14 +1,14 @@
 import { View, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useRegistrationStore } from 'stores/auth-store';
 import { LabeledInput } from 'components/LabeledInput';
 import { Dropdown } from 'components/DropDown';
 import { ErrorMessage } from 'components/ErrorMessage';
 import { PrimaryButton } from 'components/Button';
-import { GENDER_OPTIONS,  LANGUAGE_OPTIONS } from 'constants/constants';
+import { GENDER_OPTIONS, LANGUAGE_OPTIONS } from 'constants/constants';
 import { DOBInput } from 'components/DobPicker';
 import { PhoneNumberInput } from 'components/PhoneInput';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { validateSingleField } from 'utils/validation';
 
 const VALID_FIELDS = {
@@ -29,6 +29,14 @@ const isValidField = (fieldName: string): fieldName is ValidFieldName => {
 export default function ProfessionalScreen() {
   const { userDraft, setUserField } = useRegistrationStore();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!userDraft.name || !userDraft.email || !userDraft.password) {
+        router.replace('/(auth)/(health-professional)');
+      }
+    }, [userDraft.name, userDraft.email, userDraft.password])
+  );
 
   const handleFieldChange = (fieldName: string, value: string) => {
     if (!isValidField(fieldName)) return;
@@ -73,6 +81,7 @@ export default function ProfessionalScreen() {
         required
         value={userDraft.phone}
         onChangePhoneNumber={(v) => handleFieldChange('phone', v)}
+        error={fieldErrors.phone}
       />
       <ErrorMessage fieldName="phone" fieldErrors={fieldErrors} />
 
