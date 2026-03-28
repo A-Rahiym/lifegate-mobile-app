@@ -120,7 +120,7 @@ const handlePickCertificate = async () => {
     if (hasCertificate) {
       // Show uploaded summary with edit + continue options
       return (
-        <ScrollView className="flex-1" contentContainerStyle={{ padding: 0 }}>
+        <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
           <View className="py-2">
             <Text className="mb-4 text-lg font-medium text-gray-700">Certification</Text>
 
@@ -183,7 +183,8 @@ const handlePickCertificate = async () => {
 
   // --- FORM STATE (Certification Details) ---
   return (
-    <ScrollView className="flex-1" contentContainerStyle={{ paddingVertical: 0, paddingBottom: 32 }}>
+    <ScrollView className="flex-1" keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 32 }}>
       <View className="py-2">
         <LabeledInput
           label="Certificate Name"

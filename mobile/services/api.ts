@@ -1,9 +1,8 @@
 import axios, { AxiosInstance} from 'axios';
 import { getToken, removeToken } from '../utils/tokenStorage';
 
-const BASE_URL = 'https://lifegatemobilebackend-2.onrender.com/api';
-// const BASE_URL = 'https://lifegatemobilebackend-1.onrender.com/api';
-// const BASE_URL = 'http://10.73.93.229:5000/api';
+const BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ?? 'https://lifegatemobilebackend-2.onrender.com/api';
 
 /**
  * Create and configure axios instance with interceptors

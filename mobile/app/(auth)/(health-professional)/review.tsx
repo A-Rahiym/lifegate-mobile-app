@@ -5,7 +5,6 @@ import { useRegistrationStore } from 'stores/auth-store';
 import { router, useFocusEffect } from 'expo-router';
 import { validateRegistration, ValidationError } from 'utils/validation';
 import { InfoRow } from 'components/InfoRow';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function ReviewScreen() {
@@ -51,8 +50,7 @@ export default function ReviewScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1" edges={['bottom']}>
-      <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
+    <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
         <View className="py-2">
           <Text className="mb-1 text-base font-semibold text-gray-900">Review your application</Text>
           <Text className="mb-5 text-sm text-gray-500">
@@ -147,6 +145,5 @@ export default function ReviewScreen() {
           <View className="h-8" />
         </View>
       </ScrollView>
-    </SafeAreaView>
   );
 }

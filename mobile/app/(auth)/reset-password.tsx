@@ -1,24 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { LabeledInput } from 'components/LabeledInput';
 import { PrimaryButton } from 'components/Button';
+import { PasswordStrengthBar } from 'components/PasswordStrength';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from 'stores/auth-store';
-
-const VALID_FIELDS = {
-  name: true,
-  email: true,
-  password: true,
-  confirmPassword: true,
-} as const;
-
-type ValidFieldName = keyof typeof VALID_FIELDS;
-
-const isValidField = (fieldName: string): fieldName is ValidFieldName => {
-  return fieldName in VALID_FIELDS;
-};
+import { usePasswordRecoveryStore } from 'stores/auth/password-recovery-store';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ResetPasswordScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -28,12 +17,9 @@ export default function ResetPasswordScreen() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  // Auto-navigate after success
   useEffect(() => {
     if (success) {
-      const timer = setTimeout(() => {
-        router.replace('/(auth)/login');
-      }, 2000);
+      const timer = setTimeout(() => router.replace('/(auth)/login'), 2000);
       return () => clearTimeout(timer);
     }
   }, [success]);
@@ -47,41 +33,25 @@ export default function ResetPasswordScreen() {
     return '';
   };
 
-  const handleResetPassword = async () => {
+  const handleReset = async () => {
     setError('');
-
-    // Validate new password
     const passwordError = validatePassword(newPassword);
-    if (passwordError) {
-      setError(passwordError);
-      return;
-    }
-    // Validate confirm password
-    if (!confirmPassword) {
-      setError('Please confirm your password');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-    setLoading(true);
+    if (passwordError) { setError(passwordError); return; }
+    if (!confirmPassword) { setError('Please confirm your password'); return; }
+    if (newPassword !== confirmPassword) { setError('Passwords do not match'); return; }
 
+    setLoading(true);
     try {
-      const { resetPassword: storeResetPassword } = useAuthStore.getState();
-      
-      // Call with new signature: token and newPassword only
-      const success = await storeResetPassword(token, newPassword);
-      
-      if (success) {
+      const { resetPassword: storeReset } = usePasswordRecoveryStore.getState();
+      const ok = await storeReset(token, newPassword);
+      if (ok) {
         setSuccess(true);
       } else {
-        const { error } = useAuthStore.getState();
-        setError(error || 'Failed to reset password');
+        const { error: storeError } = usePasswordRecoveryStore.getState();
+        setError(storeError || 'Failed to reset password');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to reset password. Please try again.');
-      console.error('Reset password error:', err);
     } finally {
       setLoading(false);
     }
@@ -89,133 +59,107 @@ export default function ResetPasswordScreen() {
 
   if (success) {
     return (
-      <LinearGradient
-        colors={['#0AADA2', '#043B3C']}
-        className="flex-1 pt-24"
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 0.2 }}
-        style={{ flex: 1 }}>
-        <View className="flex-1 items-center justify-center rounded-t-[36px] bg-[#F7FEFD]">
-          <View className="mb-6 h-20 w-20 items-center justify-center rounded-full bg-green-100">
-            <Ionicons name="checkmark" size={48} color="#10B981" />
+      <SafeAreaView style={{ flex: 1 }}>
+        <LinearGradient
+          colors={['#0AADA2', '#043B3C']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+          <View className="mb-6 h-24 w-24 items-center justify-center rounded-full bg-white/20">
+            <Ionicons name="checkmark-circle" size={56} color="white" />
           </View>
-          <Text className="mb-3 text-center text-2xl font-bold text-gray-900">
-            Password Reset
+          <Text className="mb-3 text-center text-3xl font-bold text-white">Password Reset!</Text>
+          <Text className="text-center text-sm text-white/80">
+            Redirecting to login...
           </Text>
-          <Text className="mb-8 text-center text-base text-gray-600 px-6">
-            Your password has been successfully reset. Redirecting to login...
-          </Text>
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      </SafeAreaView>
     );
   }
 
   return (
-    <LinearGradient
-      colors={['#0AADA2', '#043B3C']}
-      className="flex-1 pt-24 "
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 0.2 }}
-      style={{ flex: 1 }}>
-      
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-12 pt-4 pb-6">
-        <Pressable onPress={() => router.back()} className="p-2">
-          <Ionicons name="chevron-back" size={24} color="white" />
-        </Pressable>
-        <Text className="flex-1 text-center text-xl font-bold text-white">
-          Reset Password
-        </Text>
-        <View className="w-10" />
-      </View>
-
-      {/* Content */}
-      <ScrollView className="flex-1 rounded-t-[36px] bg-[#F7FEFD] px-6 pt-8">
-        <Text className="mb-2 text-center text-2xl font-bold text-gray-900">
-          Create New Password
-        </Text>
-        <Text className="mb-6 text-center text-base text-gray-600">
-          Set a strong password for your account
-        </Text>
-
-        {/* Error Message */}
-        {error && (
-          <View className="mb-4 rounded-lg border border-red-400 bg-red-100 p-3">
-            <Text className="text-sm text-red-700">{error}</Text>
-          </View>
-        )}
-
-        {/* New Password Input */}
-        <LabeledInput
-          label="New Password"
-          required
-          placeholder="Enter new password"
-          secureToggle
-          value={newPassword}
-          onChangeText={(value) => {
-            setNewPassword(value);
-            setError('');
-          }}
-          editable={!loading}
-        />
-
-        {/* Password Requirements Info
-        <View className="mb-4 rounded-lg bg-blue-50 p-3">
-          <Text className="mb-2 text-xs font-semibold text-blue-900">
-            Password must contain:
-          </Text>
-          <Text
-            className={`text-xs ${
-              newPassword.length >= 8 ? 'text-green-600' : 'text-gray-600'
-            }`}>
-            ✓ At least 8 characters
-          </Text>
-          <Text
-            className={`text-xs ${
-              /[A-Z]/.test(newPassword) ? 'text-green-600' : 'text-gray-600'
-            }`}>
-            ✓ One uppercase letter
-          </Text>
-          <Text
-            className={`text-xs ${
-              /[a-z]/.test(newPassword) ? 'text-green-600' : 'text-gray-600'
-            }`}>
-            ✓ One lowercase letter
-          </Text>
-          <Text
-            className={`text-xs ${
-              /[0-9]/.test(newPassword) ? 'text-green-600' : 'text-gray-600'
-            }`}>
-            ✓ One number
-          </Text>
-        </View> */}
-
-        {/* Confirm Password Input */}
-        <LabeledInput
-          label="Confirm Password"
-          required
-          placeholder="Confirm password"
-          secureToggle
-          value={confirmPassword}
-          onChangeText={(value) => {
-            setConfirmPassword(value);
-            setError('');
-          }}
-          editable={!loading}
-        />
-
-        {/* Reset Button */}
-        <View className="mt-8">
-          <PrimaryButton
-            title="Reset Password"
-            onPress={handleResetPassword}
-            loading={loading}
-          />
+    <SafeAreaView style={{ flex: 1 }}>
+      <LinearGradient
+        colors={['#0AADA2', '#043B3C']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.2 }}
+        style={{ flex: 1 }}>
+        {/* Header */}
+        <View className="flex-row items-center justify-between px-6 pt-6 pb-4">
+          <Pressable onPress={() => router.back()} className="p-2">
+            <Ionicons name="chevron-back" size={24} color="white" />
+          </Pressable>
+          <Text className="flex-1 text-center text-xl font-bold text-white">Reset Password</Text>
+          <View className="w-10" />
         </View>
 
-        {/* Bottom spacing */}
-        <View className="h-8" />
-      </ScrollView>
-    </LinearGradient>
+        {/* Content Card */}
+        <ScrollView
+          className="flex-1 rounded-t-[36px] bg-[#F7FEFD]"
+          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 36, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled">
+
+          {/* Icon */}
+          <View className="mb-4 items-center">
+            <View className="h-16 w-16 items-center justify-center rounded-full bg-[#EDF9F9]">
+              <Ionicons name="key-outline" size={30} color="#0EA5A4" />
+            </View>
+          </View>
+
+          <Text className="mb-1 text-center text-2xl font-bold text-gray-900">
+            Create New Password
+          </Text>
+          <Text className="mb-7 text-center text-sm text-gray-500">
+            Set a strong password for your account
+          </Text>
+
+          {/* Error */}
+          {error ? (
+            <View className="mb-4 flex-row items-start rounded-xl bg-red-50 p-3">
+              <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
+              <Text className="ml-2 flex-1 text-sm text-red-700">{error}</Text>
+            </View>
+          ) : null}
+
+          <LabeledInput
+            label="New Password"
+            required
+            placeholder="Min. 8 characters, uppercase & number"
+            secureToggle
+            value={newPassword}
+            hasError={!!error}
+            onChangeText={(value) => {
+              setNewPassword(value);
+              setError('');
+            }}
+            editable={!loading}
+          />
+          <PasswordStrengthBar password={newPassword} />
+
+          <LabeledInput
+            label="Confirm Password"
+            required
+            placeholder="Re-enter your password"
+            secureToggle
+            value={confirmPassword}
+            hasError={!!error && !!newPassword}
+            onChangeText={(value) => {
+              setConfirmPassword(value);
+              setError('');
+            }}
+            editable={!loading}
+          />
+
+          <View className="mt-6">
+            <PrimaryButton
+              title="Reset Password"
+              onPress={handleReset}
+              loading={loading}
+              disabled={!newPassword || !confirmPassword || loading}
+            />
+          </View>
+        </ScrollView>
+      </LinearGradient>
+    </SafeAreaView>
   );
 }

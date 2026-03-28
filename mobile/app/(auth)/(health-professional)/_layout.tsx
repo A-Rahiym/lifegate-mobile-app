@@ -49,24 +49,25 @@ export default function RegisterLayout() {
       end={{ x: 0, y: 0.4 }}
       style={{ flex: 1 }}>
       {/* ================= HEADER ================= */}
-      <View className="h-56 px-6 pt-12">
-        {/* Back Button */}
-        <Pressable onPress={goBack}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </Pressable>
-
-        {/* Dynamic Title */}
-        <View className="mt-4 items-center">
-          <Text className="text-2xl font-bold text-white">{STEP_TITLES[currentStep]}</Text>
+      <View className="px-6 pt-4 pb-8">
+        <View className="mb-5 flex-row items-center">
+          {/* Back Button */}
+          <Pressable onPress={goBack} className="-ml-1 p-1">
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </Pressable>
+          {/* Centered Dynamic Title */}
+          <Text className="flex-1 text-center text-xl font-bold text-white">
+            {STEP_TITLES[currentStep]}
+          </Text>
+          {/* Spacer to balance back button */}
+          <View className="w-8" />
         </View>
-
         {/* Progress Indicator */}
-        <WizardProgress currentStep={currentStep} 
-        totalSteps={totalSteps} />
+        <WizardProgress currentStep={currentStep} totalSteps={totalSteps} />
       </View>
 
       {/* ================= SCREEN CONTENT ================= */}
-      <View className="flex-1 rounded-t-[40px] bg-[#F7FEFD] pt-6 px-6">
+      <View className="flex-1 rounded-t-[36px] bg-[#F7FEFD] px-6 pt-6">
         <Stack
           screenOptions={{
             headerShown: false,

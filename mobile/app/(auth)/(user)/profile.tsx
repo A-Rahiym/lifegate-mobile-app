@@ -93,7 +93,7 @@ export default function UserProfileStep() {
         <ErrorMessage fieldName="language" fieldErrors={fieldErrors} />
 
         <View className="mb-2 mt-1">
-          <Text className="mb-2 font-semibold text-gray-700">
+          <Text className="mb-1.5 font-medium text-gray-700">
             Health History <Text className="text-red-500">*</Text>
           </Text>
           <TextInput

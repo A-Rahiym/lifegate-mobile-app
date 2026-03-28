@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { usePasswordRecoveryStore } from 'stores/auth/password-recovery-store';
-import { validateSingleField } from 'utils/validation';
+import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,15 +49,14 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
+    <SafeAreaView style={{ flex: 1 }}>
     <LinearGradient
       colors={['#0AADA2', '#043B3C']}
-      className="flex-1"
       start={{ x: 0, y: 0 }}
       end={{ x: 0, y: 0.2 }}
       style={{ flex: 1 }}>
-      
       {/* Header */}
-      <View className="flex-row items-center justify-between px-8 pt-24 pb-6">
+      <View className="flex-row items-center justify-between px-6 pt-6 pb-4">
         <Pressable onPress={() => router.back()} className="p-2">
           <Ionicons name="chevron-back" size={24} color="white" />
         </Pressable>
@@ -68,20 +67,30 @@ export default function ForgotPasswordScreen() {
       </View>
 
       {/* Content */}
-      <ScrollView className="flex-1 rounded-t-[36px] bg-[#F7FEFD] px-12 pt-8">
-        <Text className="mb-2 text-center text-2xl font-bold text-gray-900">
+      <ScrollView
+        className="flex-1 rounded-t-[36px] bg-[#F7FEFD]"
+        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 36, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled">
+        {/* Icon */}
+        <View className="mb-4 items-center">
+          <View className="h-16 w-16 items-center justify-center rounded-full bg-[#EDF9F9]">
+            <Ionicons name="lock-closed-outline" size={30} color="#0EA5A4" />
+          </View>
+        </View>
+        <Text className="mb-1 text-center text-2xl font-bold text-gray-900">
           Forgot Password?
         </Text>
-        <Text className="mb-6 text-center text-base text-gray-600">
-          Quickly reset your password
+        <Text className="mb-8 text-center text-sm text-gray-500">
+          Enter your email and we&apos;ll send you a reset code
         </Text>
 
         {/* Error Message */}
-        {error && (
-          <View className="mb-4 rounded-lg border border-red-400 bg-red-100 p-3">
-            <Text className="text-sm text-red-700">{error}</Text>
+        {error ? (
+          <View className="mb-5 flex-row items-start rounded-xl bg-red-50 p-3">
+            <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
+            <Text className="ml-2 flex-1 text-sm text-red-700">{error}</Text>
           </View>
-        )}
+        ) : null}
 
         {/* Email Input */}
         <LabeledInput
@@ -99,17 +108,18 @@ export default function ForgotPasswordScreen() {
         />
 
         {/* Submit Button */}
-        <View className="mt-8">
+        <View className="mt-6">
           <PrimaryButton
-            title="Submit"
+            title="Send Reset Code"
             onPress={handleSubmit}
             loading={loading}
+            disabled={!email.trim() || loading}
           />
         </View>
 
-        {/* Bottom spacing */}
         <View className="h-8" />
       </ScrollView>
     </LinearGradient>
+    </SafeAreaView>
   );
 }

@@ -43,20 +43,21 @@ export default function RegisterLayout() {
       style={{ flex: 1 }}
     >
       {/* HEADER */}
-      <View className="h-56 px-6 pt-12 ">
-        <Pressable onPress={goBack}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </Pressable>
-
-        <View className="mt-4 items-center">
-          <Text className="text-2xl font-bold text-white">{titleMap[currentStep]}</Text>
+      <View className="px-6 pt-4 pb-8">
+        <View className="mb-5 flex-row items-center">
+          <Pressable onPress={goBack} className="-ml-1 p-1">
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </Pressable>
+          <Text className="flex-1 text-center text-xl font-bold text-white">
+            {titleMap[currentStep]}
+          </Text>
+          <View className="w-8" />
         </View>
-
         <WizardProgress currentStep={currentStep} totalSteps={totalSteps} />
       </View>
 
       {/* STACK RENDERING */}
-      <View className="flex-1 rounded-t-[40px] bg-[#F7FEFD] pt-6 px-6">
+      <View className="flex-1 rounded-t-[36px] bg-[#F7FEFD] px-6 pt-6">
         <Stack
           screenOptions={{
             headerShown: false,
