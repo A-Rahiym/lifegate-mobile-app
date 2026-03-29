@@ -239,6 +239,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             timestamp: now(),
             diagnosis: aiResponse.diagnosis,
             prescription: aiResponse.prescription,
+            diagnosisId: aiResponse.diagnosisId,
           };
 
           updatedMessages.push(aiMessage);

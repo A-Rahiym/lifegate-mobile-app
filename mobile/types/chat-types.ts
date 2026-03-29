@@ -30,6 +30,7 @@ export type Diagnosis = {
   condition: string;
   urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   description: string;
+  confidence?: number; // 0–100 confidence score from AI
 };
 
 // Structured prescription data from AI
@@ -50,6 +51,7 @@ export type Message = {
   timestamp: number; // Unix timestamp (ms)
   diagnosis?: Diagnosis; // Optional structured diagnosis from AI
   prescription?: Prescription; // Optional structured prescription from AI
+  diagnosisId?: string; // DB diagnosis record ID for navigation to report screen
 };
 
 // Conversation (session of messages)
@@ -71,6 +73,8 @@ export type AIResponse = {
   prescription?: Prescription;
   // True when the backend auto-escalated this session from General Health to Clinical Diagnosis
   escalated?: boolean;
+  // DB record ID of the saved diagnosis (present when a diagnosis was saved)
+  diagnosisId?: string;
 };
 
 // Message validation result

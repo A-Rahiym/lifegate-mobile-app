@@ -56,9 +56,10 @@ latencyMs := time.Since(start).Milliseconds()
 c.Header("X-AI-Latency-Ms", fmt.Sprintf("%d", latencyMs))
 
 c.JSON(http.StatusOK, gin.H{
-	"success":    true,
-	"data":       resp.AIResponse,
-	"escalated":  resp.Escalated,
-	"latency_ms": latencyMs,
+	"success":     true,
+	"data":        resp.AIResponse,
+	"escalated":   resp.Escalated,
+	"diagnosisId": resp.DiagnosisID,
+	"latency_ms":  latencyMs,
 })
 }

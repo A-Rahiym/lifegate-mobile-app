@@ -119,6 +119,7 @@ const ChatScreen: React.FC = () => {
         status: msg.status,
         diagnosis: msg.diagnosis,
         prescription: msg.prescription,
+        diagnosisId: msg.diagnosisId,
         rawTimestamp: msg.timestamp,
       })),
     [messages]

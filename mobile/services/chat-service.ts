@@ -57,15 +57,21 @@ export class ChatService {
       }
 
       // Extract AIResponse from backend response
-      const result = response.data.data;
+      const response2 = response.data as { data: AIResponse; escalated?: boolean; diagnosisId?: string; latency_ms?: number };
+      const result = response2.data;
 
       if (!result || !result.text) {
         throw new Error('No content returned from AI');
       }
 
       // Attach the authoritative escalation flag from the backend
-      if (response.data.escalated) {
+      if (response2.escalated) {
         result.escalated = true;
+      }
+
+      // Attach the diagnosis DB record ID so the frontend can navigate to the report
+      if (response2.diagnosisId) {
+        result.diagnosisId = response2.diagnosisId;
       }
 
       // Validate urgency if diagnosis exists

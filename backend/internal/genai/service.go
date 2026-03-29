@@ -33,7 +33,9 @@ type ChatResponse struct {
 	*ai.AIResponse
 	// Escalated is true when a General Health session was auto-promoted to
 	// Clinical Diagnosis mode because the AI detected HIGH or CRITICAL urgency.
-	Escalated bool `json:"escalated,omitempty"`
+	Escalated   bool   `json:"escalated,omitempty"`
+	// DiagnosisID is the UUID of the diagnosis record saved to the database.
+	DiagnosisID string `json:"diagnosisId,omitempty"`
 }
 
 // buildSystemPrompt returns the base health prompt augmented with a category-specific snippet.
@@ -123,7 +125,18 @@ func (s *Service) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 		totalLatency.Milliseconds(), req.Category, escalated, req.UserID)
 
 if req.UserID != "" {
-s.saveDiagnosis(req.UserID, req.Message, resp, escalated)
+if id := s.saveDiagnosis(req.UserID, req.Message, resp, escalated); id != "" {
+			if resp.Diagnosis != nil {
+				diagData, _ := json.Marshal(map[string]interface{}{
+					"user_id":      req.UserID,
+					"diagnosis_id": id,
+					"diagnosis":    resp.Diagnosis,
+					"escalated":    escalated,
+				})
+				_ = s.nats.Publish("ai.diagnosis.preliminary", diagData)
+			}
+			return &ChatResponse{AIResponse: resp, Escalated: escalated, DiagnosisID: id}, nil
+}
 }
 
 if resp.Diagnosis != nil {
@@ -138,7 +151,8 @@ _ = s.nats.Publish("ai.diagnosis.preliminary", diagData)
 	return &ChatResponse{AIResponse: resp, Escalated: escalated}, nil
 }
 
-func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, escalated bool) {
+// saveDiagnosis persists the AI response as a diagnosis record and returns the new UUID.
+func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, escalated bool) string {
 aiJSON, _ := json.Marshal(resp)
 runes := []rune(message)
 title := message
@@ -153,11 +167,14 @@ condition = resp.Diagnosis.Condition
 urgency = resp.Diagnosis.Urgency
 }
 
-_, _ = s.db.Exec(
+var id string
+_ = s.db.QueryRow(
 `INSERT INTO diagnoses (user_id, title, description, condition, urgency, ai_response, status, escalated)
- VALUES ($1, $2, $3, $4, $5, $6, 'Pending', $7)`,
+ VALUES ($1, $2, $3, $4, $5, $6, 'Pending', $7)
+ RETURNING id::text`,
 userID, title, resp.Text, condition, urgency, aiJSON, escalated,
-)
+).Scan(&id)
+return id
 }
 
 // logAudit writes a structured event to the audit_logs table.
