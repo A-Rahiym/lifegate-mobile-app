@@ -1,0 +1,114 @@
+# render.yaml — Render Blueprint
+# Infrastructure-as-Code manifest for LifeGate on Render.
+# Deploy once with: https://dashboard.render.com/select-repo
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  # ─── Go Backend (Web Service) ──────────────────────────────────────────────
+  - type: web
+    name: lifegate-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter          # upgrade to standard for zero-downtime deploys
+    region: oregon
+    branch: main
+    healthCheckPath: /health
+
+    disk:
+      name: lifegate-uploads
+      mountPath: /app/uploads
+      sizeGB: 1            # persistent volume for uploaded files (requires paid plan)
+
+    envVars:
+      # Server
+      - key: PORT
+        value: "5000"
+      - key: GIN_MODE
+        value: release
+
+      # Database — auto-injected from the managed Postgres instance below
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lifegate-db
+          property: connectionString
+
+      # Redis — auto-injected from the managed Redis instance below
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: lifegate-redis
+          property: connectionString
+
+      # NATS — resolved via Render's internal private network DNS
+      - key: NATS_URL
+        value: nats://lifegate-nats:4222
+
+      # Auth
+      - key: JWT_SECRET
+        generateValue: true    # Render generates a cryptographically random value
+      - key: JWT_EXPIRY
+        value: "24h"
+
+      # AI — set the provider and fill in the key(s) via Render dashboard
+      - key: AI_PROVIDER
+        value: openai          # openai | gemini | anthropic
+      - key: OPENAI_API_KEY
+        sync: false            # secret — enter value in Render dashboard
+      - key: OPENAI_MODEL
+        value: gpt-4o
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-3-5-sonnet-20241022
+
+      # Email (SMTP)
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false            # your Gmail / transactional-email address
+      - key: SMTP_PASSWORD
+        sync: false            # App Password or SMTP API key
+      - key: SMTP_FROM
+        value: noreply@lifegate.app
+
+      # CORS — comma-separated list of allowed origins (Expo Go, web client, etc.)
+      # Example: https://lifegatemobilebackend-2.onrender.com,exp://...
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+      # Upload directory (must match the disk mountPath above)
+      - key: UPLOAD_DIR
+        value: /app/uploads
+
+  # ─── NATS JetStream (Private Service) ──────────────────────────────────────
+  # Reachable internally as nats://lifegate-nats:4222
+  - type: pserv
+    name: lifegate-nats
+    runtime: image
+    image:
+      url: docker.io/library/nats:2.10-alpine
+    plan: starter
+    region: oregon
+    startCommand: "--jetstream -m 8222"
+
+  # ─── Managed Redis ──────────────────────────────────────────────────────────
+  - type: redis
+    name: lifegate-redis
+    plan: free             # upgrade to starter for persistence
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+
+# ─── Managed PostgreSQL ────────────────────────────────────────────────────
+databases:
+  - name: lifegate-db
+    plan: free             # upgrade to starter for daily backups
+    region: oregon
+    databaseName: lifegate
+    user: lifegate_user
