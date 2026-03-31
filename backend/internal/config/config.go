@@ -49,10 +49,9 @@ func Load() *Config {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 
 	return &Config{
-		Port:        getEnv("PORT", "5000"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://user:password@localhost:5432/lifegate?sslmode=disable"),
-		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379"),
-		NatsURL:     getEnv("NATS_URL", "nats://localhost:4222"),
+		DatabaseURL: getEnv("DATABASE_URL", ""),
+		RedisURL:    getEnv("REDIS_URL", ""),
+		NatsURL:     getEnv("NATS_URL", ""),
 
 		JWTSecret: getEnv("JWT_SECRET", "changeme-secret"),
 		JWTExpiry: getEnv("JWT_EXPIRY", "24h"),
