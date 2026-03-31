@@ -99,14 +99,21 @@ services:
       url: docker.io/library/nats:2.10-alpine
     plan: starter
     region: oregon
-    startCommand: "--jetstream -m 8222"
+    startCommand: "-js -m 8222"
+
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: allow internal traffic
 
   # ─── Managed Redis ──────────────────────────────────────────────────────────
-  - type: redis
+  - type: keyvalue
     name: lifegate-redis
     plan: free             # upgrade to starter for persistence
     region: oregon
     maxmemoryPolicy: allkeys-lru
+    ipAllowList:
+    - source: 0.0.0.0/0
+      description: allow internal access
 
 # ─── Managed PostgreSQL ────────────────────────────────────────────────────
 databases:
