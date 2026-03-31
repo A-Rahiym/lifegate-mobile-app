@@ -6,6 +6,7 @@ import { Dropdown } from '@/components/DropDown';
 import { issues } from '@/constants/constants';
 
 export default function SendFeedbackScreen() {
+  const [issueType, setIssueType] = useState('');
   const [description, setDescription] = useState('');
   const [lifegateId, setLifegateId] = useState('');
 
@@ -29,11 +30,12 @@ export default function SendFeedbackScreen() {
       <View className="mx-4 mt-4 p-4">
       
         <Dropdown
-        label='Type of Issue'
+          label="Type of Issue"
           placeholder="Select Type of Issue"
           options={issues}
-          triggerClassName ='bg-[#efefef]'
-
+          selectedValue={issueType}
+          onChange={(value: string) => setIssueType(value)}
+          triggerClassName="bg-[#efefef]"
         />
 
         {/* Issue Description */}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, Pressable, LayoutRectangle, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -13,7 +13,8 @@ interface DropdownProps {
   placeholder?: string;
   required?: boolean;
   hasError?: boolean;
-  onValueChange?: (value: string) => void;
+  selectedValue?: string;
+  onChange?: (value: string) => void;
   triggerClassName?: string;
   menuClassName?: string;
 }
@@ -24,7 +25,8 @@ export const Dropdown = ({
   placeholder = 'Select an option',
   required,
   hasError,
-  onValueChange,
+  selectedValue,
+  onChange,
   triggerClassName = '',
   menuClassName = '',
 }: DropdownProps) => {
@@ -32,12 +34,19 @@ export const Dropdown = ({
   const [value, setValue] = useState<string>('');
   const [triggerLayout, setTriggerLayout] = useState<LayoutRectangle | null>(null);
 
+  // Sync selectedValue prop to internal state
+  useEffect(() => {
+    if (selectedValue !== undefined) {
+      setValue(selectedValue);
+    }
+  }, [selectedValue]);
+
   const selectedLabel = options.find((o) => o.value === value)?.label || placeholder;
 
   const handleSelectOption = (selectedValue: string) => {
     setValue(selectedValue);
     setOpen(false);
-    onValueChange?.(selectedValue); // optional callback to parent
+    onChange?.(selectedValue); // optional callback to parent
   };
 
   return (

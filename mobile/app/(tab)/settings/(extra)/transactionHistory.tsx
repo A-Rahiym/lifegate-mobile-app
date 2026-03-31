@@ -12,7 +12,7 @@ interface Transaction {
   timeAgo: string;
 }
 
-const transactionData = {
+const transactionData: { today: Transaction[]; yesterday: Transaction[]; older: Transaction[] } = {
   today: [
     { id: '1', status: 'successful', title: 'Payment Successful', amount: '₦5,000 LifeGate Credit', timeAgo: '2h ago' },
     { id: '2', status: 'successful', title: 'Payment Successful', amount: '₦2,000 LifeGate Credit', timeAgo: '5h ago' },
