@@ -100,10 +100,9 @@ services:
     plan: starter
     region: oregon
     startCommand: "-js -m 8222"
-
-    ipAllowList:
-      - source: 0.0.0.0/0
-        description: allow internal traffic
+    # ipAllowList:
+    #   - source: 0.0.0.0/0
+    #     description: allow internal traffic
 
   # ─── Managed Redis ──────────────────────────────────────────────────────────
   - type: keyvalue
