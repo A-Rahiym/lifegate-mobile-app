@@ -3,6 +3,9 @@
 # Deploy once with: https://dashboard.render.com/select-repo
 # Docs: https://render.com/docs/blueprint-spec
 
+previews:
+  generation: automatic
+  
 services:
   # ─── Go Backend (Web Service) ──────────────────────────────────────────────
   - type: web
