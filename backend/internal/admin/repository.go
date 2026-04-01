@@ -145,6 +145,20 @@ type CaseFilters struct {
 	PageSize int
 }
 
+// SLABreachAlert is a record from sla_reassignment_log for the admin alert panel.
+type SLABreachAlert struct {
+	ID                    string `json:"id"`
+	CaseID                string `json:"caseId"`
+	CaseTitle             string `json:"caseTitle"`
+	Urgency               string `json:"urgency"`
+	WaitSeconds           int64  `json:"waitSeconds"`
+	WaitFormatted         string `json:"waitFormatted"`
+	OriginalPhysicianName string `json:"originalPhysicianName,omitempty"`
+	NewPhysicianName      string `json:"newPhysicianName,omitempty"`
+	NatsPublished         bool   `json:"natsPublished"`
+	CreatedAt             string `json:"createdAt"`
+}
+
 // ─── Repository ───────────────────────────────────────────────────────────────
 
 type Repository struct {
@@ -723,6 +737,85 @@ func (r *Repository) LogAction(adminID, action, resource string, resourceID *str
 		INSERT INTO admin_actions (admin_id, action, resource, resource_id, details)
 		VALUES ($1::uuid, $2, $3, $4::uuid, $5)`,
 		adminID, action, resource, rid, detailsJSON)
+}
+
+// GetSLABreachAlerts returns the most recent SLA breach events for the admin
+// alert panel (all breaches, including those without a successful reassignment).
+func (r *Repository) GetSLABreachAlerts(limit int) ([]SLABreachAlert, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	rows, err := r.db.Query(`
+		SELECT id::text, case_id::text, case_title, urgency, wait_seconds,
+		       original_physician_name, new_physician_name, nats_published, created_at::text
+		FROM sla_reassignment_log
+		ORDER BY created_at DESC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var alerts []SLABreachAlert
+	for rows.Next() {
+		var a SLABreachAlert
+		if err := rows.Scan(&a.ID, &a.CaseID, &a.CaseTitle, &a.Urgency, &a.WaitSeconds,
+			&a.OriginalPhysicianName, &a.NewPhysicianName, &a.NatsPublished, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		a.WaitFormatted = FormatWait(a.WaitSeconds)
+		alerts = append(alerts, a)
+	}
+	if alerts == nil {
+		alerts = []SLABreachAlert{}
+	}
+	return alerts, rows.Err()
+}
+
+// GetReassignmentLog returns a paginated list of SLA breaches where a
+// successful reassignment to a new physician occurred.
+func (r *Repository) GetReassignmentLog(page, pageSize int) ([]SLABreachAlert, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	var total int
+	if err := r.db.QueryRow(`
+		SELECT COUNT(*) FROM sla_reassignment_log WHERE new_physician_id IS NOT NULL`,
+	).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := r.db.Query(`
+		SELECT id::text, case_id::text, case_title, urgency, wait_seconds,
+		       original_physician_name, new_physician_name, nats_published, created_at::text
+		FROM sla_reassignment_log
+		WHERE new_physician_id IS NOT NULL
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2`, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var entries []SLABreachAlert
+	for rows.Next() {
+		var a SLABreachAlert
+		if err := rows.Scan(&a.ID, &a.CaseID, &a.CaseTitle, &a.Urgency, &a.WaitSeconds,
+			&a.OriginalPhysicianName, &a.NewPhysicianName, &a.NatsPublished, &a.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		a.WaitFormatted = FormatWait(a.WaitSeconds)
+		entries = append(entries, a)
+	}
+	if entries == nil {
+		entries = []SLABreachAlert{}
+	}
+	return entries, total, rows.Err()
 }
 
 // ─── SLA helpers ──────────────────────────────────────────────────────────────

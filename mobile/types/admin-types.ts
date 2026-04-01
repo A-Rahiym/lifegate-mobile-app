@@ -129,3 +129,24 @@ export type PaginatedCases = {
   data: AdminCaseRow[];
   meta: { total: number; page: number; pageSize: number };
 };
+
+// ─── SLA Enforcement ─────────────────────────────────────────────────────────
+
+/** A single SLA breach event record (from sla_reassignment_log). */
+export type SLABreachAlert = {
+  id: string;
+  caseId: string;
+  caseTitle: string;
+  urgency: string;
+  waitSeconds: number;
+  waitFormatted: string;
+  originalPhysicianName?: string;
+  newPhysicianName?: string;
+  natsPublished: boolean;
+  createdAt: string;
+};
+
+export type ReassignmentLogResult = {
+  data: SLABreachAlert[];
+  meta: { total: number; page: number; pageSize: number };
+};

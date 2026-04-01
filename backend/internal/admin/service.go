@@ -77,3 +77,11 @@ func (s *Service) RecordSLABreach(physicianID, caseID string, hoursOver float64)
 func (s *Service) LogAction(adminID, action, resource string, resourceID *string, details map[string]interface{}) {
 	s.repo.LogAction(adminID, action, resource, resourceID, details)
 }
+
+func (s *Service) GetSLABreachAlerts(limit int) ([]SLABreachAlert, error) {
+	return s.repo.GetSLABreachAlerts(limit)
+}
+
+func (s *Service) GetReassignmentLog(page, pageSize int) ([]SLABreachAlert, int, error) {
+	return s.repo.GetReassignmentLog(page, pageSize)
+}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -21,6 +22,7 @@ import (
 	redisclient "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/redis"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/review"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/sessions"
+	slasvc "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/sla"
 	wshub "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/websocket"
 	"github.com/gin-gonic/gin"
 )
@@ -104,6 +106,12 @@ hub := wshub.NewHub()
 	// completed cases which exceed the SLA are automatically logged and the
 	// 3-breach-per-week flag is evaluated after every completion.
 	physicianSvc.SetSLABreachRecorder(adminSvc)
+
+	// SLA enforcement service — runs every 2 minutes in the background,
+	// detects Pending/Active cases that exceed the 4-hour SLA window, and
+	// auto-reassigns them to the next available physician.
+	slaEnforcer := slasvc.NewService(database, natsClient, pushSvc)
+	go slaEnforcer.Start(context.Background())
 
 // Router
 r := gin.New()
@@ -272,6 +280,8 @@ physicianGroup.POST("/push-token", func(c *gin.Context) {
 		adminGroup.GET("/dashboard", adminHandler.GetDashboard)
 		adminGroup.GET("/cases", adminHandler.GetCases)
 		adminGroup.GET("/sla", adminHandler.GetSLA)
+		adminGroup.GET("/sla/breach-alerts", adminHandler.GetSLABreachAlerts)
+		adminGroup.GET("/sla/reassignment-log", adminHandler.GetReassignmentLog)
 		adminGroup.GET("/metrics/edis", adminHandler.GetEDISMetrics)
 
 		// Physician account management

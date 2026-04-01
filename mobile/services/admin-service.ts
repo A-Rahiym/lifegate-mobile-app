@@ -10,6 +10,8 @@ import type {
   PaginatedCases,
   CreatePhysicianInput,
   UpdatePhysicianInput,
+  SLABreachAlert,
+  ReassignmentLogResult,
 } from '../types/admin-types';
 
 export const AdminService = {
@@ -81,5 +83,19 @@ export const AdminService = {
   async triggerFlagCheck(): Promise<{ newlyFlagged: number }> {
     const { data } = await api.post('/admin/physicians/flag-check');
     return data.data as { newlyFlagged: number };
+  },
+
+  // ── SLA Enforcement ───────────────────────────────────────────────────────
+
+  /** Returns the most recent SLA breach events for the admin alert panel. */
+  async getSLABreachAlerts(limit = 50): Promise<SLABreachAlert[]> {
+    const { data } = await api.get('/admin/sla/breach-alerts', { params: { limit } });
+    return data.data as SLABreachAlert[];
+  },
+
+  /** Returns a paginated list of successful auto-reassignment events. */
+  async getReassignmentLog(page = 1, pageSize = 20): Promise<ReassignmentLogResult> {
+    const { data } = await api.get('/admin/sla/reassignment-log', { params: { page, pageSize } });
+    return { data: data.data as SLABreachAlert[], meta: data.meta };
   },
 };

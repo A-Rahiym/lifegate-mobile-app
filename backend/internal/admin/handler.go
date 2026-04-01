@@ -269,3 +269,41 @@ func (h *Handler) TriggerFlagCheck(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"newlyFlagged": count}})
 }
+
+// ─── GET /api/admin/sla/breach-alerts ────────────────────────────────────────
+
+// GetSLABreachAlerts returns the most recent SLA breach events for the admin
+// alert panel. Use ?limit=N (max 100, default 50) to cap the result set.
+func (h *Handler) GetSLABreachAlerts(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	alerts, err := h.svc.GetSLABreachAlerts(limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to load breach alerts"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": alerts})
+}
+
+// ─── GET /api/admin/sla/reassignment-log ─────────────────────────────────────
+
+// GetReassignmentLog returns a paginated list of auto-reassignment events
+// where a breached case was successfully handed to a new physician.
+func (h *Handler) GetReassignmentLog(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+
+	entries, total, err := h.svc.GetReassignmentLog(page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to load reassignment log"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    entries,
+		"meta": gin.H{
+			"total":    total,
+			"page":     page,
+			"pageSize": pageSize,
+		},
+	})
+}

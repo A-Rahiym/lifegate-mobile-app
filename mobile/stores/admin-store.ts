@@ -10,6 +10,7 @@ import type {
   AdminCaseFilters,
   CreatePhysicianInput,
   UpdatePhysicianInput,
+  SLABreachAlert,
 } from '../types/admin-types';
 
 type AdminState = {
@@ -21,6 +22,9 @@ type AdminState = {
   edisMetrics: EDISMetrics | null;
   physicians: PhysicianRow[];
   selectedPhysician: PhysicianDetail | null;
+  slaBreachAlerts: SLABreachAlert[];
+  reassignmentLog: SLABreachAlert[];
+  reassignmentLogTotal: number;
 
   // Filters
   filters: AdminCaseFilters;
@@ -29,6 +33,8 @@ type AdminState = {
   loading: boolean;
   refreshing: boolean;
   physicianLoading: boolean;
+  breachAlertsLoading: boolean;
+  reassignmentLogLoading: boolean;
   error: string | null;
 
   // Actions
@@ -45,6 +51,8 @@ type AdminState = {
   unsuspendPhysician: (id: string) => Promise<void>;
   overrideMDCN: (id: string, status: 'confirmed' | 'rejected') => Promise<void>;
   triggerFlagCheck: () => Promise<number>;
+  fetchSLABreachAlerts: (limit?: number) => Promise<void>;
+  fetchReassignmentLog: (page?: number, pageSize?: number) => Promise<void>;
   fetchAll: () => Promise<void>;
   setFilters: (f: Partial<AdminCaseFilters>) => void;
   clearError: () => void;
@@ -59,10 +67,15 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   edisMetrics: null,
   physicians: [],
   selectedPhysician: null,
+  slaBreachAlerts: [],
+  reassignmentLog: [],
+  reassignmentLogTotal: 0,
   filters: { status: '', urgency: '', search: '', page: 1, pageSize: 20 },
   loading: false,
   refreshing: false,
   physicianLoading: false,
+  breachAlertsLoading: false,
+  reassignmentLogLoading: false,
   error: null,
 
   fetchDashboard: async () => {
@@ -174,6 +187,30 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     return result.newlyFlagged;
   },
 
+  fetchSLABreachAlerts: async (limit = 50) => {
+    set({ breachAlertsLoading: true });
+    try {
+      const slaBreachAlerts = await AdminService.getSLABreachAlerts(limit);
+      set({ slaBreachAlerts, breachAlertsLoading: false });
+    } catch (e: any) {
+      set({ error: e?.message ?? 'Failed to load SLA breach alerts', breachAlertsLoading: false });
+    }
+  },
+
+  fetchReassignmentLog: async (page = 1, pageSize = 20) => {
+    set({ reassignmentLogLoading: true });
+    try {
+      const result = await AdminService.getReassignmentLog(page, pageSize);
+      set({
+        reassignmentLog: result.data,
+        reassignmentLogTotal: result.meta.total,
+        reassignmentLogLoading: false,
+      });
+    } catch (e: any) {
+      set({ error: e?.message ?? 'Failed to load reassignment log', reassignmentLogLoading: false });
+    }
+  },
+
   fetchAll: async () => {
     set({ loading: true, error: null });
     await Promise.all([
@@ -182,6 +219,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       get().fetchSLA(),
       get().fetchEDISMetrics(),
       get().fetchPhysicians(),
+      get().fetchSLABreachAlerts(),
+      get().fetchReassignmentLog(),
     ]);
     set({ loading: false });
   },

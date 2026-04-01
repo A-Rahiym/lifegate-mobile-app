@@ -27,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAdminStore } from '../../stores/admin-store';
 import { useAuthStore } from '../../stores/auth-store';
-import type { AdminCaseRow, SLAItem, FlagCount, PhysicianRow } from '../../types/admin-types';
+import type { AdminCaseRow, SLAItem, FlagCount, PhysicianRow, SLABreachAlert } from '../../types/admin-types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -190,8 +190,96 @@ function CaseRow({ item }: { item: AdminCaseRow }) {
   );
 }
 
-// ─── Filter Bar ───────────────────────────────────────────────────────────────
+// ─── SLA Breach Alert Row ─────────────────────────────────────────────────────
 
+function BreachAlertRow({ item }: { item: SLABreachAlert }) {
+  const urgColor = URGENCY_COLORS[item.urgency] ?? '#6b7280';
+  return (
+    <View className="py-3 border-b border-gray-50">
+      <View className="flex-row items-start justify-between mb-1">
+        <View className="flex-1 pr-2">
+          <Text className="text-sm font-semibold text-gray-800" numberOfLines={1}>
+            {item.caseTitle || 'Untitled Case'}
+          </Text>
+          <Text className="text-[11px] font-bold mt-0.5" style={{ color: urgColor }}>
+            {item.urgency}
+          </Text>
+        </View>
+        <View className="items-end">
+          <View className="flex-row items-center bg-red-50 px-2 py-0.5 rounded-full">
+            <Ionicons name="warning" size={10} color="#dc2626" />
+            <Text className="text-[10px] font-bold text-red-700 ml-0.5">BREACH</Text>
+          </View>
+          <Text className="text-[10px] text-gray-400 mt-1">{item.waitFormatted} overdue</Text>
+        </View>
+      </View>
+      <View className="flex-row items-center mt-1 gap-3">
+        {item.originalPhysicianName ? (
+          <View className="flex-row items-center">
+            <Ionicons name="person-remove-outline" size={11} color="#9ca3af" />
+            <Text className="text-[11px] text-gray-400 ml-1">From: Dr. {item.originalPhysicianName}</Text>
+          </View>
+        ) : null}
+        {item.newPhysicianName ? (
+          <View className="flex-row items-center">
+            <Ionicons name="person-add-outline" size={11} color="#0AADA2" />
+            <Text className="text-[11px] text-teal-700 ml-1">To: Dr. {item.newPhysicianName}</Text>
+          </View>
+        ) : (
+          <View className="flex-row items-center">
+            <Ionicons name="alert-circle-outline" size={11} color="#f97316" />
+            <Text className="text-[11px] text-orange-600 ml-1">No physician available</Text>
+          </View>
+        )}
+        {item.natsPublished && (
+          <View className="flex-row items-center ml-auto">
+            <Ionicons name="radio" size={10} color="#22c55e" />
+            <Text className="text-[10px] text-green-600 ml-0.5">NATS</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ─── Reassignment Log Row ─────────────────────────────────────────────────────
+
+function ReassignmentRow({ item, index }: { item: SLABreachAlert; index: number }) {
+  const urgColor = URGENCY_COLORS[item.urgency] ?? '#6b7280';
+  const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  }) : '';
+  return (
+    <View className="py-3 border-b border-gray-50 flex-row">
+      <View className="w-6 h-6 rounded-full bg-indigo-50 items-center justify-center mr-3 mt-0.5">
+        <Text className="text-[10px] font-bold text-indigo-600">{index + 1}</Text>
+      </View>
+      <View className="flex-1">
+        <Text className="text-sm font-semibold text-gray-800" numberOfLines={1}>
+          {item.caseTitle || 'Untitled Case'}
+        </Text>
+        <View className="flex-row items-center mt-0.5 gap-3 flex-wrap">
+          <Text className="text-[11px] font-semibold" style={{ color: urgColor }}>{item.urgency}</Text>
+          <Text className="text-[11px] text-gray-400">Wait: {item.waitFormatted}</Text>
+        </View>
+        <View className="flex-row items-center mt-1 gap-2">
+          {item.originalPhysicianName ? (
+            <Text className="text-[11px] text-gray-500">
+              <Text className="text-gray-400">From </Text>Dr. {item.originalPhysicianName}
+            </Text>
+          ) : (
+            <Text className="text-[11px] text-gray-400">Unassigned</Text>
+          )}
+          <Ionicons name="arrow-forward" size={10} color="#6b7280" />
+          <Text className="text-[11px] text-teal-700 font-medium">Dr. {item.newPhysicianName}</Text>
+        </View>
+        <Text className="text-[10px] text-gray-400 mt-1">{dateStr}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Filter Bar ───────────────────────────────────────────────────────────────
 const STATUS_TABS = ['', 'Pending', 'Active', 'Completed'];
 const URGENCY_TABS = ['', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
@@ -266,14 +354,16 @@ function FilterBar({
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
-type Panel = 'overview' | 'sla' | 'edis' | 'physicians' | 'cases';
+type Panel = 'overview' | 'sla' | 'edis' | 'physicians' | 'cases' | 'breaches' | 'reassignments';
 
 const PANELS: { key: Panel; label: string; icon: string }[] = [
-  { key: 'overview',   label: 'Overview',    icon: 'grid'          },
-  { key: 'sla',        label: 'SLA',         icon: 'timer'         },
-  { key: 'edis',       label: 'EDIS',        icon: 'analytics'     },
-  { key: 'physicians', label: 'Physicians',  icon: 'people'        },
-  { key: 'cases',      label: 'Cases',       icon: 'folder-open'   },
+  { key: 'overview',       label: 'Overview',    icon: 'grid'          },
+  { key: 'sla',            label: 'SLA',         icon: 'timer'         },
+  { key: 'breaches',       label: 'Breaches',    icon: 'warning'       },
+  { key: 'reassignments',  label: 'Reassigned',  icon: 'swap-horizontal'},
+  { key: 'edis',           label: 'EDIS',        icon: 'analytics'     },
+  { key: 'physicians',     label: 'Physicians',  icon: 'people'        },
+  { key: 'cases',          label: 'Cases',       icon: 'folder-open'   },
 ];
 
 export default function AdminDashboardScreen() {
@@ -281,8 +371,11 @@ export default function AdminDashboardScreen() {
   const { user, logout } = useAuthStore();
   const {
     dashboard, cases, casesTotal, slaItems, edisMetrics, physicians,
+    slaBreachAlerts, reassignmentLog, reassignmentLogTotal,
+    breachAlertsLoading, reassignmentLogLoading,
     loading, error,
-    fetchAll, fetchCases, setFilters, filters, clearError,
+    fetchAll, fetchCases, fetchSLABreachAlerts, fetchReassignmentLog,
+    setFilters, filters, clearError,
   } = useAdminStore();
 
   const [activePanel, setActivePanel] = useState<Panel>('overview');
@@ -305,6 +398,15 @@ export default function AdminDashboardScreen() {
     await fetchAll();
     setRefreshing(false);
   }, [fetchAll]);
+
+  // Reload breach alerts when switching to the breaches or reassignments panel.
+  useEffect(() => {
+    if (activePanel === 'breaches') {
+      fetchSLABreachAlerts();
+    } else if (activePanel === 'reassignments') {
+      fetchReassignmentLog();
+    }
+  }, [activePanel, fetchSLABreachAlerts, fetchReassignmentLog]);
 
   const applyFilters = useCallback((extra?: { status?: string; urgency?: string; search?: string }) => {
     fetchCases({ status: statusFilter, urgency: urgencyFilter, search, page: 1, ...extra });
@@ -556,15 +658,119 @@ export default function AdminDashboardScreen() {
     </View>
   );
 
+  // ── Breach Alerts panel ────────────────────────────────────────────────────
+
+  const renderBreachAlerts = () => {
+    if (breachAlertsLoading) {
+      return <View className="items-center py-12"><ActivityIndicator color="#0AADA2" /></View>;
+    }
+    const total = slaBreachAlerts.length;
+    const unresolved = slaBreachAlerts.filter((a) => !a.newPhysicianName).length;
+    return (
+      <View>
+        {/* Summary chips */}
+        <View className="flex-row mb-4">
+          <View className="flex-1 mx-1 rounded-xl p-3 items-center" style={{ backgroundColor: '#fee2e2' }}>
+            <Text className="text-xl font-bold text-red-700">{total}</Text>
+            <Text className="text-[11px] font-semibold text-red-700 mt-0.5 uppercase">Total Breaches</Text>
+          </View>
+          <View className="flex-1 mx-1 rounded-xl p-3 items-center" style={{ backgroundColor: '#fef9c3' }}>
+            <Text className="text-xl font-bold text-yellow-700">{unresolved}</Text>
+            <Text className="text-[11px] font-semibold text-yellow-700 mt-0.5 uppercase">Unresolved</Text>
+          </View>
+          <View className="flex-1 mx-1 rounded-xl p-3 items-center" style={{ backgroundColor: '#dcfce7' }}>
+            <Text className="text-xl font-bold text-green-700">{total - unresolved}</Text>
+            <Text className="text-[11px] font-semibold text-green-700 mt-0.5 uppercase">Reassigned</Text>
+          </View>
+        </View>
+
+        {/* Event list */}
+        <View className="bg-white rounded-2xl px-4 py-2"
+          style={{ elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 }}>
+          <View className="flex-row items-center justify-between py-2 mb-1">
+            <Text className="text-xs font-semibold text-gray-500">BREACH EVENTS (MOST RECENT FIRST)</Text>
+            <TouchableOpacity onPress={() => fetchSLABreachAlerts()}>
+              <Ionicons name="refresh" size={15} color="#9ca3af" />
+            </TouchableOpacity>
+          </View>
+          {slaBreachAlerts.length === 0 ? (
+            <View className="items-center py-10">
+              <Ionicons name="shield-checkmark" size={36} color="#22c55e" />
+              <Text className="text-sm font-semibold text-green-700 mt-2">No SLA breaches detected</Text>
+              <Text className="text-xs text-gray-400 mt-1 text-center">
+                All cases have been handled within the 4-hour SLA window.
+              </Text>
+            </View>
+          ) : (
+            slaBreachAlerts.map((item) => <BreachAlertRow key={item.id} item={item} />)
+          )}
+        </View>
+        <Text className="text-[10px] text-gray-400 mt-2 text-center">
+          SLA window: 4 hours · NATS subject: admin.sla.breach.alert
+        </Text>
+      </View>
+    );
+  };
+
+  // ── Reassignment Log panel ─────────────────────────────────────────────────
+
+  const renderReassignmentLog = () => {
+    if (reassignmentLogLoading) {
+      return <View className="items-center py-12"><ActivityIndicator color="#0AADA2" /></View>;
+    }
+    return (
+      <View>
+        {/* Header stat */}
+        <View className="bg-indigo-50 rounded-2xl p-4 mb-4 flex-row items-center">
+          <View className="w-10 h-10 rounded-full bg-indigo-100 items-center justify-center mr-3">
+            <Ionicons name="swap-horizontal" size={20} color="#6366f1" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-2xl font-bold text-indigo-700">{reassignmentLogTotal}</Text>
+            <Text className="text-xs text-indigo-500 mt-0.5">Total auto-reassignments (all time)</Text>
+          </View>
+        </View>
+
+        {/* Log */}
+        <View className="bg-white rounded-2xl px-4 py-2"
+          style={{ elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 }}>
+          <View className="flex-row items-center justify-between py-2 mb-1">
+            <Text className="text-xs font-semibold text-gray-500">AUTO-REASSIGNMENT LOG</Text>
+            <TouchableOpacity onPress={() => fetchReassignmentLog()}>
+              <Ionicons name="refresh" size={15} color="#9ca3af" />
+            </TouchableOpacity>
+          </View>
+          {reassignmentLog.length === 0 ? (
+            <View className="items-center py-10">
+              <Ionicons name="swap-horizontal-outline" size={36} color="#d1d5db" />
+              <Text className="text-sm text-gray-400 mt-2">No reassignments recorded yet</Text>
+            </View>
+          ) : (
+            reassignmentLog.map((item, idx) => (
+              <ReassignmentRow key={item.id} item={item} index={idx} />
+            ))
+          )}
+        </View>
+        {reassignmentLog.length > 0 && (
+          <Text className="text-[10px] text-gray-400 mt-2 text-center">
+            Showing {reassignmentLog.length} of {reassignmentLogTotal} reassignment{reassignmentLogTotal !== 1 ? 's' : ''}
+          </Text>
+        )}
+      </View>
+    );
+  };
+
   // ── Panel renderer ────────────────────────────────────────────────────────
 
   const renderPanel = () => {
     switch (activePanel) {
-      case 'overview':   return renderOverview();
-      case 'sla':        return renderSLA();
-      case 'edis':       return renderEDIS();
-      case 'physicians': return renderPhysicians();
-      case 'cases':      return renderCases();
+      case 'overview':      return renderOverview();
+      case 'sla':           return renderSLA();
+      case 'breaches':      return renderBreachAlerts();
+      case 'reassignments': return renderReassignmentLog();
+      case 'edis':          return renderEDIS();
+      case 'physicians':    return renderPhysicians();
+      case 'cases':         return renderCases();
     }
   };
 
@@ -597,6 +803,7 @@ export default function AdminDashboardScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-4 -mx-1">
           {PANELS.map((panel) => {
             const active = activePanel === panel.key;
+            const hasBadge = panel.key === 'breaches' && slaBreachAlerts.length > 0;
             return (
               <TouchableOpacity
                 key={panel.key}
@@ -608,6 +815,13 @@ export default function AdminDashboardScreen() {
                   style={{ color: active ? '#0AADA2' : '#fff' }}>
                   {panel.label}
                 </Text>
+                {hasBadge && (
+                  <View className="ml-1 w-4 h-4 rounded-full bg-red-500 items-center justify-center">
+                    <Text className="text-[9px] font-bold text-white">
+                      {slaBreachAlerts.length > 99 ? '99+' : slaBreachAlerts.length}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
