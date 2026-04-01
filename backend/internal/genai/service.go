@@ -1,38 +1,47 @@
 package genai
 
 import (
-"context"
-"database/sql"
-"encoding/json"
-"log"
-"time"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log"
+	"time"
 
-"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
-natsclient "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/nats"
+	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
+	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/edis"
+	natsclient "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/nats"
+	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/sessions"
 )
 
+// ─── Service ──────────────────────────────────────────────────────────────────
+
 type Service struct {
-aiProvider ai.AIProvider
-db         *sql.DB
-nats       *natsclient.Client
-notifier   PhysicianNotifier
+	engine   *edis.Engine
+	db       *sql.DB
+	nats     *natsclient.Client
+	sessions *sessions.Service
+	notifier PhysicianNotifier
 }
 
 // PhysicianNotifier is satisfied by the WebSocket hub. It is used to push
-// real-time newcase events to all connected physician sessions.
+// real-time case events to all connected physician sessions.
 type PhysicianNotifier interface {
 	Broadcast(event string, data []byte)
 }
 
-func NewService(aiProvider ai.AIProvider, db *sql.DB, nats *natsclient.Client) *Service {
-return &Service{aiProvider: aiProvider, db: db, nats: nats}
+// NewService creates a genai Service backed by an EDIS engine.
+func NewService(engine *edis.Engine, db *sql.DB, nats *natsclient.Client, sessions *sessions.Service) *Service {
+	return &Service{engine: engine, db: db, nats: nats, sessions: sessions}
 }
 
-// SetPhysicianNotifier wires up the WebSocket hub so that new escalated cases
+// SetPhysicianNotifier wires up the WebSocket hub so that escalated cases
 // are broadcast to all connected physicians in real time.
 func (s *Service) SetPhysicianNotifier(n PhysicianNotifier) {
 	s.notifier = n
 }
+
+// ─── Request / Response types ─────────────────────────────────────────────────
 
 type ChatRequest struct {
 	Message          string           `json:"message"`
@@ -41,31 +50,35 @@ type ChatRequest struct {
 	Category         string
 }
 
-// ChatResponse wraps an AI response with an optional escalation signal.
+// ChatResponse is the full EDIS-powered response returned to the client.
 type ChatResponse struct {
-	*ai.AIResponse
-	// Escalated is true when a General Health session was auto-promoted to
-	// Clinical Diagnosis mode because the AI detected HIGH or CRITICAL urgency.
-	Escalated   bool   `json:"escalated,omitempty"`
-	// DiagnosisID is the UUID of the diagnosis record saved to the database.
-	DiagnosisID string `json:"diagnosisId,omitempty"`
+	Text                 string               `json:"text"`
+	Diagnosis            *ai.Diagnosis        `json:"diagnosis,omitempty"`
+	Prescription         *ai.Prescription     `json:"prescription,omitempty"`
+	Conditions           []ai.ConditionScore  `json:"conditions,omitempty"`
+	FollowUpQuestions    []string             `json:"followUpQuestions,omitempty"`
+	RiskFlags            []ai.RiskFlag        `json:"riskFlags,omitempty"`
+	Mode                 string               `json:"mode"`
+	Escalated            bool                 `json:"escalated,omitempty"`
+	EscalationTrigger    string               `json:"escalationTrigger,omitempty"`
+	LowConfidence        bool                 `json:"lowConfidence,omitempty"`
+	NeedsPhysicianReview bool                 `json:"needsPhysicianReview,omitempty"`
+	DiagnosisID          string               `json:"diagnosisId,omitempty"`
 }
 
-// buildSystemPrompt returns the base health prompt augmented with a category-specific snippet.
-func buildSystemPrompt(category string) string {
-	base := ai.HealthSystemPrompt
-	if snippet, ok := ai.CategoryPromptSnippets[category]; ok {
-		return base + "\n\n" + snippet
-	}
-	return base
+// FinalizeResult is the structured result of finalizing a session.
+type FinalizeResult struct {
+	DiagnosisID string              `json:"diagnosisId"`
+	Summary     string              `json:"summary"`
+	Conditions  []ai.ConditionScore `json:"conditions,omitempty"`
+	RiskFlags   []ai.RiskFlag       `json:"riskFlags,omitempty"`
+	Mode        string              `json:"mode"`
 }
 
-// isEscalationUrgency reports whether the urgency level breaches the risk threshold
-// that requires automatic escalation from General Health to Clinical Diagnosis mode.
-func isEscalationUrgency(urgency string) bool {
-	return urgency == "HIGH" || urgency == "CRITICAL"
-}
+// ─── Chat (stateless — backward-compatible) ───────────────────────────────────
 
+// Chat processes a single AI interaction without persisting a session.
+// The EDIS engine applies timeout, graceful fallback, escalation, and risk-flag logic.
 func (s *Service) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
 	start := time.Now()
 
@@ -76,147 +89,272 @@ func (s *Service) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 	})
 	_ = s.nats.Publish("patient.symptom.submitted", eventData)
 
-	// Limit conversation history to avoid token overflow (keep last 20 messages)
-	const maxHistoryMessages = 20
+	const maxHistory = 20
 	history := req.PreviousMessages
-	if len(history) > maxHistoryMessages {
-		history = history[len(history)-maxHistoryMessages:]
+	if len(history) > maxHistory {
+		history = history[len(history)-maxHistory:]
 	}
 
 	messages := append(history, ai.ChatMessage{Role: "USER", Text: req.Message})
-	resp, err := s.aiProvider.Chat(ctx, buildSystemPrompt(req.Category), messages)
+
+	// Process never returns an error — graceful fallback is applied on failure.
+	resp, _ := s.engine.Process(ctx, messages, req.Category)
+
+	return s.buildAndPublish(ctx, req.UserID, req.Message, resp, start)
+}
+
+// ─── ChatInSession (session-scoped) ──────────────────────────────────────────
+
+// ChatInSession appends a user message to an existing session, calls EDIS, and
+// persists the AI reply back to the session's message history.
+func (s *Service) ChatInSession(ctx context.Context, sessionID, userID, message, category string) (*ChatResponse, error) {
+	start := time.Now()
+
+	session, err := s.sessions.Get(ctx, sessionID, userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("session not found: %w", err)
 	}
 
-	// Latency check — log warning if initial AI call already exceeded 500ms target.
-	const latencyTarget = 500 * time.Millisecond
-	elapsed := time.Since(start)
-	if elapsed > latencyTarget {
-		log.Printf("[LATENCY] genai.Chat exceeded target: %dms (category=%s, user=%s)",
-			elapsed.Milliseconds(), req.Category, req.UserID)
-	}
-
-	// Auto-escalation: promote General Health sessions that breach the risk threshold.
-	// Re-runs the AI with the clinical prompt so the response is medically appropriate.
-	escalated := false
-	if req.Category == "general_health" &&
-		resp.Diagnosis != nil &&
-		isEscalationUrgency(resp.Diagnosis.Urgency) {
-
-		clinicalResp, clinicalErr := s.aiProvider.Chat(
-			ctx,
-			buildSystemPrompt("doctor_consultation"),
-			messages,
-		)
-		if clinicalErr == nil {
-			resp = clinicalResp
+	var history []ai.ChatMessage
+	if len(session.Messages) > 0 && string(session.Messages) != "null" {
+		if parseErr := json.Unmarshal(session.Messages, &history); parseErr != nil {
+			log.Printf("[EDIS] failed to parse session messages (id=%s): %v", sessionID, parseErr)
+			history = nil
 		}
-		escalated = true
+	}
 
+	const maxHistory = 20
+	if len(history) > maxHistory {
+		history = history[len(history)-maxHistory:]
+	}
+
+	messages := append(history, ai.ChatMessage{Role: "USER", Text: message})
+
+	resp, _ := s.engine.Process(ctx, messages, category)
+
+	// Persist the full conversation (user + AI turn) back to the session.
+	messages = append(messages, ai.ChatMessage{Role: "ASSISTANT", Text: resp.Text})
+	messagesJSON, _ := json.Marshal(messages)
+	activeStatus := "active"
+	if _, updateErr := s.sessions.Update(ctx, sessionID, userID, sessions.UpdateInput{
+		Messages: messagesJSON,
+		Status:   &activeStatus,
+	}); updateErr != nil {
+		log.Printf("[EDIS] failed to update session messages (id=%s): %v", sessionID, updateErr)
+	}
+
+	_ = s.nats.Publish("patient.symptom.submitted", func() []byte {
+		b, _ := json.Marshal(map[string]string{
+			"user_id":    userID,
+			"session_id": sessionID,
+			"message":    message,
+			"category":   category,
+		})
+		return b
+	}())
+
+	return s.buildAndPublish(ctx, userID, message, resp, start)
+}
+
+// ─── FinalizeSession ──────────────────────────────────────────────────────────
+
+// FinalizeSession generates a comprehensive final report for a session, saves a
+// diagnosis record, and marks the session as completed.
+func (s *Service) FinalizeSession(ctx context.Context, sessionID, userID string) (*FinalizeResult, error) {
+	session, err := s.sessions.Get(ctx, sessionID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("session not found: %w", err)
+	}
+
+	var history []ai.ChatMessage
+	if len(session.Messages) > 0 && string(session.Messages) != "null" {
+		_ = json.Unmarshal(session.Messages, &history)
+	}
+
+	// Append a finalization instruction so EDIS produces a comprehensive summary.
+	history = append(history, ai.ChatMessage{
+		Role: "USER",
+		Text: "Please provide a comprehensive final health assessment summary based on our entire conversation. " +
+			"Include the most probable conditions with confidence scores, any risk flags detected, " +
+			"and recommendations for follow-up care.",
+	})
+
+	resp, _ := s.engine.Process(ctx, history, session.Category)
+
+	// Final reports always enter the physician review queue.
+	diagnosisID := s.saveDiagnosis(userID, "Session Summary: "+session.Title, resp.AIResponse, resp.Escalated)
+
+	// Mark the session completed.
+	completedStatus := "completed"
+	if _, updateErr := s.sessions.Update(ctx, sessionID, userID, sessions.UpdateInput{
+		Status: &completedStatus,
+	}); updateErr != nil {
+		log.Printf("[EDIS] failed to mark session completed (id=%s): %v", sessionID, updateErr)
+	}
+
+	if diagnosisID != "" {
+		diagData, _ := json.Marshal(map[string]interface{}{
+			"user_id":      userID,
+			"session_id":   sessionID,
+			"diagnosis_id": diagnosisID,
+			"diagnosis":    resp.Diagnosis,
+			"conditions":   resp.Conditions,
+			"escalated":    resp.Escalated,
+		})
+		_ = s.nats.Publish("ai.diagnosis.preliminary", diagData)
+	}
+
+	return &FinalizeResult{
+		DiagnosisID: diagnosisID,
+		Summary:     resp.Text,
+		Conditions:  resp.Conditions,
+		RiskFlags:   resp.RiskFlags,
+		Mode:        resp.Mode,
+	}, nil
+}
+
+// ─── HealthCheck / Status ─────────────────────────────────────────────────────
+
+// HealthCheck pings the AI provider. Returns nil on success, error on failure.
+// Callers should return HTTP 503 on error.
+func (s *Service) HealthCheck(ctx context.Context) error {
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return s.engine.Ping(pingCtx)
+}
+
+// Status returns the current provider name and service status.
+func (s *Service) Status() map[string]string {
+	return map[string]string{
+		"provider": s.engine.ProviderName(),
+		"status":   "ready",
+	}
+}
+
+// ─── Shared response builder ──────────────────────────────────────────────────
+
+// buildAndPublish converts an EDISResponse into a ChatResponse and publishes
+// the appropriate NATS events (ai.question.generated, early_flag.detected,
+// ai.session.escalated, ai.diagnosis.preliminary).
+func (s *Service) buildAndPublish(ctx context.Context, userID, message string, resp *edis.EDISResponse, start time.Time) (*ChatResponse, error) {
+	cr := &ChatResponse{
+		Text:                 resp.Text,
+		Diagnosis:            resp.Diagnosis,
+		Prescription:         resp.Prescription,
+		Conditions:           resp.Conditions,
+		FollowUpQuestions:    resp.FollowUpQuestions,
+		RiskFlags:            resp.RiskFlags,
+		Mode:                 resp.Mode,
+		Escalated:            resp.Escalated,
+		EscalationTrigger:    resp.EscalationTrigger,
+		LowConfidence:        resp.LowConfidence,
+		NeedsPhysicianReview: resp.NeedsPhysicianReview,
+	}
+
+	// ai.question.generated — published whenever EDIS surfaces follow-up questions.
+	if len(resp.FollowUpQuestions) > 0 {
+		qData, _ := json.Marshal(map[string]interface{}{
+			"user_id":   userID,
+			"questions": resp.FollowUpQuestions,
+		})
+		_ = s.nats.Publish("ai.question.generated", qData)
+	}
+
+	// early_flag.detected — published when early-stage risk signals are present.
+	if len(resp.RiskFlags) > 0 {
+		flagData, _ := json.Marshal(map[string]interface{}{
+			"user_id":    userID,
+			"risk_flags": resp.RiskFlags,
+		})
+		_ = s.nats.Publish("early_flag.detected", flagData)
+	}
+
+	// ai.session.escalated — published on General → Clinical escalation.
+	if resp.Escalated {
 		escalationData, _ := json.Marshal(map[string]interface{}{
-			"user_id":       req.UserID,
-			"urgency":       resp.Diagnosis.Urgency,
-			"from_category": "general_health",
-			"to_category":   "doctor_consultation",
+			"user_id":            userID,
+			"escalation_trigger": resp.EscalationTrigger,
+			"needs_review":       resp.NeedsPhysicianReview,
 		})
 		_ = s.nats.Publish("ai.session.escalated", escalationData)
-
-		// Write escalation event to audit trail.
-		s.logAudit(req.UserID, "session.escalated", map[string]interface{}{
-			"reason":        "urgency_threshold_breach",
-			"urgency":       resp.Diagnosis.Urgency,
-			"from_category": "general_health",
-			"to_category":   "doctor_consultation",
-			"latency_ms":    time.Since(start).Milliseconds(),
+		s.logAudit(userID, "session.escalated", map[string]interface{}{
+			"reason":     resp.EscalationTrigger,
+			"latency_ms": time.Since(start).Milliseconds(),
 		})
 	}
 
-	// Log total request latency to audit trail for observability.
-	totalLatency := time.Since(start)
-	log.Printf("[LATENCY] genai.Chat total: %dms (category=%s, escalated=%v, user=%s)",
-		totalLatency.Milliseconds(), req.Category, escalated, req.UserID)
+	log.Printf("[EDIS] complete: %dms (escalated=%v lowConf=%v needsReview=%v user=%s)",
+		time.Since(start).Milliseconds(), resp.Escalated, resp.LowConfidence, resp.NeedsPhysicianReview, userID)
 
-if req.UserID != "" {
-if id := s.saveDiagnosis(req.UserID, req.Message, resp, escalated); id != "" {
-			if resp.Diagnosis != nil {
-				diagData, _ := json.Marshal(map[string]interface{}{
-					"user_id":      req.UserID,
-					"diagnosis_id": id,
-					"diagnosis":    resp.Diagnosis,
-					"escalated":    escalated,
-				})
-				_ = s.nats.Publish("ai.diagnosis.preliminary", diagData)
-			}
+	if userID == "" || resp.Diagnosis == nil {
+		return cr, nil
+	}
 
-			// When the case is escalated (HIGH/CRITICAL risk) notify all connected
-			// physicians in real time so they can see the new entry in their queue.
-			if escalated && s.notifier != nil && resp.Diagnosis != nil {
-				casePayload, _ := json.Marshal(map[string]interface{}{
-					"caseId":  id,
-					"urgency": resp.Diagnosis.Urgency,
-					"title":   truncateMsg(req.Message, 80),
-				})
-				s.notifier.Broadcast("physician.case.new", casePayload)
-			}
+	// Persist diagnosis and publish ai.diagnosis.preliminary.
+	id := s.saveDiagnosis(userID, message, resp.AIResponse, resp.Escalated)
+	if id == "" {
+		return cr, nil
+	}
 
-			return &ChatResponse{AIResponse: resp, Escalated: escalated, DiagnosisID: id}, nil
-}
-}
+	cr.DiagnosisID = id
 
-if resp.Diagnosis != nil {
-diagData, _ := json.Marshal(map[string]interface{}{
-"user_id":   req.UserID,
-"diagnosis": resp.Diagnosis,
-"escalated": escalated,
-})
-_ = s.nats.Publish("ai.diagnosis.preliminary", diagData)
+	diagData, _ := json.Marshal(map[string]interface{}{
+		"user_id":      userID,
+		"diagnosis_id": id,
+		"diagnosis":    resp.Diagnosis,
+		"conditions":   resp.Conditions,
+		"escalated":    resp.Escalated,
+	})
+	_ = s.nats.Publish("ai.diagnosis.preliminary", diagData)
+
+	// Real-time physician notification for escalated / high-risk cases.
+	if resp.Escalated && s.notifier != nil {
+		casePayload, _ := json.Marshal(map[string]interface{}{
+			"caseId":  id,
+			"urgency": resp.Diagnosis.Urgency,
+			"title":   truncateMsg(message, 80),
+		})
+		s.notifier.Broadcast("physician.case.new", casePayload)
+	}
+
+	return cr, nil
 }
 
-	return &ChatResponse{AIResponse: resp, Escalated: escalated}, nil
-}
+// ─── Persistence helpers ──────────────────────────────────────────────────────
 
-// saveDiagnosis persists the AI response as a diagnosis record and returns the new UUID.
 func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, escalated bool) string {
-aiJSON, _ := json.Marshal(resp)
-runes := []rune(message)
-title := message
-if len(runes) > 100 {
-title = string(runes[:100])
+	aiJSON, _ := json.Marshal(resp)
+	runes := []rune(message)
+	title := message
+	if len(runes) > 100 {
+		title = string(runes[:100])
+	}
+	condition, urgency := "", ""
+	if resp.Diagnosis != nil {
+		condition = resp.Diagnosis.Condition
+		urgency = resp.Diagnosis.Urgency
+	}
+	var id string
+	_ = s.db.QueryRow(
+		`INSERT INTO diagnoses (user_id, title, description, condition, urgency, ai_response, status, escalated)
+		 VALUES ($1, $2, $3, $4, $5, $6, 'Pending', $7)
+		 RETURNING id::text`,
+		userID, title, resp.Text, condition, urgency, aiJSON, escalated,
+	).Scan(&id)
+	return id
 }
 
-condition := ""
-urgency := ""
-if resp.Diagnosis != nil {
-condition = resp.Diagnosis.Condition
-urgency = resp.Diagnosis.Urgency
-}
-
-var id string
-_ = s.db.QueryRow(
-`INSERT INTO diagnoses (user_id, title, description, condition, urgency, ai_response, status, escalated)
- VALUES ($1, $2, $3, $4, $5, $6, 'Pending', $7)
- RETURNING id::text`,
-userID, title, resp.Text, condition, urgency, aiJSON, escalated,
-).Scan(&id)
-return id
-}
-
-// logAudit writes a structured event to the audit_logs table.
-// action should follow the format "resource.event" (e.g. "session.escalated").
 func (s *Service) logAudit(userID, action string, details map[string]interface{}) {
 	detailsJSON, _ := json.Marshal(details)
-	_, err := s.db.Exec(
+	if _, err := s.db.Exec(
 		`INSERT INTO audit_logs (user_id, action, resource, details)
 		 VALUES ($1::uuid, $2, $3, $4)`,
 		userID, action, "genai", detailsJSON,
-	)
-	if err != nil {
-		log.Printf("[AUDIT] failed to write audit log (action=%s, user=%s): %v", action, userID, err)
+	); err != nil {
+		log.Printf("[AUDIT] failed to write log (action=%s user=%s): %v", action, userID, err)
 	}
 }
 
-// truncateMsg returns at most n runes from s (for notification previews).
 func truncateMsg(s string, n int) string {
 	runes := []rune(s)
 	if len(runes) <= n {

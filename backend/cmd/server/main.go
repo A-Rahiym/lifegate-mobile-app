@@ -6,6 +6,7 @@ import (
 
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/alerts"
+	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/edis"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/auth"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/config"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/db"
@@ -48,8 +49,13 @@ authRepo := auth.NewRepository(database)
 authSvc := auth.NewService(authRepo, redisClient, cfg)
 authHandler := auth.NewHandler(authSvc, cfg.UploadDir)
 
-genaiSvc := genai.NewService(aiProvider, database, natsClient)
-genaiHandler := genai.NewHandler(genaiSvc)
+sessionsRepo := sessions.NewRepository(database)
+	sessionsSvc := sessions.NewService(sessionsRepo, redisClient)
+	sessionsHandler := sessions.NewHandler(sessionsSvc)
+
+	edisEngine := edis.NewEngine(aiProvider)
+	genaiSvc := genai.NewService(edisEngine, database, natsClient, sessionsSvc)
+	genaiHandler := genai.NewHandler(genaiSvc)
 
 hub := wshub.NewHub()
 
@@ -87,10 +93,6 @@ hub := wshub.NewHub()
 
 	// Grant trial credits to every new patient that registers.
 	authSvc.SetTrialCreditGranter(paymentsSvc)
-
-	sessionsRepo := sessions.NewRepository(database)
-	sessionsSvc := sessions.NewService(sessionsRepo, redisClient)
-	sessionsHandler := sessions.NewHandler(sessionsSvc)
 
 // Router
 r := gin.New()
@@ -147,6 +149,15 @@ genaiGroup := api.Group("/genai", middleware.Auth(cfg.JWTSecret))
 		}
 		genaiHandler.Chat(c)
 	})
+	genaiGroup.POST("/health-check", genaiHandler.HealthCheck)
+	genaiGroup.GET("/status", genaiHandler.Status)
+}
+
+// Session-scoped AI routes
+chatSessionsGroup := api.Group("/chat/sessions", middleware.Auth(cfg.JWTSecret))
+{
+	chatSessionsGroup.POST("/:id/ai-message", genaiHandler.ChatSession)
+	chatSessionsGroup.POST("/:id/finalize", genaiHandler.FinalizeSession)
 }
 
 // Physician routes
