@@ -38,6 +38,10 @@ type Config struct {
 	SMTPFrom     string
 
 	UploadDir string
+
+	FlutterwaveSecretKey string
+	FlutterwavePublicKey  string
+	FlutterwaveRedirectURL string
 }
 
 func Load() *Config {
@@ -78,6 +82,10 @@ func Load() *Config {
 		SMTPFrom:     getEnv("SMTP_FROM", "noreply@lifegate.app"),
 
 		UploadDir: getEnv("UPLOAD_DIR", "./uploads"),
+
+		FlutterwaveSecretKey:   getEnv("FLW_SECRET_KEY", ""),
+		FlutterwavePublicKey:    getEnv("FLW_PUBLIC_KEY", ""),
+		FlutterwaveRedirectURL:  getEnv("FLW_REDIRECT_URL", "lifegate://payment/callback"),
 	}
 }
 

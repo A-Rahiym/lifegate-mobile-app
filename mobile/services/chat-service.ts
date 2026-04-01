@@ -26,7 +26,8 @@ export class ChatService {
   static async sendMessage(
     previousMessages: Message[],
     userMessage: string,
-    category?: string
+    category?: string,
+    mode?: string
   ): Promise<AIResponse> {
     const clientStart = Date.now();
     const LATENCY_TARGET_MS = 500;
@@ -42,8 +43,14 @@ export class ChatService {
         })),
       };
 
+      // Send ?category=clinical_diagnosis as query param so the credit gate
+      // middleware can read it without consuming the request body.
+      const queryParams = mode === 'clinical_diagnosis'
+        ? { params: { category: 'clinical_diagnosis' } }
+        : {};
+
       // Call backend endpoint
-      const response = await api.post<{ data: AIResponse; escalated?: boolean; latency_ms?: number }>('/genai/chat', requestPayload);
+      const response = await api.post<{ data: AIResponse; escalated?: boolean; latency_ms?: number }>('/genai/chat', requestPayload, queryParams);
 
       const clientLatencyMs = Date.now() - clientStart;
       const serverLatencyMs = response.data.latency_ms ?? Number(response.headers?.['x-ai-latency-ms'] ?? 0);
@@ -83,8 +90,15 @@ export class ChatService {
       }
 
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Backend AI API Error:', error);
+      // Detect credit-gate rejection so the UI can show a top-up prompt.
+      if (
+        error?.response?.status === 402 &&
+        error?.response?.data?.code === 'INSUFFICIENT_CREDITS'
+      ) {
+        throw new Error('INSUFFICIENT_CREDITS');
+      }
       throw new Error(
         'I encountered an error analyzing your symptoms. Please try again or consult a professional.'
       );

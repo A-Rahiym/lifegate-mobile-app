@@ -23,6 +23,7 @@ import { SuggestedActions } from 'components/SuggestedActions';
 import { ModeSelectionModal } from 'components/ModeSelectionModal';
 import { useChatStore } from 'stores/chat-store';
 import { useAuthStore } from 'stores/auth/auth-store';
+import { usePaymentStore } from 'stores/payment-store';
 import { GreetingSection } from 'components';
 import { TypingIndicator } from 'components/TypingIndicator';
 import type { ConversationCategory, SessionMode } from 'types/chat-types';
@@ -63,6 +64,7 @@ const ChatScreen: React.FC = () => {
   const initializeChat = useChatStore((state) => state.initializeChat);
 
   const { user, logout } = useAuthStore();
+  const creditBalance = usePaymentStore((state) => state.balance?.balance ?? null);
 
   const messages = activeConversation?.messages || [];
   const activeCategory = activeConversation?.category;
@@ -414,13 +416,34 @@ const ChatScreen: React.FC = () => {
             {/* Typing indicator */}
             {isThinking && <TypingIndicator phase={processingPhase} />}
 
-            {/* Error banner */}
-            {error && (
+            {/* Error banner — credit gate gets a dedicated Top-Up CTA */}
+            {error && error !== 'INSUFFICIENT_CREDITS' && (
               <View className="mx-4 mb-2 rounded-xl border border-red-300 bg-red-50 px-3 py-2 flex-row items-center gap-2">
                 <Ionicons name="warning-outline" size={16} color="#dc2626" />
                 <Text className="text-sm font-medium text-red-700 flex-1">{error}</Text>
                 <TouchableOpacity onPress={clearError}>
                   <Ionicons name="close" size={16} color="#dc2626" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {error === 'INSUFFICIENT_CREDITS' && (
+              <View className="mx-4 mb-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 flex-row items-center gap-2">
+                <Ionicons name="flash-outline" size={16} color="#b45309" />
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-amber-800">
+                    You're out of credits
+                  </Text>
+                  <Text className="text-xs text-amber-700">
+                    Clinical Diagnosis requires credits. Top up to continue.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    clearError();
+                    router.push('/(tab)/settings/subscription');
+                  }}
+                  className="rounded-lg bg-[#0EA5A4] px-3 py-1.5">
+                  <Text className="text-xs font-bold text-white">Top Up</Text>
                 </TouchableOpacity>
               </View>
             )}

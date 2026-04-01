@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/alerts"
@@ -12,6 +13,7 @@ import (
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/genai"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/middleware"
 	natsclient "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/nats"
+	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/payments"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/physician"
 	redisclient "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/redis"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/review"
@@ -62,6 +64,14 @@ hub := wshub.NewHub()
 	alertsSvc := alerts.NewService(database)
 	alertsHandler := alerts.NewHandler(alertsSvc)
 
+	paymentsSvc := payments.NewService(
+		database,
+		cfg.FlutterwaveSecretKey,
+		cfg.FlutterwavePublicKey,
+		cfg.FlutterwaveRedirectURL,
+	)
+	paymentsHandler := payments.NewHandler(paymentsSvc)
+
 // Router
 r := gin.New()
 r.Use(middleware.Logger())
@@ -91,7 +101,32 @@ authGroup.PATCH("/mdcn-verify", middleware.Auth(cfg.JWTSecret), authHandler.Mark
 // GenAI routes
 genaiGroup := api.Group("/genai", middleware.Auth(cfg.JWTSecret))
 {
-genaiGroup.POST("/chat", genaiHandler.Chat)
+	// For clinical_diagnosis category, deduct 1 credit before calling the AI.
+	// We peek at the category query param to avoid consuming the JSON body.
+	// The mobile client sends ?category=clinical_diagnosis as a query param
+	// in addition to the body so we can gate without body re-reading.
+	genaiGroup.POST("/chat", func(c *gin.Context) {
+		if c.Query("category") == "clinical_diagnosis" {
+			uid, _ := c.Get("userID")
+			uidStr, _ := uid.(string)
+			ok, err := paymentsSvc.DeductCredit(uidStr, "")
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Credit check failed"})
+				c.Abort()
+				return
+			}
+			if !ok {
+				c.JSON(http.StatusPaymentRequired, gin.H{
+					"success": false,
+					"code":    "INSUFFICIENT_CREDITS",
+					"message": "You have no diagnosis credits remaining. Please top up to continue.",
+				})
+				c.Abort()
+				return
+			}
+		}
+		genaiHandler.Chat(c)
+	})
 }
 
 // Physician routes
@@ -122,6 +157,13 @@ physicianGroup.POST("/reports/:id/review", physicianHandler.ReviewReport)
 
 	// Physician workload alerts (added to existing physician group above)
 	api.GET("/physician/alerts", middleware.Auth(cfg.JWTSecret), alertsHandler.GetPhysicianAlerts)
+
+	// Payments & Credits
+	api.GET("/payments/bundles", middleware.Auth(cfg.JWTSecret), paymentsHandler.GetBundles)
+	api.POST("/payments/initiate", middleware.Auth(cfg.JWTSecret), paymentsHandler.InitiatePayment)
+	api.POST("/payments/verify", middleware.Auth(cfg.JWTSecret), paymentsHandler.VerifyPayment)
+	api.GET("/payments/transactions", middleware.Auth(cfg.JWTSecret), paymentsHandler.GetTransactions)
+	api.GET("/credits/balance", middleware.Auth(cfg.JWTSecret), paymentsHandler.GetCreditBalance)
 
 	// WebSocket (supports optional ?token= for user-aware broadcasting)
 	r.GET("/ws", hub.Handler(cfg.JWTSecret))

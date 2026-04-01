@@ -217,7 +217,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const aiResponse = await ChatService.sendMessage(
         conversation.messages.slice(0, -1), // All previous messages
         userMessage.text,
-        conversation.category
+        conversation.category,
+        conversation.mode ?? undefined
       );
 
       // Step D: Handle success
@@ -317,11 +318,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
           };
         });
 
+        const isInsufficientCredits = (error as Error)?.message === 'INSUFFICIENT_CREDITS';
         return {
           conversations,
           isThinking: false,
           processingPhase: null,
-          error: 'Failed to get AI response. Please try again.',
+          error: isInsufficientCredits
+            ? 'INSUFFICIENT_CREDITS'
+            : 'Failed to get AI response. Please try again.',
         };
       });
     }

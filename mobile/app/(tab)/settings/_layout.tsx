@@ -15,6 +15,8 @@ export default function UserSettingsLayout() {
         <Stack.Screen name="subscription" />
         <Stack.Screen name="contact-us" />
         <Stack.Screen name="help-center" />
+        <Stack.Screen name="payment-failed" />
+        <Stack.Screen name="transactions" />
     </Stack>
   );
 }
