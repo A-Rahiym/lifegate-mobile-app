@@ -8,7 +8,7 @@ export type User = {
   // Basic info
   name: string;
   email: string;
-  role: 'user' | 'professional';
+  role: 'user' | 'professional' | 'admin';
   
   // Contact & Demographics
   phone?: string;
@@ -82,7 +82,7 @@ export type RegisterPayload = {
   gender: string;
   language: string;
   healthHistory: string;
-  role: 'user' | 'professional';
+  role: 'user' | 'professional' | 'admin';
   // Health professional specific fields (optional)
   specialization?: string;
   certificateName?: string;
@@ -124,7 +124,7 @@ export type RegistrationStartPayload = {
   name: string;
   email: string;
   password: string;
-  role: 'user' | 'professional';
+  role: 'user' | 'professional' | 'admin';
   phone: string;
   dob: string;
   gender: string;

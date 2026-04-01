@@ -24,7 +24,7 @@ export default function SplashScreen() {
         // the ResumeSessionModal can be shown after navigation.
         if (isAuthenticated) {
           const { user } = useAuthStore.getState();
-          if (user?.role !== 'professional') {
+          if (user?.role === 'user') {
             // Non-blocking — failure does not block navigation.
             useSessionStore.getState().fetchIncomplete().catch(() => {});
           }
@@ -34,7 +34,9 @@ export default function SplashScreen() {
         setTimeout(() => {
           if (isAuthenticated) {
             const { user } = useAuthStore.getState();
-            if (user?.role === 'professional') {
+            if (user?.role === 'admin') {
+              router.replace('/(admin-tab)/dashboard');
+            } else if (user?.role === 'professional') {
               router.replace('/(prof-tab)/consultation');
             } else {
               router.replace('/(tab)/chatScreen');

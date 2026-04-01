@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/admin"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/alerts"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/edis"
@@ -93,6 +94,11 @@ hub := wshub.NewHub()
 
 	// Grant trial credits to every new patient that registers.
 	authSvc.SetTrialCreditGranter(paymentsSvc)
+
+	// Admin system
+	adminRepo := admin.NewRepository(database)
+	adminSvc := admin.NewService(adminRepo)
+	adminHandler := admin.NewHandler(adminSvc)
 
 // Router
 r := gin.New()
@@ -253,6 +259,16 @@ physicianGroup.POST("/push-token", func(c *gin.Context) {
 		sessionsGroup.GET("/:id", sessionsHandler.Get)
 		sessionsGroup.PUT("/:id", sessionsHandler.Update)
 		sessionsGroup.DELETE("/:id", sessionsHandler.Delete)
+	}
+
+	// Admin routes — require both a valid JWT and the "admin" role.
+	adminGroup := api.Group("/admin", middleware.Auth(cfg.JWTSecret), middleware.AdminOnly())
+	{
+		adminGroup.GET("/dashboard", adminHandler.GetDashboard)
+		adminGroup.GET("/cases", adminHandler.GetCases)
+		adminGroup.GET("/sla", adminHandler.GetSLA)
+		adminGroup.GET("/metrics/edis", adminHandler.GetEDISMetrics)
+		adminGroup.GET("/physicians", adminHandler.GetPhysicians)
 	}
 
 	// WebSocket (supports optional ?token= for user-aware broadcasting)
