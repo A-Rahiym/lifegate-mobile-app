@@ -100,6 +100,11 @@ hub := wshub.NewHub()
 	adminSvc := admin.NewService(adminRepo)
 	adminHandler := admin.NewHandler(adminSvc)
 
+	// Wire the admin SLA breach recorder into the physician service so that
+	// completed cases which exceed the SLA are automatically logged and the
+	// 3-breach-per-week flag is evaluated after every completion.
+	physicianSvc.SetSLABreachRecorder(adminSvc)
+
 // Router
 r := gin.New()
 r.Use(middleware.Logger())
@@ -268,7 +273,17 @@ physicianGroup.POST("/push-token", func(c *gin.Context) {
 		adminGroup.GET("/cases", adminHandler.GetCases)
 		adminGroup.GET("/sla", adminHandler.GetSLA)
 		adminGroup.GET("/metrics/edis", adminHandler.GetEDISMetrics)
+
+		// Physician account management
 		adminGroup.GET("/physicians", adminHandler.GetPhysicians)
+		adminGroup.POST("/physicians", adminHandler.CreatePhysician)
+		adminGroup.POST("/physicians/flag-check", adminHandler.TriggerFlagCheck)
+		adminGroup.GET("/physicians/:id", adminHandler.GetPhysicianDetail)
+		adminGroup.PATCH("/physicians/:id", adminHandler.UpdatePhysician)
+		adminGroup.DELETE("/physicians/:id", adminHandler.DeletePhysician)
+		adminGroup.POST("/physicians/:id/suspend", adminHandler.SuspendPhysician)
+		adminGroup.POST("/physicians/:id/unsuspend", adminHandler.UnsuspendPhysician)
+		adminGroup.POST("/physicians/:id/mdcn-override", adminHandler.OverrideMDCN)
 	}
 
 	// WebSocket (supports optional ?token= for user-aware broadcasting)

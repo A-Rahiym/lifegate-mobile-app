@@ -245,7 +245,10 @@ func (r *Repository) ReviewReport(reportID, physicianID string, input ReviewInpu
 func (r *Repository) TakeCase(caseID, physicianID string) (patientID string, err error) {
 	err = r.db.QueryRow(
 		`UPDATE diagnoses
-		 SET physician_id = $1, status = 'Active', updated_at = NOW()
+		 SET physician_id          = $1,
+		     status               = 'Active',
+		     physician_assigned_at = NOW(),
+		     updated_at           = NOW()
 		 WHERE id = $2 AND status = 'Pending' AND physician_id IS NULL
 		 RETURNING user_id::text`,
 		physicianID, caseID,
@@ -704,5 +707,51 @@ func (r *Repository) UpdateAIOutput(caseID, physicianID, condition, urgency stri
 		return ErrCaseNotActive
 	}
 	return nil
+}
+
+// SLABreachResult is returned by ComputeSLABreach.
+type SLABreachResult struct {
+	Breached  bool
+	HoursOver float64
+}
+
+// slaThresholdHours returns the SLA threshold in hours based on urgency.
+//
+//	CRITICAL → 6 h, HIGH → 12 h, MEDIUM|LOW → 24 h
+func slaThresholdHours(urgency string) float64 {
+	switch urgency {
+	case "CRITICAL":
+		return 6
+	case "HIGH":
+		return 12
+	default:
+		return 24
+	}
+}
+
+// ComputeSLABreach checks whether a just-completed case breached the
+// physician-side SLA (measured from physician_assigned_at).
+// Returns (breached=false, 0) when physician_assigned_at is NULL (e.g. carried
+// over cases where the physician did not formally take the case via TakeCase).
+func (r *Repository) ComputeSLABreach(caseID string) (SLABreachResult, error) {
+	var assignedAt sql.NullTime
+	var urgency string
+	err := r.db.QueryRow(`
+		SELECT physician_assigned_at, COALESCE(urgency,'LOW')
+		FROM diagnoses WHERE id = $1::uuid`, caseID).
+		Scan(&assignedAt, &urgency)
+	if err != nil {
+		return SLABreachResult{}, err
+	}
+	if !assignedAt.Valid {
+		return SLABreachResult{Breached: false}, nil
+	}
+
+	elapsed := time.Since(assignedAt.Time).Hours()
+	threshold := slaThresholdHours(urgency)
+	if elapsed > threshold {
+		return SLABreachResult{Breached: true, HoursOver: elapsed - threshold}, nil
+	}
+	return SLABreachResult{Breached: false}, nil
 }
 

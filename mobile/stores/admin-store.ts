@@ -6,7 +6,10 @@ import type {
   SLAItem,
   EDISMetrics,
   PhysicianRow,
+  PhysicianDetail,
   AdminCaseFilters,
+  CreatePhysicianInput,
+  UpdatePhysicianInput,
 } from '../types/admin-types';
 
 type AdminState = {
@@ -17,6 +20,7 @@ type AdminState = {
   slaItems: SLAItem[];
   edisMetrics: EDISMetrics | null;
   physicians: PhysicianRow[];
+  selectedPhysician: PhysicianDetail | null;
 
   // Filters
   filters: AdminCaseFilters;
@@ -24,6 +28,7 @@ type AdminState = {
   // UI state
   loading: boolean;
   refreshing: boolean;
+  physicianLoading: boolean;
   error: string | null;
 
   // Actions
@@ -32,9 +37,18 @@ type AdminState = {
   fetchSLA: () => Promise<void>;
   fetchEDISMetrics: (days?: number) => Promise<void>;
   fetchPhysicians: () => Promise<void>;
+  fetchPhysicianDetail: (id: string) => Promise<void>;
+  createPhysician: (input: CreatePhysicianInput) => Promise<string>;
+  updatePhysician: (id: string, input: UpdatePhysicianInput) => Promise<void>;
+  deletePhysician: (id: string) => Promise<void>;
+  suspendPhysician: (id: string, reason?: string) => Promise<void>;
+  unsuspendPhysician: (id: string) => Promise<void>;
+  overrideMDCN: (id: string, status: 'confirmed' | 'rejected') => Promise<void>;
+  triggerFlagCheck: () => Promise<number>;
   fetchAll: () => Promise<void>;
   setFilters: (f: Partial<AdminCaseFilters>) => void;
   clearError: () => void;
+  clearSelectedPhysician: () => void;
 };
 
 export const useAdminStore = create<AdminState>((set, get) => ({
@@ -44,9 +58,11 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   slaItems: [],
   edisMetrics: null,
   physicians: [],
+  selectedPhysician: null,
   filters: { status: '', urgency: '', search: '', page: 1, pageSize: 20 },
   loading: false,
   refreshing: false,
+  physicianLoading: false,
   error: null,
 
   fetchDashboard: async () => {
@@ -95,6 +111,69 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
+  fetchPhysicianDetail: async (id: string) => {
+    set({ physicianLoading: true });
+    try {
+      const selectedPhysician = await AdminService.getPhysicianDetail(id);
+      set({ selectedPhysician, physicianLoading: false });
+    } catch (e: any) {
+      set({ error: e?.message ?? 'Failed to load physician', physicianLoading: false });
+    }
+  },
+
+  createPhysician: async (input: CreatePhysicianInput) => {
+    const result = await AdminService.createPhysician(input);
+    await get().fetchPhysicians();
+    return result.id;
+  },
+
+  updatePhysician: async (id: string, input: UpdatePhysicianInput) => {
+    await AdminService.updatePhysician(id, input);
+    await Promise.all([get().fetchPhysicians(), get().fetchPhysicianDetail(id)]);
+  },
+
+  deletePhysician: async (id: string) => {
+    await AdminService.deletePhysician(id);
+    set((s) => ({ physicians: s.physicians.filter((p) => p.id !== id), selectedPhysician: null }));
+  },
+
+  suspendPhysician: async (id: string, reason?: string) => {
+    await AdminService.suspendPhysician(id, reason);
+    set((s) => ({
+      physicians: s.physicians.map((p) =>
+        p.id === id ? { ...p, accountStatus: 'suspended' as const } : p
+      ),
+      selectedPhysician: s.selectedPhysician?.id === id
+        ? { ...s.selectedPhysician, accountStatus: 'suspended' as const }
+        : s.selectedPhysician,
+    }));
+  },
+
+  unsuspendPhysician: async (id: string) => {
+    await AdminService.unsuspendPhysician(id);
+    set((s) => ({
+      physicians: s.physicians.map((p) =>
+        p.id === id ? { ...p, accountStatus: 'active' as const } : p
+      ),
+      selectedPhysician: s.selectedPhysician?.id === id
+        ? { ...s.selectedPhysician, accountStatus: 'active' as const }
+        : s.selectedPhysician,
+    }));
+  },
+
+  overrideMDCN: async (id: string, status: 'confirmed' | 'rejected') => {
+    await AdminService.overrideMDCN(id, status);
+    // Reload detail to reflect the new override status and mdcn_verified flag
+    await get().fetchPhysicianDetail(id);
+    await get().fetchPhysicians();
+  },
+
+  triggerFlagCheck: async () => {
+    const result = await AdminService.triggerFlagCheck();
+    await get().fetchPhysicians();
+    return result.newlyFlagged;
+  },
+
   fetchAll: async () => {
     set({ loading: true, error: null });
     await Promise.all([
@@ -112,4 +191,5 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+  clearSelectedPhysician: () => set({ selectedPhysician: null }),
 }));

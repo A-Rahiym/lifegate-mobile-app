@@ -60,9 +60,60 @@ export type PhysicianRow = {
   email: string;
   specialization: string;
   mdcnVerified: boolean;
+  mdcnOverrideStatus: '' | 'confirmed' | 'rejected';
+  accountStatus: 'active' | 'suspended';
+  flagged: boolean;
+  flaggedReason?: string;
+  slaBreachCountWeek: number;
   activeCases: number;
   totalCompleted: number;
   available: boolean;
+};
+
+export type PhysicianCaseHistory = {
+  id: string;
+  title: string;
+  condition: string;
+  urgency: string;
+  status: string;
+  escalated: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PhysicianDetail = PhysicianRow & {
+  phone: string;
+  dob: string;
+  gender: string;
+  yearsOfExperience: string;
+  certificateName: string;
+  certificateId: string;
+  certificateIssueDate: string;
+  certificateUrl: string;
+  flaggedAt?: string;
+  mdcnOverrideBy?: string;
+  mdcnOverrideAt?: string;
+  createdAt: string;
+  recentCases: PhysicianCaseHistory[];
+};
+
+export type CreatePhysicianInput = {
+  name: string;
+  email: string;
+  password: string;
+  specialization?: string;
+  phone?: string;
+  yearsOfExperience?: string;
+  certificateName?: string;
+  certificateId?: string;
+};
+
+export type UpdatePhysicianInput = {
+  name?: string;
+  email?: string;
+  specialization?: string;
+  phone?: string;
+  yearsOfExperience?: string;
 };
 
 export type AdminCaseFilters = {

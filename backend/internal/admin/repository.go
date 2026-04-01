@@ -69,14 +69,70 @@ type FlagCount struct {
 
 // PhysicianRow is a physician summary for admin view.
 type PhysicianRow struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Email          string `json:"email"`
-	Specialization string `json:"specialization"`
-	MdcnVerified   bool   `json:"mdcnVerified"`
-	ActiveCases    int    `json:"activeCases"`
-	TotalCompleted int    `json:"totalCompleted"`
-	Available      bool   `json:"available"` // true when ActiveCases == 0
+	ID                 string  `json:"id"`
+	Name               string  `json:"name"`
+	Email              string  `json:"email"`
+	Specialization     string  `json:"specialization"`
+	MdcnVerified       bool    `json:"mdcnVerified"`
+	MdcnOverrideStatus string  `json:"mdcnOverrideStatus"` // "" | "confirmed" | "rejected"
+	AccountStatus      string  `json:"accountStatus"`       // "active" | "suspended"
+	Flagged            bool    `json:"flagged"`
+	FlaggedReason      string  `json:"flaggedReason,omitempty"`
+	SlaBreachCountWeek int     `json:"slaBreachCountWeek"`
+	ActiveCases        int     `json:"activeCases"`
+	TotalCompleted     int     `json:"totalCompleted"`
+	Available          bool    `json:"available"` // true when ActiveCases == 0
+}
+
+// PhysicianCaseHistory is a brief case record in a physician profile.
+type PhysicianCaseHistory struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Condition  string `json:"condition"`
+	Urgency    string `json:"urgency"`
+	Status     string `json:"status"`
+	Escalated  bool   `json:"escalated"`
+	CreatedAt  string `json:"createdAt"`
+	UpdatedAt  string `json:"updatedAt"`
+}
+
+// PhysicianDetail is the full physician profile for the admin detail view.
+type PhysicianDetail struct {
+	PhysicianRow
+	Phone                string                 `json:"phone"`
+	DOB                  string                 `json:"dob"`
+	Gender               string                 `json:"gender"`
+	YearsOfExperience    string                 `json:"yearsOfExperience"`
+	CertificateName      string                 `json:"certificateName"`
+	CertificateID        string                 `json:"certificateId"`
+	CertificateIssueDate string                 `json:"certificateIssueDate"`
+	CertificateURL       string                 `json:"certificateUrl"`
+	FlaggedAt            string                 `json:"flaggedAt,omitempty"`
+	MdcnOverrideBy       string                 `json:"mdcnOverrideBy,omitempty"` // admin name
+	MdcnOverrideAt       string                 `json:"mdcnOverrideAt,omitempty"`
+	CreatedAt            string                 `json:"createdAt"`
+	RecentCases          []PhysicianCaseHistory `json:"recentCases"`
+}
+
+// CreatePhysicianInput carries the fields for creating a new physician account.
+type CreatePhysicianInput struct {
+	Name              string `json:"name"`
+	Email             string `json:"email"`
+	Password          string `json:"password"`
+	Specialization    string `json:"specialization"`
+	Phone             string `json:"phone"`
+	YearsOfExperience string `json:"yearsOfExperience"`
+	CertificateName   string `json:"certificateName"`
+	CertificateID     string `json:"certificateId"`
+}
+
+// UpdatePhysicianInput carries the fields that an admin can update.
+type UpdatePhysicianInput struct {
+	Name              string `json:"name"`
+	Email             string `json:"email"`
+	Specialization    string `json:"specialization"`
+	Phone             string `json:"phone"`
+	YearsOfExperience string `json:"yearsOfExperience"`
 }
 
 // CaseFilters controls admin case list filtering and pagination.
@@ -379,18 +435,28 @@ func (r *Repository) GetEDISMetrics(days int) (*EDISMetrics, error) {
 	return metrics, flagRows.Err()
 }
 
-// GetPhysicians returns all physicians with their case load statistics.
+// GetPhysicians returns all physicians with their case load and account management statistics.
 func (r *Repository) GetPhysicians() ([]PhysicianRow, error) {
 	rows, err := r.db.Query(`
 		SELECT u.id, u.name, u.email, COALESCE(u.specialization,''),
 		       u.mdcn_verified,
+		       COALESCE(u.mdcn_override_status,''),
+		       COALESCE(u.account_status,'active'),
+		       u.flagged,
+		       COALESCE(u.flagged_reason,''),
 		       COUNT(d.id) FILTER (WHERE d.status = 'Active')   AS active_cases,
-		       COUNT(d.id) FILTER (WHERE d.status = 'Completed') AS completed_cases
+		       COUNT(d.id) FILTER (WHERE d.status = 'Completed') AS completed_cases,
+		       (
+		           SELECT COUNT(*) FROM physician_sla_breaches b
+		           WHERE b.physician_id = u.id
+		             AND b.breached_at >= NOW() - INTERVAL '7 days'
+		       ) AS sla_breach_week
 		FROM users u
 		LEFT JOIN diagnoses d ON d.physician_id = u.id
 		WHERE u.role = 'professional'
-		GROUP BY u.id, u.name, u.email, u.specialization, u.mdcn_verified
-		ORDER BY active_cases DESC, u.name ASC`)
+		GROUP BY u.id, u.name, u.email, u.specialization, u.mdcn_verified,
+		         u.mdcn_override_status, u.account_status, u.flagged, u.flagged_reason
+		ORDER BY u.flagged DESC, active_cases DESC, u.name ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +467,9 @@ func (r *Repository) GetPhysicians() ([]PhysicianRow, error) {
 		var p PhysicianRow
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Email, &p.Specialization,
-			&p.MdcnVerified, &p.ActiveCases, &p.TotalCompleted,
+			&p.MdcnVerified, &p.MdcnOverrideStatus, &p.AccountStatus,
+			&p.Flagged, &p.FlaggedReason,
+			&p.ActiveCases, &p.TotalCompleted, &p.SlaBreachCountWeek,
 		); err != nil {
 			return nil, err
 		}
@@ -409,6 +477,239 @@ func (r *Repository) GetPhysicians() ([]PhysicianRow, error) {
 		physicians = append(physicians, p)
 	}
 	return physicians, rows.Err()
+}
+
+// GetPhysicianDetail returns the full admin profile for a single physician.
+func (r *Repository) GetPhysicianDetail(physicianID string) (*PhysicianDetail, error) {
+	var d PhysicianDetail
+	var flaggedAt, mdcnOverrideAt sql.NullString
+	var mdcnOverrideByName sql.NullString
+
+	err := r.db.QueryRow(`
+		SELECT u.id, u.name, u.email, COALESCE(u.specialization,''),
+		       u.mdcn_verified, COALESCE(u.mdcn_override_status,''),
+		       COALESCE(u.account_status,'active'), u.flagged,
+		       COALESCE(u.flagged_reason,''), u.flagged_at::text,
+		       COALESCE(u.phone,''), COALESCE(u.dob,''), COALESCE(u.gender,''),
+		       COALESCE(u.years_of_experience,''), COALESCE(u.certificate_name,''),
+		       COALESCE(u.certificate_id,''), COALESCE(u.certificate_issue_date,''),
+		       COALESCE(u.certificate_url,''),
+		       COALESCE(adm.name,''), u.mdcn_override_at::text,
+		       u.created_at::text,
+		       (
+		           SELECT COUNT(*) FROM physician_sla_breaches b
+		           WHERE b.physician_id = u.id
+		             AND b.breached_at >= NOW() - INTERVAL '7 days'
+		       ) AS sla_week,
+		       (
+		           SELECT COUNT(*) FROM diagnoses d WHERE d.physician_id = u.id AND d.status = 'Active'
+		       ) AS active_cases,
+		       (
+		           SELECT COUNT(*) FROM diagnoses d WHERE d.physician_id = u.id AND d.status = 'Completed'
+		       ) AS completed_cases
+		FROM users u
+		LEFT JOIN users adm ON adm.id = u.mdcn_override_by
+		WHERE u.id = $1::uuid AND u.role = 'professional'`,
+		physicianID,
+	).Scan(
+		&d.ID, &d.Name, &d.Email, &d.Specialization,
+		&d.MdcnVerified, &d.MdcnOverrideStatus,
+		&d.AccountStatus, &d.Flagged, &d.FlaggedReason, &flaggedAt,
+		&d.Phone, &d.DOB, &d.Gender, &d.YearsOfExperience,
+		&d.CertificateName, &d.CertificateID, &d.CertificateIssueDate, &d.CertificateURL,
+		&mdcnOverrideByName, &mdcnOverrideAt,
+		&d.CreatedAt,
+		&d.SlaBreachCountWeek, &d.ActiveCases, &d.TotalCompleted,
+	)
+	if err != nil {
+		return nil, err
+	}
+	d.Available = d.ActiveCases == 0
+	if flaggedAt.Valid {
+		d.FlaggedAt = flaggedAt.String
+	}
+	if mdcnOverrideByName.Valid {
+		d.MdcnOverrideBy = mdcnOverrideByName.String
+	}
+	if mdcnOverrideAt.Valid {
+		d.MdcnOverrideAt = mdcnOverrideAt.String
+	}
+
+	// Recent case history (last 20).
+	caseRows, err := r.db.Query(`
+		SELECT id, COALESCE(title,''), COALESCE(condition,''), COALESCE(urgency,'LOW'),
+		       status, escalated, created_at::text, updated_at::text
+		FROM diagnoses
+		WHERE physician_id = $1::uuid
+		ORDER BY updated_at DESC
+		LIMIT 20`, physicianID)
+	if err != nil {
+		return nil, err
+	}
+	defer caseRows.Close()
+	for caseRows.Next() {
+		var ch PhysicianCaseHistory
+		if err := caseRows.Scan(&ch.ID, &ch.Title, &ch.Condition, &ch.Urgency,
+			&ch.Status, &ch.Escalated, &ch.CreatedAt, &ch.UpdatedAt); err != nil {
+			continue
+		}
+		d.RecentCases = append(d.RecentCases, ch)
+	}
+	if d.RecentCases == nil {
+		d.RecentCases = []PhysicianCaseHistory{}
+	}
+	return &d, caseRows.Err()
+}
+
+// CreatePhysician inserts a new physician account.  The caller must pass a
+// bcrypt-hashed password; raw passwords must never reach this layer.
+func (r *Repository) CreatePhysician(inp CreatePhysicianInput, passwordHash string) (string, error) {
+	var id string
+	err := r.db.QueryRow(`
+		INSERT INTO users
+		    (name, email, password_hash, role, specialization, phone,
+		     years_of_experience, certificate_name, certificate_id, account_status)
+		VALUES ($1, $2, $3, 'professional', $4, $5, $6, $7, $8, 'active')
+		RETURNING id::text`,
+		inp.Name, inp.Email, passwordHash, inp.Specialization, inp.Phone,
+		inp.YearsOfExperience, inp.CertificateName, inp.CertificateID,
+	).Scan(&id)
+	return id, err
+}
+
+// UpdatePhysician patches mutable fields on a physician account.
+func (r *Repository) UpdatePhysician(physicianID string, inp UpdatePhysicianInput) error {
+	_, err := r.db.Exec(`
+		UPDATE users
+		SET name               = COALESCE(NULLIF($2,''), name),
+		    email              = COALESCE(NULLIF($3,''), email),
+		    specialization     = COALESCE(NULLIF($4,''), specialization),
+		    phone              = COALESCE(NULLIF($5,''), phone),
+		    years_of_experience = COALESCE(NULLIF($6,''), years_of_experience),
+		    updated_at         = NOW()
+		WHERE id = $1::uuid AND role = 'professional'`,
+		physicianID, inp.Name, inp.Email, inp.Specialization,
+		inp.Phone, inp.YearsOfExperience,
+	)
+	return err
+}
+
+// DeletePhysician removes a physician account. Cases remain with physician_id
+// set (soft reference) so history is preserved.
+func (r *Repository) DeletePhysician(physicianID string) error {
+	res, err := r.db.Exec(
+		`DELETE FROM users WHERE id = $1::uuid AND role = 'professional'`, physicianID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("physician not found")
+	}
+	return nil
+}
+
+// SuspendPhysician sets account_status = 'suspended' and logs the admin action.
+func (r *Repository) SuspendPhysician(physicianID, adminID, reason string) error {
+	res, err := r.db.Exec(`
+		UPDATE users
+		SET account_status = 'suspended', updated_at = NOW()
+		WHERE id = $1::uuid AND role = 'professional'`,
+		physicianID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("physician not found")
+	}
+	r.LogAction(adminID, "physician.suspend", "user", &physicianID,
+		map[string]interface{}{"reason": reason})
+	return nil
+}
+
+// UnsuspendPhysician restores account_status = 'active'.
+func (r *Repository) UnsuspendPhysician(physicianID, adminID string) error {
+	res, err := r.db.Exec(`
+		UPDATE users
+		SET account_status = 'active', updated_at = NOW()
+		WHERE id = $1::uuid AND role = 'professional'`,
+		physicianID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("physician not found")
+	}
+	r.LogAction(adminID, "physician.unsuspend", "user", &physicianID, map[string]interface{}{})
+	return nil
+}
+
+// OverrideMDCN allows an admin to manually confirm or reject MDCN verification.
+// status must be "confirmed" or "rejected".
+func (r *Repository) OverrideMDCN(physicianID, adminID, status string) error {
+	if status != "confirmed" && status != "rejected" {
+		return fmt.Errorf("invalid mdcn override status: must be confirmed or rejected")
+	}
+	mdcnVerified := status == "confirmed"
+	res, err := r.db.Exec(`
+		UPDATE users
+		SET mdcn_verified         = $2,
+		    mdcn_override_status  = $3,
+		    mdcn_override_by      = $4::uuid,
+		    mdcn_override_at      = NOW(),
+		    mdcn_verified_at      = CASE WHEN $2 THEN NOW() ELSE NULL END,
+		    updated_at            = NOW()
+		WHERE id = $1::uuid AND role = 'professional'`,
+		physicianID, mdcnVerified, status, adminID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("physician not found")
+	}
+	r.LogAction(adminID, "physician.mdcn_override", "user", &physicianID,
+		map[string]interface{}{"status": status})
+	return nil
+}
+
+// CheckAndFlagPhysicians queries all physicians whose SLA breach count in the
+// past 7 days is ≥ 3 and marks them flagged.  Returns the number newly flagged.
+func (r *Repository) CheckAndFlagPhysicians() (int, error) {
+	res, err := r.db.Exec(`
+		UPDATE users u
+		SET flagged        = TRUE,
+		    flagged_at     = NOW(),
+		    flagged_reason = '3 or more SLA breaches in the past 7 days',
+		    updated_at     = NOW()
+		FROM (
+		    SELECT physician_id, COUNT(*) AS breach_count
+		    FROM physician_sla_breaches
+		    WHERE breached_at >= NOW() - INTERVAL '7 days'
+		    GROUP BY physician_id
+		    HAVING COUNT(*) >= 3
+		) sub
+		WHERE u.id = sub.physician_id
+		  AND u.role = 'professional'
+		  AND u.flagged = FALSE`)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// RecordSLABreach inserts a physician SLA breach record.
+// hoursOver is how many hours past the SLA deadline the case was completed.
+func (r *Repository) RecordSLABreach(physicianID, caseID string, hoursOver float64) error {
+	_, err := r.db.Exec(`
+		INSERT INTO physician_sla_breaches (physician_id, case_id, hours_over_sla)
+		VALUES ($1::uuid, $2::uuid, $3)
+		ON CONFLICT (physician_id, case_id) DO NOTHING`,
+		physicianID, caseID, hoursOver)
+	return err
 }
 
 // LogAction writes an admin action to the admin_actions audit table.

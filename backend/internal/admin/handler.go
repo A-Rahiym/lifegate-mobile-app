@@ -17,8 +17,6 @@ func NewHandler(svc *Service) *Handler {
 
 // ─── GET /api/admin/dashboard ─────────────────────────────────────────────────
 
-// GetDashboard returns live counts: active users, case counts by state,
-// physician availability, escalations today, completions today.
 func (h *Handler) GetDashboard(c *gin.Context) {
 	stats, err := h.svc.GetDashboardStats()
 	if err != nil {
@@ -30,13 +28,6 @@ func (h *Handler) GetDashboard(c *gin.Context) {
 
 // ─── GET /api/admin/cases ─────────────────────────────────────────────────────
 
-// GetCases returns all cases with optional filters:
-//
-//	?status=Pending|Active|Completed
-//	?urgency=LOW|MEDIUM|HIGH|CRITICAL
-//	?category=general_health|doctor_consultation|…
-//	?search=<text>
-//	?page=1&pageSize=20
 func (h *Handler) GetCases(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
@@ -72,11 +63,6 @@ func (h *Handler) GetCases(c *gin.Context) {
 
 // ─── GET /api/admin/sla ───────────────────────────────────────────────────────
 
-// GetSLA returns all Pending (unassigned) cases with colour-coded SLA status:
-//
-//	green  — in queue < 4 h  (< 2 h for HIGH/CRITICAL)
-//	yellow — in queue 4–24 h (2–12 h for HIGH/CRITICAL)
-//	red    — in queue > 24 h (> 12 h for HIGH/CRITICAL)
 func (h *Handler) GetSLA(c *gin.Context) {
 	items, err := h.svc.GetSLAReport()
 	if err != nil {
@@ -87,7 +73,6 @@ func (h *Handler) GetSLA(c *gin.Context) {
 		items = []SLAItem{}
 	}
 
-	// Annotate with human-readable wait times.
 	type enriched struct {
 		SLAItem
 		WaitFormatted string `json:"waitFormatted"`
@@ -102,10 +87,6 @@ func (h *Handler) GetSLA(c *gin.Context) {
 
 // ─── GET /api/admin/metrics/edis ─────────────────────────────────────────────
 
-// GetEDISMetrics returns EDIS performance metrics:
-// escalation rates, confidence averages, low-confidence counts, flag frequency.
-//
-//	?days=30  (default 30)
 func (h *Handler) GetEDISMetrics(c *gin.Context) {
 	days, _ := strconv.Atoi(c.DefaultQuery("days", "30"))
 	metrics, err := h.svc.GetEDISMetrics(days)
@@ -118,7 +99,7 @@ func (h *Handler) GetEDISMetrics(c *gin.Context) {
 
 // ─── GET /api/admin/physicians ───────────────────────────────────────────────
 
-// GetPhysicians returns all physicians with active-case count and availability.
+// GetPhysicians returns all physicians with status, flag, SLA breach count.
 func (h *Handler) GetPhysicians(c *gin.Context) {
 	physicians, err := h.svc.GetPhysicians()
 	if err != nil {
@@ -129,4 +110,162 @@ func (h *Handler) GetPhysicians(c *gin.Context) {
 		physicians = []PhysicianRow{}
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": physicians})
+}
+
+// ─── GET /api/admin/physicians/:id ───────────────────────────────────────────
+
+// GetPhysicianDetail returns the full physician profile for admin view,
+// including verification status, case history, and breach count.
+func (h *Handler) GetPhysicianDetail(c *gin.Context) {
+	id := c.Param("id")
+	detail, err := h.svc.GetPhysicianDetail(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "Physician not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": detail})
+}
+
+// ─── POST /api/admin/physicians ──────────────────────────────────────────────
+
+// CreatePhysician creates a new physician account.
+func (h *Handler) CreatePhysician(c *gin.Context) {
+	var inp CreatePhysicianInput
+	if err := c.ShouldBindJSON(&inp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	if inp.Name == "" || inp.Email == "" || inp.Password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "name, email and password are required"})
+		return
+	}
+
+	id, err := h.svc.CreatePhysician(inp)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to create physician"})
+		return
+	}
+
+	adminID, _ := c.Get("userID")
+	adminIDStr, _ := adminID.(string)
+	h.svc.LogAction(adminIDStr, "physician.create", "user", &id,
+		map[string]interface{}{"email": inp.Email, "name": inp.Name})
+
+	c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Physician account created", "data": gin.H{"id": id}})
+}
+
+// ─── PATCH /api/admin/physicians/:id ─────────────────────────────────────────
+
+// UpdatePhysician updates mutable physician fields.
+func (h *Handler) UpdatePhysician(c *gin.Context) {
+	id := c.Param("id")
+	var inp UpdatePhysicianInput
+	if err := c.ShouldBindJSON(&inp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	if err := h.svc.UpdatePhysician(id, inp); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to update physician"})
+		return
+	}
+
+	adminID, _ := c.Get("userID")
+	adminIDStr, _ := adminID.(string)
+	h.svc.LogAction(adminIDStr, "physician.update", "user", &id, map[string]interface{}{})
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Physician updated"})
+}
+
+// ─── DELETE /api/admin/physicians/:id ────────────────────────────────────────
+
+// DeletePhysician removes a physician account.
+func (h *Handler) DeletePhysician(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.svc.DeletePhysician(id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	adminID, _ := c.Get("userID")
+	adminIDStr, _ := adminID.(string)
+	h.svc.LogAction(adminIDStr, "physician.delete", "user", &id, map[string]interface{}{})
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Physician account deleted"})
+}
+
+// ─── POST /api/admin/physicians/:id/suspend ──────────────────────────────────
+
+// SuspendPhysician suspends a physician account.
+func (h *Handler) SuspendPhysician(c *gin.Context) {
+	id := c.Param("id")
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	adminID, _ := c.Get("userID")
+	adminIDStr, _ := adminID.(string)
+
+	if err := h.svc.SuspendPhysician(id, adminIDStr, body.Reason); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Physician account suspended"})
+}
+
+// ─── POST /api/admin/physicians/:id/unsuspend ────────────────────────────────
+
+// UnsuspendPhysician restores a suspended physician account.
+func (h *Handler) UnsuspendPhysician(c *gin.Context) {
+	id := c.Param("id")
+	adminID, _ := c.Get("userID")
+	adminIDStr, _ := adminID.(string)
+
+	if err := h.svc.UnsuspendPhysician(id, adminIDStr); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Physician account reinstated"})
+}
+
+// ─── POST /api/admin/physicians/:id/mdcn-override ────────────────────────────
+
+// OverrideMDCN lets an admin confirm or reject a physician's MDCN verification.
+// Body: { "status": "confirmed" | "rejected" }
+func (h *Handler) OverrideMDCN(c *gin.Context) {
+	id := c.Param("id")
+	var body struct {
+		Status string `json:"status" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "status is required (confirmed | rejected)"})
+		return
+	}
+
+	adminID, _ := c.Get("userID")
+	adminIDStr, _ := adminID.(string)
+
+	if err := h.svc.OverrideMDCN(id, adminIDStr, body.Status); err != nil {
+		status := http.StatusInternalServerError
+		if err.Error() == "physician not found" {
+			status = http.StatusNotFound
+		} else if err.Error()[:7] == "invalid" {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "MDCN verification override applied"})
+}
+
+// ─── POST /api/admin/physicians/flag-check ───────────────────────────────────
+
+// TriggerFlagCheck manually runs the SLA breach flag check across all physicians.
+func (h *Handler) TriggerFlagCheck(c *gin.Context) {
+	count, err := h.svc.CheckAndFlagPhysicians()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Flag check failed"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"newlyFlagged": count}})
 }

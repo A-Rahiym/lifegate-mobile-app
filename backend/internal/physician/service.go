@@ -20,6 +20,12 @@ type PushNotifier interface {
 	SendToUser(ctx context.Context, userID, title, body string, data map[string]string)
 }
 
+// SLABreachRecorder is satisfied by the admin.Service to record SLA breaches
+// without creating an import cycle between the physician and admin packages.
+type SLABreachRecorder interface {
+	RecordSLABreach(physicianID, caseID string, hoursOver float64)
+}
+
 // CaseQueueResult groups the three queues for the dashboard response.
 type CaseQueueResult struct {
 	Pending   []CaseQueueItem `json:"pending"`
@@ -32,6 +38,7 @@ type Service struct {
 	nats        *natsclient.Client
 	broadcaster Broadcaster
 	push        PushNotifier // optional — set with SetPushNotifier
+	slaRecorder SLABreachRecorder // optional — set with SetSLABreachRecorder
 }
 
 func NewService(repo *Repository, nats *natsclient.Client, broadcaster Broadcaster) *Service {
@@ -40,6 +47,9 @@ func NewService(repo *Repository, nats *natsclient.Client, broadcaster Broadcast
 
 // SetPushNotifier wires in a push notification sender for patient notifications.
 func (s *Service) SetPushNotifier(p PushNotifier) { s.push = p }
+
+// SetSLABreachRecorder wires in the admin service for SLA breach recording.
+func (s *Service) SetSLABreachRecorder(r SLABreachRecorder) { s.slaRecorder = r }
 
 func (s *Service) GetReports(physicianID string, page, pageSize int) ([]Report, int, error) {
 	return s.repo.GetReports(physicianID, page, pageSize)
@@ -164,6 +174,13 @@ func (s *Service) ReviewReport(reportID, physicianID string, input ReviewInput) 
 		if creditErr := s.repo.CreditEarning(physicianID, reportID); creditErr != nil {
 			// Non-fatal: log and continue — the case review itself succeeded.
 			_ = creditErr
+		}
+	}
+
+	// SLA breach check on case completion.
+	if input.Action == "Completed" && s.slaRecorder != nil {
+		if result, bErr := s.repo.ComputeSLABreach(reportID); bErr == nil && result.Breached {
+			s.slaRecorder.RecordSLABreach(physicianID, reportID, result.HoursOver)
 		}
 	}
 

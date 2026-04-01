@@ -5,8 +5,11 @@ import type {
   SLAItem,
   EDISMetrics,
   PhysicianRow,
+  PhysicianDetail,
   AdminCaseFilters,
   PaginatedCases,
+  CreatePhysicianInput,
+  UpdatePhysicianInput,
 } from '../types/admin-types';
 
 export const AdminService = {
@@ -38,8 +41,45 @@ export const AdminService = {
     return data.data as EDISMetrics;
   },
 
+  // ── Physician account management ──────────────────────────────────────────
+
   async getPhysicians(): Promise<PhysicianRow[]> {
     const { data } = await api.get('/admin/physicians');
     return data.data as PhysicianRow[];
+  },
+
+  async getPhysicianDetail(id: string): Promise<PhysicianDetail> {
+    const { data } = await api.get(`/admin/physicians/${id}`);
+    return data.data as PhysicianDetail;
+  },
+
+  async createPhysician(input: CreatePhysicianInput): Promise<{ id: string }> {
+    const { data } = await api.post('/admin/physicians', input);
+    return data.data as { id: string };
+  },
+
+  async updatePhysician(id: string, input: UpdatePhysicianInput): Promise<void> {
+    await api.patch(`/admin/physicians/${id}`, input);
+  },
+
+  async deletePhysician(id: string): Promise<void> {
+    await api.delete(`/admin/physicians/${id}`);
+  },
+
+  async suspendPhysician(id: string, reason?: string): Promise<void> {
+    await api.post(`/admin/physicians/${id}/suspend`, { reason: reason ?? '' });
+  },
+
+  async unsuspendPhysician(id: string): Promise<void> {
+    await api.post(`/admin/physicians/${id}/unsuspend`);
+  },
+
+  async overrideMDCN(id: string, status: 'confirmed' | 'rejected'): Promise<void> {
+    await api.post(`/admin/physicians/${id}/mdcn-override`, { status });
+  },
+
+  async triggerFlagCheck(): Promise<{ newlyFlagged: number }> {
+    const { data } = await api.post('/admin/physicians/flag-check');
+    return data.data as { newlyFlagged: number };
   },
 };

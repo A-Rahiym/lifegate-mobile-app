@@ -120,14 +120,24 @@ function FlagBar({ flag, count, max }: { flag: string; count: number; max: numbe
 
 // ─── Physician Row ────────────────────────────────────────────────────────────
 
-function PhysicianCard({ p }: { p: PhysicianRow }) {
+function PhysicianCard({ p, onPress }: { p: PhysicianRow; onPress?: () => void }) {
   return (
-    <View className="flex-row items-center py-2.5 border-b border-gray-50">
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}
+      className="flex-row items-center py-2.5 border-b border-gray-50">
       <View className="w-9 h-9 rounded-full bg-teal-50 items-center justify-center mr-3">
-        <Ionicons name="person" size={16} color="#0AADA2" />
+        {p.flagged
+          ? <Ionicons name="flag" size={14} color="#dc2626" />
+          : <Ionicons name="person" size={16} color="#0AADA2" />}
       </View>
       <View className="flex-1">
-        <Text className="text-sm font-semibold text-gray-800">{p.name}</Text>
+        <View className="flex-row items-center">
+          <Text className="text-sm font-semibold text-gray-800">{p.name}</Text>
+          {p.accountStatus === 'suspended' && (
+            <View className="ml-2 px-1.5 py-0.5 rounded bg-red-100">
+              <Text className="text-[9px] font-bold text-red-700">SUSP</Text>
+            </View>
+          )}
+        </View>
         <Text className="text-xs text-gray-400">{p.specialization || 'General'}</Text>
       </View>
       <View className="items-end gap-1">
@@ -135,9 +145,12 @@ function PhysicianCard({ p }: { p: PhysicianRow }) {
           <View className="w-2 h-2 rounded-full mr-1" style={{ backgroundColor: p.available ? '#22c55e' : '#f97316' }} />
           <Text className="text-xs text-gray-500">{p.available ? 'Available' : `${p.activeCases} active`}</Text>
         </View>
+        {p.slaBreachCountWeek >= 3 && (
+          <Text className="text-[10px] font-semibold text-red-500">{p.slaBreachCountWeek} breaches (7d)</Text>
+        )}
         <Text className="text-[11px] text-gray-400">{p.totalCompleted} completed</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -471,6 +484,7 @@ export default function AdminDashboardScreen() {
 
   const renderPhysicians = () => {
     const available = physicians.filter((p) => p.available).length;
+    const flagged   = physicians.filter((p) => p.flagged).length;
     return (
       <View>
         <View className="flex-row mb-4">
@@ -478,6 +492,18 @@ export default function AdminDashboardScreen() {
           <StatCard icon="radio-button-on" label="Available" value={available} color="#22c55e" />
           <StatCard icon="alert-circle" label="Busy" value={physicians.length - available} color="#f97316" />
         </View>
+        {flagged > 0 && (
+          <TouchableOpacity
+            onPress={() => router.push('/(admin-tab)/physicians')}
+            className="flex-row items-center bg-red-50 border border-red-100 rounded-2xl px-4 py-2.5 mb-3"
+          >
+            <Ionicons name="flag" size={16} color="#dc2626" />
+            <Text className="text-sm font-semibold text-red-700 ml-2 flex-1">
+              {flagged} physician{flagged !== 1 ? 's' : ''} flagged for SLA breaches
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#dc2626" />
+          </TouchableOpacity>
+        )}
         <View className="bg-white rounded-2xl px-4 py-2"
           style={{ elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 }}>
           {physicians.length === 0 ? (
@@ -486,8 +512,21 @@ export default function AdminDashboardScreen() {
               <Text className="text-sm text-gray-400 mt-2">No physicians registered</Text>
             </View>
           ) : (
-            physicians.map((p) => <PhysicianCard key={p.id} p={p} />)
+            physicians.slice(0, 5).map((p) => (
+              <PhysicianCard
+                key={p.id}
+                p={p}
+                onPress={() => router.push(`/(admin-tab)/physician-detail?id=${p.id}`)}
+              />
+            ))
           )}
+          <TouchableOpacity
+            onPress={() => router.push('/(admin-tab)/physicians')}
+            className="flex-row items-center justify-center py-3 mt-1"
+          >
+            <Text className="text-sm font-semibold text-indigo-600">Manage All Physicians</Text>
+            <Ionicons name="arrow-forward" size={15} color="#6366f1" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
         </View>
       </View>
     );
