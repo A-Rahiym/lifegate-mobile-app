@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	expoPushURL       = "https://exp.host/--/api/v2/push/send"
-	tokenKeyPrefix    = "pushtoken:physician:"
-	tokenTTLSeconds   = 30 * 24 * 60 * 60 // 30 days
-	httpTimeout       = 5 * time.Second
+	expoPushURL          = "https://exp.host/--/api/v2/push/send"
+	tokenKeyPrefix       = "pushtoken:physician:"
+	userTokenKeyPrefix   = "pushtoken:user:"
+	tokenTTLSeconds      = 30 * 24 * 60 * 60 // 30 days
+	httpTimeout          = 5 * time.Second
 )
 
 // Service manages physician push token storage and push delivery.
@@ -42,6 +43,28 @@ func (s *Service) RegisterToken(ctx context.Context, physicianID, token string) 
 func (s *Service) GetToken(ctx context.Context, physicianID string) string {
 	token, _ := s.redis.Get(ctx, tokenKeyPrefix+physicianID)
 	return token
+}
+
+// RegisterUserToken stores any user's Expo push token under a role-agnostic key.
+// This is used by patients to receive notifications when their case is reviewed.
+func (s *Service) RegisterUserToken(ctx context.Context, userID, token string) error {
+	return s.redis.SetEx(ctx, userTokenKeyPrefix+userID, token, tokenTTLSeconds)
+}
+
+// GetUserToken retrieves a user's push token (empty string if not registered).
+func (s *Service) GetUserToken(ctx context.Context, userID string) string {
+	token, _ := s.redis.Get(ctx, userTokenKeyPrefix+userID)
+	return token
+}
+
+// SendToUser sends a push notification to any registered user (patient or physician).
+// Delivery failures are logged but never propagated to the caller.
+func (s *Service) SendToUser(ctx context.Context, userID, title, body string, data map[string]string) {
+	token := s.GetUserToken(ctx, userID)
+	if token == "" {
+		return
+	}
+	s.send(ctx, []pushMessage{{To: token, Title: title, Body: body, Data: data}})
 }
 
 // SendToPhysician sends a push notification to a single physician if they have a

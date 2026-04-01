@@ -73,6 +73,64 @@ export interface ReviewAnalysis {
 
 export type CaseUrgency = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
+export interface AICondition {
+  condition: string;
+  urgency: CaseUrgency;
+  description: string;
+  confidence: number;
+}
+
+export interface PrescriptionInfo {
+  medicine: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  instructions?: string;
+}
+
+export interface AIOutput {
+  text: string;
+  diagnosis?: AICondition;
+  prescription?: PrescriptionInfo;
+}
+
+export type PhysicianDecision = 'Approved' | 'Rejected';
+
+export interface CaseDetail {
+  id: string;
+  patientId: string;
+  patientName: string;
+  title: string;
+  description: string;
+  condition: string;
+  urgency: CaseUrgency;
+  status: ReportStatus;
+  physicianId?: string;
+  physicianNotes?: string;
+  physicianDecision?: PhysicianDecision;
+  rejectionReason?: string;
+  escalated: boolean;
+  aiResponse?: AIOutput;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PatientProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  dob?: string;
+  gender?: string;
+  bloodType?: string;
+  allergies?: string;
+  medicalHistory?: string;
+  currentMedications?: string;
+  emergencyContact?: string;
+  healthHistory?: string;
+  createdAt: string;
+}
+
 export interface CaseQueueItem {
   id: string;
   patientName: string;

@@ -64,6 +64,10 @@ hub := wshub.NewHub()
 	// Push notification service (Expo Push API + Redis token storage).
 	pushSvc := notifications.NewService(redisClient)
 
+	// Wire push notifications so physicians receive patient-case events
+	// and patients receive completion notifications from physician reviews.
+	physicianSvc.SetPushNotifier(pushSvc)
+
 	reviewSvc := review.NewService(database)
 	reviewHandler := review.NewHandler(reviewSvc)
 
@@ -153,8 +157,14 @@ physicianGroup.GET("/stats", physicianHandler.GetStats)
 physicianGroup.POST("/reports/:id/review", physicianHandler.ReviewReport)
 // Case queue (Pending / Active / Completed grouped)
 physicianGroup.GET("/cases", physicianHandler.GetCaseQueue)
+// Full case detail for the case review screen
+physicianGroup.GET("/cases/:id", physicianHandler.GetCaseDetail)
 // Atomically take (lock) a Pending case → Active
 physicianGroup.POST("/cases/:id/take", physicianHandler.TakeCase)
+// Physician inline edit of AI output (condition / urgency / confidence)
+physicianGroup.PATCH("/cases/:id/ai", physicianHandler.UpdateAIOutput)
+// Patient profile for inline display during case review
+physicianGroup.GET("/patients/:id", physicianHandler.GetPatientProfile)
 // Register/update device push token for in-app notifications
 physicianGroup.POST("/push-token", func(c *gin.Context) {
 	var req notifications.RegisterTokenRequest
@@ -199,6 +209,23 @@ physicianGroup.POST("/push-token", func(c *gin.Context) {
 	api.POST("/payments/verify", middleware.Auth(cfg.JWTSecret), paymentsHandler.VerifyPayment)
 	api.GET("/payments/transactions", middleware.Auth(cfg.JWTSecret), paymentsHandler.GetTransactions)
 	api.GET("/credits/balance", middleware.Auth(cfg.JWTSecret), paymentsHandler.GetCreditBalance)
+
+	// Patient push-token registration (Expo push token stored per-user for
+	// completion notifications).
+	api.POST("/push-token", middleware.Auth(cfg.JWTSecret), func(c *gin.Context) {
+		var req notifications.RegisterTokenRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "token is required"})
+			return
+		}
+		uid, _ := c.Get("userID")
+		uidStr, _ := uid.(string)
+		if err := pushSvc.RegisterUserToken(c.Request.Context(), uidStr, req.Token); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "failed to store token"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Push token registered"})
+	})
 
 	// Chat session management (create, list, get, update, delete + resume prompt)
 	sessionsGroup := api.Group("/sessions", middleware.Auth(cfg.JWTSecret))

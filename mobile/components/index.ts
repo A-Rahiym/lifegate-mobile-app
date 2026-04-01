@@ -31,3 +31,4 @@ export { ModeSelectionModal } from './ModeSelectionModal';
 export { ResumeSessionModal } from './ResumeSessionModal';
 export { CaseCard } from './CaseCard';
 export { InAppNotificationBanner } from './InAppNotificationBanner';
+export { ConfidenceBar } from './ConfidenceBar';

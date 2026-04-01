@@ -1,6 +1,7 @@
 package physician
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
@@ -11,6 +12,12 @@ import (
 type Broadcaster interface {
 	BroadcastToUser(userID, event string, data []byte)
 	Broadcast(event string, data []byte)
+}
+
+// PushNotifier can deliver push notifications to any user (patient or physician).
+// The notifications.Service satisfies this interface.
+type PushNotifier interface {
+	SendToUser(ctx context.Context, userID, title, body string, data map[string]string)
 }
 
 // CaseQueueResult groups the three queues for the dashboard response.
@@ -24,11 +31,15 @@ type Service struct {
 	repo        *Repository
 	nats        *natsclient.Client
 	broadcaster Broadcaster
+	push        PushNotifier // optional — set with SetPushNotifier
 }
 
 func NewService(repo *Repository, nats *natsclient.Client, broadcaster Broadcaster) *Service {
 	return &Service{repo: repo, nats: nats, broadcaster: broadcaster}
 }
+
+// SetPushNotifier wires in a push notification sender for patient notifications.
+func (s *Service) SetPushNotifier(p PushNotifier) { s.push = p }
 
 func (s *Service) GetReports(physicianID string, page, pageSize int) ([]Report, int, error) {
 	return s.repo.GetReports(physicianID, page, pageSize)
@@ -36,6 +47,22 @@ func (s *Service) GetReports(physicianID string, page, pageSize int) ([]Report, 
 
 func (s *Service) GetStats(physicianID string) (*Stats, error) {
 	return s.repo.GetStats(physicianID)
+}
+
+// GetCaseDetail fetches the full case record for review, including parsed AI output.
+func (s *Service) GetCaseDetail(caseID, physicianID string) (*CaseDetail, error) {
+	return s.repo.GetCaseDetail(caseID, physicianID)
+}
+
+// GetPatientProfile fetches a patient's health profile by user ID.
+func (s *Service) GetPatientProfile(patientID string) (*PatientProfile, error) {
+	return s.repo.GetPatientProfile(patientID)
+}
+
+// UpdateAIOutput lets a physician correct the AI-generated fields inline
+// while the case is in Active status.
+func (s *Service) UpdateAIOutput(caseID, physicianID, condition, urgency string, confidence int) error {
+	return s.repo.UpdateAIOutput(caseID, physicianID, condition, urgency, confidence)
 }
 
 // GetCaseQueue returns the three-bucket case queue for the physician dashboard.
@@ -84,10 +111,11 @@ func (s *Service) TakeCase(caseID, physicianID string) error {
 }
 
 // ReviewReport enforces Pending→Active or Active→Completed transitions.
-// On success it publishes NATS physician.review.completed and broadcasts
-// WebSocket events to the patient and all physicians.
-func (s *Service) ReviewReport(reportID, physicianID, action, notes string) error {
-	patientID, err := s.repo.ReviewReport(reportID, physicianID, action, notes)
+// On success it publishes NATS physician.review.completed, broadcasts WebSocket
+// events to the patient and all physicians, and sends a push notification to
+// the patient when the case is completed.
+func (s *Service) ReviewReport(reportID, physicianID string, input ReviewInput) error {
+	patientID, err := s.repo.ReviewReport(reportID, physicianID, input)
 	if errors.Is(err, ErrCaseNotPending) || errors.Is(err, ErrCaseNotActive) {
 		return err
 	}
@@ -99,7 +127,8 @@ func (s *Service) ReviewReport(reportID, physicianID, action, notes string) erro
 	natsPayload, _ := json.Marshal(map[string]string{
 		"report_id":    reportID,
 		"physician_id": physicianID,
-		"action":       action,
+		"action":       input.Action,
+		"decision":     input.PhysicianDecision,
 	})
 	_ = s.nats.Publish("physician.review.completed", natsPayload)
 
@@ -107,13 +136,28 @@ func (s *Service) ReviewReport(reportID, physicianID, action, notes string) erro
 	if patientID != "" && s.broadcaster != nil {
 		wsPatient, _ := json.Marshal(map[string]string{
 			"diagnosisId": reportID,
-			"status":      action,
+			"status":      input.Action,
+			"decision":    input.PhysicianDecision,
 		})
 		s.broadcaster.BroadcastToUser(patientID, "diagnosis.update", wsPatient)
 	}
 
+	// Push notification to patient on case completion.
+	if s.push != nil && patientID != "" && input.Action == "Completed" {
+		title := "Case Review Complete"
+		body := "Your health report has been reviewed by a physician."
+		switch input.PhysicianDecision {
+		case "Approved":
+			body = "Good news! A physician has approved your AI diagnosis."
+		case "Rejected":
+			body = "A physician has reviewed and updated your health report. Check the app for details."
+		}
+		s.push.SendToUser(context.Background(), patientID, title, body,
+			map[string]string{"diagnosisId": reportID, "decision": input.PhysicianDecision})
+	}
+
 	// WebSocket: notify all connected physicians so their queues refresh.
-	s.broadcastQueueChange(reportID, physicianID, action)
+	s.broadcastQueueChange(reportID, physicianID, input.Action)
 
 	return nil
 }

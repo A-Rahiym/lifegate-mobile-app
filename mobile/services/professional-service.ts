@@ -1,5 +1,12 @@
 import api from './api';
-import { PatientReport, ProfessionalStats, CaseQueue, CaseQueueItem } from '../types/professional-types';
+import {
+  PatientReport,
+  ProfessionalStats,
+  CaseQueue,
+  CaseQueueItem,
+  CaseDetail,
+  PatientProfile,
+} from '../types/professional-types';
 
 // Helper to format timestamp from ISO string to relative time
 const formatTimestamp = (isoDate: string): string => {
@@ -146,5 +153,82 @@ export const ProfessionalService = {
    */
   async registerPushToken(token: string): Promise<void> {
     await api.post('/physician/push-token', { token });
+  },
+
+  /**
+   * Fetch full case detail for the physician review screen
+   * GET /physician/cases/:id
+   */
+  async getCaseDetail(caseId: string): Promise<CaseDetail> {
+    const response = await api.get<{ success: boolean; data: CaseDetail }>(
+      `/physician/cases/${caseId}`
+    );
+    if (!response.data.success) throw new Error('Failed to fetch case detail');
+    return response.data.data;
+  },
+
+  /**
+   * Fetch a patient's health profile
+   * GET /physician/patients/:id
+   */
+  async getPatientProfile(patientId: string): Promise<PatientProfile> {
+    const response = await api.get<{ success: boolean; data: PatientProfile }>(
+      `/physician/patients/${patientId}`
+    );
+    if (!response.data.success) throw new Error('Failed to fetch patient profile');
+    return response.data.data;
+  },
+
+  /**
+   * Inline-edit AI-generated condition, urgency, and confidence score
+   * PATCH /physician/cases/:id/ai
+   */
+  async updateAIOutput(
+    caseId: string,
+    condition: string,
+    urgency: string,
+    confidence: number
+  ): Promise<void> {
+    const response = await api.patch<{ success: boolean; message: string }>(
+      `/physician/cases/${caseId}/ai`,
+      { condition, urgency, confidence }
+    );
+    if (!response.data.success)
+      throw new Error(response.data.message || 'Failed to update AI output');
+  },
+
+  /**
+   * Approve a case (Active → Completed, decision = Approved)
+   * POST /physician/reports/:id/review
+   */
+  async approveCase(caseId: string, notes: string): Promise<void> {
+    const response = await api.post<{ success: boolean; message: string }>(
+      `/physician/reports/${caseId}/review`,
+      { action: 'Completed', notes, physician_decision: 'Approved' }
+    );
+    if (!response.data.success)
+      throw new Error(response.data.message || 'Failed to approve case');
+  },
+
+  /**
+   * Reject a case (Active → Completed, decision = Rejected)
+   * POST /physician/reports/:id/review
+   */
+  async rejectCase(
+    caseId: string,
+    rejectionReason: string,
+    notes: string
+  ): Promise<void> {
+    const response = await api.post<{ success: boolean; message: string }>(
+      `/physician/reports/${caseId}/review`,
+      {
+        action: 'Completed',
+        notes,
+        physician_decision: 'Rejected',
+        rejection_reason: rejectionReason,
+      }
+    );
+    if (!response.data.success)
+      throw new Error(response.data.message || 'Failed to reject case');
   },
 };

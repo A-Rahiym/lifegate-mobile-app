@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import { ReportStatus, ProfessionalDashboard, CaseQueueItem, CaseQueue } from '../types/professional-types';
+import {
+  ReportStatus,
+  ProfessionalDashboard,
+  CaseQueueItem,
+  CaseDetail,
+  PatientProfile,
+  CaseUrgency,
+} from '../types/professional-types';
 import { ProfessionalService } from '../services/professional-service';
 
 type ProfessionalStore = ProfessionalDashboard & {
@@ -8,6 +15,11 @@ type ProfessionalStore = ProfessionalDashboard & {
   activeCases: CaseQueueItem[];
   completedCases: CaseQueueItem[];
   isQueueLoading: boolean;
+
+  // Case review detail
+  currentCase: CaseDetail | null;
+  currentPatient: PatientProfile | null;
+  isCaseLoading: boolean;
 
   fetchReports: () => Promise<void>;
   setFilter: (filter: ReportStatus | 'All') => void;
@@ -18,6 +30,12 @@ type ProfessionalStore = ProfessionalDashboard & {
   completeCase: (caseId: string, notes: string) => Promise<void>;
   appendPendingCase: (item: CaseQueueItem) => void;
   updateCaseStatus: (caseId: string, status: ReportStatus) => void;
+
+  // Case review actions
+  loadCaseDetail: (caseId: string) => Promise<void>;
+  loadPatientProfile: (patientId: string) => Promise<void>;
+  updateLocalAIOutput: (condition: string, urgency: CaseUrgency, confidence: number) => void;
+  clearCurrentCase: () => void;
 };
 
 export const useProfessionalStore = create<ProfessionalStore>((set, get) => ({
@@ -40,6 +58,11 @@ export const useProfessionalStore = create<ProfessionalStore>((set, get) => ({
   activeCases: [],
   completedCases: [],
   isQueueLoading: false,
+
+  // Case review initial state
+  currentCase: null,
+  currentPatient: null,
+  isCaseLoading: false,
 
   // Actions
   fetchReports: async () => {
@@ -173,4 +196,48 @@ export const useProfessionalStore = create<ProfessionalStore>((set, get) => ({
       };
     });
   },
+
+  // ── Case review ──────────────────────────────────────────────────────────
+
+  loadCaseDetail: async (caseId: string) => {
+    set({ isCaseLoading: true, currentCase: null });
+    try {
+      const detail = await ProfessionalService.getCaseDetail(caseId);
+      set({ currentCase: detail, isCaseLoading: false });
+    } catch {
+      set({ isCaseLoading: false });
+    }
+  },
+
+  loadPatientProfile: async (patientId: string) => {
+    try {
+      const profile = await ProfessionalService.getPatientProfile(patientId);
+      set({ currentPatient: profile });
+    } catch {
+      // best-effort
+    }
+  },
+
+  updateLocalAIOutput: (condition: string, urgency: CaseUrgency, confidence: number) => {
+    set(state => {
+      if (!state.currentCase) return {};
+      return {
+        currentCase: {
+          ...state.currentCase,
+          condition,
+          urgency,
+          aiResponse: state.currentCase.aiResponse
+            ? {
+                ...state.currentCase.aiResponse,
+                diagnosis: state.currentCase.aiResponse.diagnosis
+                  ? { ...state.currentCase.aiResponse.diagnosis, condition, urgency, confidence }
+                  : { condition, urgency, description: '', confidence },
+              }
+            : undefined,
+        },
+      };
+    });
+  },
+
+  clearCurrentCase: () => set({ currentCase: null, currentPatient: null }),
 }));

@@ -65,8 +65,8 @@ export default function CaseQueueScreen() {
 
   const handlePress = useCallback(
     (id: string) => {
-      // Navigate to consultation detail — using existing consultation screen pattern
-      router.push({ pathname: '/(prof-tab)/consultation', params: { caseId: id } });
+      // Navigate to case review screen
+      router.push({ pathname: '/(prof-tab)/caseReview', params: { caseId: id } });
     },
     [router]
   );
