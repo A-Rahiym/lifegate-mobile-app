@@ -150,3 +150,79 @@ export type ReassignmentLogResult = {
   data: SLABreachAlert[];
   meta: { total: number; page: number; pageSize: number };
 };
+
+// ─── Compliance & Audit ───────────────────────────────────────────────────────
+
+export type AuditEvent = {
+  id: string;
+  actorId: string;
+  actorRole: string;
+  actorName: string;
+  eventType: string;
+  resource: string;
+  resourceId: string;
+  oldValue: Record<string, unknown> | null;
+  newValue: Record<string, unknown> | null;
+  ipAddress: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export type AuditFilters = {
+  eventType?: string;
+  actorRole?: string;
+  resource?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type PaginatedAudit = {
+  data: AuditEvent[];
+  meta: { total: number; page: number; pageSize: number };
+};
+
+export type AdminTransactionRow = {
+  id: string;
+  userId: string;
+  patientName: string;
+  patientEmail: string;
+  txRef: string;
+  flwTxId: string;
+  amount: number;
+  creditsGranted: number;
+  status: string;
+  bundleId: string;
+  createdAt: string;
+};
+
+export type PaginatedTransactions = {
+  data: AdminTransactionRow[];
+  meta: { total: number; page: number; pageSize: number };
+};
+
+export type NDPASnapshot = {
+  id: string;
+  snapshotDate: string;
+  totalDataSubjects: number;
+  consentCapturedPct: number;
+  dataMinimisationOk: boolean;
+  retentionPolicyOk: boolean;
+  breachIncidents30d: number;
+  pendingDsar: number;
+  notes: string;
+  createdAt: string;
+};
+
+export type AlertThreshold = {
+  key: string;
+  label: string;
+  description: string;
+  value: number;
+  unit: string;
+  category: string;
+  enabled: boolean;
+  updatedAt: string;
+  updatedBy?: string;
+};

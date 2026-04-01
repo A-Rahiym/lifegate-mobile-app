@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	auditpkg "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/audit"
 	"github.com/gin-gonic/gin"
 )
 
@@ -101,6 +102,19 @@ func (h *Handler) ReviewReport(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
+
+	// Audit: log the review/escalation event.
+	eventType := "case.reviewed"
+	if req.Action == "escalate" {
+		eventType = "case.escalated"
+	}
+	auditpkg.Log(c.Request.Context(), pid, "physician", eventType, "diagnosis", reportID,
+		map[string]interface{}{"status": "Active"},
+		map[string]interface{}{"action": req.Action, "decision": req.PhysicianDecision},
+		nil,
+		c.ClientIP(),
+	)
+
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Review submitted"})
 }
 
@@ -135,6 +149,15 @@ func (h *Handler) TakeCase(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
+
+	// Audit: case claimed and moved to Active.
+	auditpkg.Log(c.Request.Context(), pid, "physician", "case.status_change", "diagnosis", caseID,
+		map[string]interface{}{"status": "Pending"},
+		map[string]interface{}{"status": "Active", "physician_id": pid},
+		nil,
+		c.ClientIP(),
+	)
+
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Case accepted"})
 }
 

@@ -6,6 +6,7 @@ export default function AdminTabLayout() {
       <Stack.Screen name="dashboard" />
       <Stack.Screen name="physicians" />
       <Stack.Screen name="physician-detail" />
+      <Stack.Screen name="alert-settings" />
     </Stack>
   );
 }

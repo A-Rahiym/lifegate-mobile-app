@@ -12,6 +12,13 @@ import type {
   UpdatePhysicianInput,
   SLABreachAlert,
   ReassignmentLogResult,
+  AuditEvent,
+  AuditFilters,
+  PaginatedAudit,
+  AdminTransactionRow,
+  PaginatedTransactions,
+  NDPASnapshot,
+  AlertThreshold,
 } from '../types/admin-types';
 
 export const AdminService = {
@@ -97,5 +104,52 @@ export const AdminService = {
   async getReassignmentLog(page = 1, pageSize = 20): Promise<ReassignmentLogResult> {
     const { data } = await api.get('/admin/sla/reassignment-log', { params: { page, pageSize } });
     return { data: data.data as SLABreachAlert[], meta: data.meta };
+  },
+
+  // ── Audit Log ─────────────────────────────────────────────────────────────
+
+  async getAuditLog(filters: AuditFilters = {}): Promise<PaginatedAudit> {
+    const params: Record<string, string | number> = {};
+    if (filters.eventType) params.eventType = filters.eventType;
+    if (filters.actorRole) params.actorRole = filters.actorRole;
+    if (filters.resource)  params.resource  = filters.resource;
+    if (filters.dateFrom)  params.dateFrom  = filters.dateFrom;
+    if (filters.dateTo)    params.dateTo    = filters.dateTo;
+    if (filters.page)      params.page      = filters.page;
+    if (filters.pageSize)  params.pageSize  = filters.pageSize;
+    const { data } = await api.get('/admin/audit', { params });
+    return { data: data.data as AuditEvent[], meta: data.meta };
+  },
+
+  // ── Transactions ──────────────────────────────────────────────────────────
+
+  async getAllTransactions(status = '', page = 1, pageSize = 20): Promise<PaginatedTransactions> {
+    const params: Record<string, string | number> = { page, pageSize };
+    if (status) params.status = status;
+    const { data } = await api.get('/admin/transactions', { params });
+    return { data: data.data as AdminTransactionRow[], meta: data.meta };
+  },
+
+  // ── NDPA Compliance ───────────────────────────────────────────────────────
+
+  async getNDPASnapshots(limit = 10): Promise<NDPASnapshot[]> {
+    const { data } = await api.get('/admin/compliance/ndpa', { params: { limit } });
+    return data.data as NDPASnapshot[];
+  },
+
+  async generateNDPASnapshot(): Promise<NDPASnapshot> {
+    const { data } = await api.post('/admin/compliance/ndpa/generate');
+    return data.data as NDPASnapshot;
+  },
+
+  // ── Alert Thresholds ──────────────────────────────────────────────────────
+
+  async getAlertThresholds(): Promise<AlertThreshold[]> {
+    const { data } = await api.get('/admin/settings/alerts');
+    return data.data as AlertThreshold[];
+  },
+
+  async updateAlertThreshold(key: string, value: number, enabled: boolean): Promise<void> {
+    await api.patch(`/admin/settings/alerts/${key}`, { value, enabled });
   },
 };

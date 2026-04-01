@@ -11,6 +11,11 @@ import type {
   CreatePhysicianInput,
   UpdatePhysicianInput,
   SLABreachAlert,
+  AuditEvent,
+  AuditFilters,
+  AdminTransactionRow,
+  NDPASnapshot,
+  AlertThreshold,
 } from '../types/admin-types';
 
 type AdminState = {
@@ -26,6 +31,15 @@ type AdminState = {
   reassignmentLog: SLABreachAlert[];
   reassignmentLogTotal: number;
 
+  // Compliance & Audit
+  auditEvents: AuditEvent[];
+  auditTotal: number;
+  auditFilters: AuditFilters;
+  transactions: AdminTransactionRow[];
+  transactionsTotal: number;
+  ndpaSnapshots: NDPASnapshot[];
+  alertThresholds: AlertThreshold[];
+
   // Filters
   filters: AdminCaseFilters;
 
@@ -35,6 +49,10 @@ type AdminState = {
   physicianLoading: boolean;
   breachAlertsLoading: boolean;
   reassignmentLogLoading: boolean;
+  auditLoading: boolean;
+  transactionsLoading: boolean;
+  complianceLoading: boolean;
+  thresholdsLoading: boolean;
   error: string | null;
 
   // Actions
@@ -53,6 +71,12 @@ type AdminState = {
   triggerFlagCheck: () => Promise<number>;
   fetchSLABreachAlerts: (limit?: number) => Promise<void>;
   fetchReassignmentLog: (page?: number, pageSize?: number) => Promise<void>;
+  fetchAuditLog: (filters?: AuditFilters) => Promise<void>;
+  fetchAllTransactions: (status?: string, page?: number) => Promise<void>;
+  fetchNDPASnapshots: (limit?: number) => Promise<void>;
+  generateNDPASnapshot: () => Promise<NDPASnapshot>;
+  fetchAlertThresholds: () => Promise<void>;
+  updateAlertThreshold: (key: string, value: number, enabled: boolean) => Promise<void>;
   fetchAll: () => Promise<void>;
   setFilters: (f: Partial<AdminCaseFilters>) => void;
   clearError: () => void;
@@ -70,12 +94,23 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   slaBreachAlerts: [],
   reassignmentLog: [],
   reassignmentLogTotal: 0,
+  auditEvents: [],
+  auditTotal: 0,
+  auditFilters: { page: 1, pageSize: 30 },
+  transactions: [],
+  transactionsTotal: 0,
+  ndpaSnapshots: [],
+  alertThresholds: [],
   filters: { status: '', urgency: '', search: '', page: 1, pageSize: 20 },
   loading: false,
   refreshing: false,
   physicianLoading: false,
   breachAlertsLoading: false,
   reassignmentLogLoading: false,
+  auditLoading: false,
+  transactionsLoading: false,
+  complianceLoading: false,
+  thresholdsLoading: false,
   error: null,
 
   fetchDashboard: async () => {
@@ -211,6 +246,62 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
+  fetchAuditLog: async (filters?: AuditFilters) => {
+    const merged = { ...get().auditFilters, ...filters };
+    set({ auditLoading: true, auditFilters: merged });
+    try {
+      const result = await AdminService.getAuditLog(merged);
+      set({ auditEvents: result.data, auditTotal: result.meta.total, auditLoading: false });
+    } catch (e: any) {
+      set({ error: e?.message ?? 'Failed to load audit log', auditLoading: false });
+    }
+  },
+
+  fetchAllTransactions: async (status = '', page = 1) => {
+    set({ transactionsLoading: true });
+    try {
+      const result = await AdminService.getAllTransactions(status, page);
+      set({ transactions: result.data, transactionsTotal: result.meta.total, transactionsLoading: false });
+    } catch (e: any) {
+      set({ error: e?.message ?? 'Failed to load transactions', transactionsLoading: false });
+    }
+  },
+
+  fetchNDPASnapshots: async (limit = 10) => {
+    set({ complianceLoading: true });
+    try {
+      const ndpaSnapshots = await AdminService.getNDPASnapshots(limit);
+      set({ ndpaSnapshots, complianceLoading: false });
+    } catch (e: any) {
+      set({ error: e?.message ?? 'Failed to load NDPA snapshots', complianceLoading: false });
+    }
+  },
+
+  generateNDPASnapshot: async () => {
+    const snapshot = await AdminService.generateNDPASnapshot();
+    set((s) => ({ ndpaSnapshots: [snapshot, ...s.ndpaSnapshots] }));
+    return snapshot;
+  },
+
+  fetchAlertThresholds: async () => {
+    set({ thresholdsLoading: true });
+    try {
+      const alertThresholds = await AdminService.getAlertThresholds();
+      set({ alertThresholds, thresholdsLoading: false });
+    } catch (e: any) {
+      set({ error: e?.message ?? 'Failed to load alert thresholds', thresholdsLoading: false });
+    }
+  },
+
+  updateAlertThreshold: async (key: string, value: number, enabled: boolean) => {
+    await AdminService.updateAlertThreshold(key, value, enabled);
+    set((s) => ({
+      alertThresholds: s.alertThresholds.map((t) =>
+        t.key === key ? { ...t, value, enabled } : t
+      ),
+    }));
+  },
+
   fetchAll: async () => {
     set({ loading: true, error: null });
     await Promise.all([
@@ -221,6 +312,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       get().fetchPhysicians(),
       get().fetchSLABreachAlerts(),
       get().fetchReassignmentLog(),
+      get().fetchAuditLog(),
+      get().fetchAllTransactions(),
+      get().fetchNDPASnapshots(),
+      get().fetchAlertThresholds(),
     ]);
     set({ loading: false });
   },

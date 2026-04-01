@@ -159,6 +159,75 @@ type SLABreachAlert struct {
 	CreatedAt             string `json:"createdAt"`
 }
 
+// AuditEvent is a single row from the audit_events table.
+type AuditEvent struct {
+	ID         string      `json:"id"`
+	EventType  string      `json:"eventType"`
+	ActorID    string      `json:"actorId,omitempty"`
+	ActorRole  string      `json:"actorRole"`
+	ActorName  string      `json:"actorName,omitempty"`
+	Resource   string      `json:"resource"`
+	ResourceID string      `json:"resourceId,omitempty"`
+	OldValue   interface{} `json:"oldValue,omitempty"`
+	NewValue   interface{} `json:"newValue,omitempty"`
+	IPAddress  string      `json:"ipAddress,omitempty"`
+	Metadata   interface{} `json:"metadata,omitempty"`
+	CreatedAt  string      `json:"createdAt"`
+}
+
+// AuditFilters controls audit log filtering.
+type AuditFilters struct {
+	EventType string
+	ActorRole string
+	Resource  string
+	DateFrom  string
+	DateTo    string
+	Page      int
+	PageSize  int
+}
+
+// AdminTransactionRow is a payment transaction row enriched with patient info.
+type AdminTransactionRow struct {
+	ID             string `json:"id"`
+	UserID         string `json:"userId"`
+	PatientName    string `json:"patientName"`
+	PatientEmail   string `json:"patientEmail"`
+	TxRef          string `json:"txRef"`
+	FlwTxID        string `json:"flwTxId,omitempty"`
+	Amount         int    `json:"amount"`
+	CreditsGranted int    `json:"creditsGranted"`
+	Status         string `json:"status"`
+	BundleID       string `json:"bundleId"`
+	CreatedAt      string `json:"createdAt"`
+}
+
+// NDPASnapshot is a stored NDPA 2023 compliance snapshot.
+type NDPASnapshot struct {
+	ID                  string  `json:"id"`
+	SnapshotDate        string  `json:"snapshotDate"`
+	TotalDataSubjects   int     `json:"totalDataSubjects"`
+	ConsentCapturedPct  float64 `json:"consentCapturedPct"`
+	DataMinimisationOk  bool    `json:"dataMinimisationOk"`
+	RetentionPolicyOk   bool    `json:"retentionPolicyOk"`
+	BreachIncidents30d  int     `json:"breachIncidents30d"`
+	PendingDSAR         int     `json:"pendingDsar"`
+	Notes               string  `json:"notes"`
+	CreatedAt           string  `json:"createdAt"`
+}
+
+// AlertThreshold is a configurable system threshold.
+type AlertThreshold struct {
+	Key         string  `json:"key"`
+	Label       string  `json:"label"`
+	Description string  `json:"description"`
+	Value       float64 `json:"value"`
+	Unit        string  `json:"unit"`
+	Category    string  `json:"category"`
+	Enabled     bool    `json:"enabled"`
+	UpdatedAt   string  `json:"updatedAt"`
+	UpdatedBy   string  `json:"updatedBy,omitempty"`
+}
+
 // ─── Repository ───────────────────────────────────────────────────────────────
 
 type Repository struct {
@@ -818,7 +887,400 @@ func (r *Repository) GetReassignmentLog(page, pageSize int) ([]SLABreachAlert, i
 	return entries, total, rows.Err()
 }
 
-// ─── SLA helpers ──────────────────────────────────────────────────────────────
+// ─── Audit log ────────────────────────────────────────────────────────────────
+
+// WriteAuditEvent inserts a structured audit event.
+// This is a best-effort helper; errors are logged but not propagated.
+func (r *Repository) WriteAuditEvent(actorID, actorRole, eventType, resource, resourceID string, oldVal, newVal, metadata interface{}, ipAddress string) {
+	oldJSON, _ := json.Marshal(oldVal)
+	newJSON, _ := json.Marshal(newVal)
+	metaJSON, _ := json.Marshal(metadata)
+
+	var actorArg, resArg interface{}
+	if actorID != "" {
+		actorArg = actorID
+	}
+	if resourceID != "" {
+		resArg = resourceID
+	}
+
+	_, _ = r.db.Exec(`
+		INSERT INTO audit_events
+		    (actor_id, actor_role, event_type, resource, resource_id,
+		     old_value, new_value, metadata, ip_address)
+		VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6, $7, $8, $9)`,
+		actorArg, actorRole, eventType, resource, resArg,
+		oldJSON, newJSON, metaJSON, ipAddress)
+}
+
+// GetAuditEvents returns a filtered, paginated list of audit events.
+func (r *Repository) GetAuditEvents(f AuditFilters) ([]AuditEvent, int, error) {
+	if f.Page < 1 {
+		f.Page = 1
+	}
+	if f.PageSize < 1 || f.PageSize > 200 {
+		f.PageSize = 50
+	}
+	offset := (f.Page - 1) * f.PageSize
+
+	where := "WHERE 1=1"
+	args := []interface{}{}
+	n := 1
+
+	if f.EventType != "" {
+		where += fmt.Sprintf(" AND a.event_type LIKE $%d", n)
+		args = append(args, f.EventType+"%")
+		n++
+	}
+	if f.ActorRole != "" {
+		where += fmt.Sprintf(" AND a.actor_role = $%d", n)
+		args = append(args, f.ActorRole)
+		n++
+	}
+	if f.Resource != "" {
+		where += fmt.Sprintf(" AND a.resource = $%d", n)
+		args = append(args, f.Resource)
+		n++
+	}
+	if f.DateFrom != "" {
+		where += fmt.Sprintf(" AND a.created_at >= $%d::timestamptz", n)
+		args = append(args, f.DateFrom)
+		n++
+	}
+	if f.DateTo != "" {
+		where += fmt.Sprintf(" AND a.created_at <= $%d::timestamptz", n)
+		args = append(args, f.DateTo)
+		n++
+	}
+
+	var total int
+	countQ := fmt.Sprintf(`SELECT COUNT(*) FROM audit_events a %s`, where)
+	if err := r.db.QueryRow(countQ, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	limitArgs := append(args, f.PageSize, offset)
+	dataQ := fmt.Sprintf(`
+		SELECT a.id::text, a.event_type, COALESCE(a.actor_id::text,''),
+		       a.actor_role, COALESCE(u.name,''),
+		       a.resource, COALESCE(a.resource_id::text,''),
+		       a.old_value, a.new_value, COALESCE(a.ip_address,''),
+		       a.metadata, a.created_at::text
+		FROM audit_events a
+		LEFT JOIN users u ON u.id = a.actor_id
+		%s
+		ORDER BY a.created_at DESC
+		LIMIT $%d OFFSET $%d`, where, n, n+1)
+
+	rows, err := r.db.Query(dataQ, limitArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var events []AuditEvent
+	for rows.Next() {
+		var e AuditEvent
+		var oldRaw, newRaw, metaRaw []byte
+		if err := rows.Scan(
+			&e.ID, &e.EventType, &e.ActorID, &e.ActorRole, &e.ActorName,
+			&e.Resource, &e.ResourceID,
+			&oldRaw, &newRaw, &e.IPAddress, &metaRaw, &e.CreatedAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		_ = json.Unmarshal(oldRaw, &e.OldValue)
+		_ = json.Unmarshal(newRaw, &e.NewValue)
+		_ = json.Unmarshal(metaRaw, &e.Metadata)
+		events = append(events, e)
+	}
+	if events == nil {
+		events = []AuditEvent{}
+	}
+	return events, total, rows.Err()
+}
+
+// ─── Transaction log (admin) ──────────────────────────────────────────────────
+
+// GetAllTransactions returns a paginated list of payment transactions across all users.
+func (r *Repository) GetAllTransactions(status string, page, pageSize int) ([]AdminTransactionRow, int, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	args := []interface{}{}
+	n := 1
+	where := "WHERE 1=1"
+	if status != "" {
+		where += fmt.Sprintf(" AND pt.status = $%d", n)
+		args = append(args, status)
+		n++
+	}
+
+	var total int
+	if err := r.db.QueryRow(
+		fmt.Sprintf(`SELECT COUNT(*) FROM payment_transactions pt %s`, where), args...,
+	).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	limitArgs := append(args, pageSize, offset)
+	rows, err := r.db.Query(fmt.Sprintf(`
+		SELECT pt.id::text, pt.user_id::text,
+		       COALESCE(u.name,''), COALESCE(u.email,''),
+		       pt.tx_ref, COALESCE(pt.flw_tx_id,''),
+		       pt.amount, pt.credits_granted, pt.status, pt.bundle_id,
+		       pt.created_at::text
+		FROM payment_transactions pt
+		LEFT JOIN users u ON u.id = pt.user_id
+		%s
+		ORDER BY pt.created_at DESC
+		LIMIT $%d OFFSET $%d`, where, n, n+1), limitArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var out []AdminTransactionRow
+	for rows.Next() {
+		var t AdminTransactionRow
+		if err := rows.Scan(&t.ID, &t.UserID, &t.PatientName, &t.PatientEmail,
+			&t.TxRef, &t.FlwTxID, &t.Amount, &t.CreditsGranted, &t.Status, &t.BundleID,
+			&t.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, t)
+	}
+	if out == nil {
+		out = []AdminTransactionRow{}
+	}
+	return out, total, rows.Err()
+}
+
+// ─── NDPA compliance ──────────────────────────────────────────────────────────
+
+// GenerateNDPASnapshot computes a live NDPA 2023 compliance snapshot and persists it.
+func (r *Repository) GenerateNDPASnapshot() (*NDPASnapshot, error) {
+	snap := &NDPASnapshot{}
+
+	// Total unique data subjects (all registered users).
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM users WHERE role = 'user'`).
+		Scan(&snap.TotalDataSubjects); err != nil {
+		return nil, err
+	}
+
+	// Consent captured = users that have completed at least one diagnosis
+	// (accepted T&C at registration; NDPA requires per-purpose consent).
+	var consentCount int
+	if err := r.db.QueryRow(`
+		SELECT COUNT(DISTINCT user_id) FROM diagnoses`).Scan(&consentCount); err != nil {
+		return nil, err
+	}
+	if snap.TotalDataSubjects > 0 {
+		snap.ConsentCapturedPct = float64(consentCount) / float64(snap.TotalDataSubjects) * 100
+	}
+
+	// Data minimisation: we only store what is necessary — flag as OK when no
+	// diagnoses have overly-wide AI payloads (heuristic: < 50 KB).
+	var bloatedCount int
+	_ = r.db.QueryRow(`
+		SELECT COUNT(*) FROM diagnoses
+		WHERE pg_column_size(ai_response) > 51200`).Scan(&bloatedCount)
+	snap.DataMinimisationOk = bloatedCount == 0
+
+	// Retention policy: check that no user data is older than configured retention.
+	var oldDataCount int
+	_ = r.db.QueryRow(`
+		SELECT COUNT(*) FROM diagnoses
+		WHERE created_at < NOW() - INTERVAL '7 years'`).Scan(&oldDataCount)
+	snap.RetentionPolicyOk = oldDataCount == 0
+
+	// SLA breach incidents in last 30 days approximate "security incidents".
+	_ = r.db.QueryRow(`
+		SELECT COUNT(*) FROM sla_reassignment_log
+		WHERE created_at >= NOW() - INTERVAL '30 days'`).Scan(&snap.BreachIncidents30d)
+
+	// Pending DSARs: admin audit events of type "dsar.submitted" without a paired "dsar.resolved".
+	_ = r.db.QueryRow(`
+		SELECT COUNT(*) FROM audit_events
+		WHERE event_type = 'dsar.submitted'
+		  AND resource_id NOT IN (
+		      SELECT resource_id FROM audit_events
+		      WHERE event_type = 'dsar.resolved' AND resource_id IS NOT NULL
+		  )`).Scan(&snap.PendingDSAR)
+
+	snap.Notes = "Auto-generated snapshot per NDPA 2023 compliance requirements"
+
+	// Persist.
+	err := r.db.QueryRow(`
+		INSERT INTO ndpa_compliance_snapshots
+		    (total_data_subjects, consent_captured_pct, data_minimisation_ok,
+		     retention_policy_ok, breach_incidents_30d, pending_dsar, notes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id::text, snapshot_date::text, created_at::text`,
+		snap.TotalDataSubjects, snap.ConsentCapturedPct,
+		snap.DataMinimisationOk, snap.RetentionPolicyOk,
+		snap.BreachIncidents30d, snap.PendingDSAR, snap.Notes,
+	).Scan(&snap.ID, &snap.SnapshotDate, &snap.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return snap, nil
+}
+
+// GetNDPASnapshots returns recent compliance snapshots.
+func (r *Repository) GetNDPASnapshots(limit int) ([]NDPASnapshot, error) {
+	if limit <= 0 || limit > 90 {
+		limit = 30
+	}
+	rows, err := r.db.Query(`
+		SELECT id::text, snapshot_date::text, total_data_subjects,
+		       consent_captured_pct, data_minimisation_ok, retention_policy_ok,
+		       breach_incidents_30d, pending_dsar, notes, created_at::text
+		FROM ndpa_compliance_snapshots
+		ORDER BY snapshot_date DESC, created_at DESC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []NDPASnapshot
+	for rows.Next() {
+		var s NDPASnapshot
+		if err := rows.Scan(&s.ID, &s.SnapshotDate, &s.TotalDataSubjects,
+			&s.ConsentCapturedPct, &s.DataMinimisationOk, &s.RetentionPolicyOk,
+			&s.BreachIncidents30d, &s.PendingDSAR, &s.Notes, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	if out == nil {
+		out = []NDPASnapshot{}
+	}
+	return out, rows.Err()
+}
+
+// ─── Alert thresholds ─────────────────────────────────────────────────────────
+
+// GetAlertThresholds fetches all configurable alert thresholds.
+func (r *Repository) GetAlertThresholds() ([]AlertThreshold, error) {
+	rows, err := r.db.Query(`
+		SELECT t.key, t.label, t.description, t.value::float8, t.unit, t.category,
+		       t.enabled, t.updated_at::text, COALESCE(u.name,'')
+		FROM alert_thresholds t
+		LEFT JOIN users u ON u.id = t.updated_by
+		ORDER BY t.category, t.key`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []AlertThreshold
+	for rows.Next() {
+		var t AlertThreshold
+		if err := rows.Scan(&t.Key, &t.Label, &t.Description, &t.Value,
+			&t.Unit, &t.Category, &t.Enabled, &t.UpdatedAt, &t.UpdatedBy); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// UpdateAlertThreshold updates a single threshold's value and enabled flag.
+func (r *Repository) UpdateAlertThreshold(adminID, key string, value float64, enabled bool) error {
+	var adminArg interface{}
+	if adminID != "" {
+		adminArg = adminID
+	}
+	res, err := r.db.Exec(`
+		UPDATE alert_thresholds
+		SET value = $1, enabled = $2, updated_at = NOW(), updated_by = $3::uuid
+		WHERE key = $4`, value, enabled, adminArg, key)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("threshold key not found: %s", key)
+	}
+	return nil
+}
+
+// BuildAuditCSV generates a CSV export of audit events matching the supplied filters.
+// Returns raw CSV bytes (UTF-8, with BOM for Excel compatibility).
+func (r *Repository) BuildAuditCSV(f AuditFilters) ([]byte, error) {
+	// Remove pagination — return all matching rows (capped at 10 000).
+	f.Page = 1
+	f.PageSize = 10000
+	events, _, err := r.GetAuditEvents(f)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf []byte
+	// UTF-8 BOM
+	buf = append(buf, 0xEF, 0xBB, 0xBF)
+	header := "ID,Event Type,Actor Role,Actor Name,Resource,Resource ID,IP Address,Created At\n"
+	buf = append(buf, []byte(header)...)
+	for _, e := range events {
+		line := fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s,%s\n",
+			csvEscape(e.ID), csvEscape(e.EventType), csvEscape(e.ActorRole),
+			csvEscape(e.ActorName), csvEscape(e.Resource), csvEscape(e.ResourceID),
+			csvEscape(e.IPAddress), csvEscape(e.CreatedAt))
+		buf = append(buf, []byte(line)...)
+	}
+	return buf, nil
+}
+
+// BuildTransactionCSV generates a CSV export of all payment transactions.
+func (r *Repository) BuildTransactionCSV(status string) ([]byte, error) {
+	txns, _, err := r.GetAllTransactions(status, 1, 10000)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf []byte
+	buf = append(buf, 0xEF, 0xBB, 0xBF)
+	header := "ID,Patient Name,Patient Email,TX Ref,FLW TX ID,Amount (NGN),Credits,Status,Bundle,Created At\n"
+	buf = append(buf, []byte(header)...)
+	for _, t := range txns {
+		line := fmt.Sprintf("%s,%s,%s,%s,%s,%d,%d,%s,%s,%s\n",
+			csvEscape(t.ID), csvEscape(t.PatientName), csvEscape(t.PatientEmail),
+			csvEscape(t.TxRef), csvEscape(t.FlwTxID),
+			t.Amount, t.CreditsGranted,
+			csvEscape(t.Status), csvEscape(t.BundleID), csvEscape(t.CreatedAt))
+		buf = append(buf, []byte(line)...)
+	}
+	return buf, nil
+}
+
+// csvEscape wraps a field in double-quotes and escapes internal quotes.
+func csvEscape(s string) string {
+	// Wrap every field in quotes for safety.
+	escaped := `"` + replaceAll(s, `"`, `""`) + `"`
+	return escaped
+}
+
+// replaceAll is a simple string replacement without importing strings package at type level.
+func replaceAll(s, old, new string) string {
+	result := make([]byte, 0, len(s))
+	for i := 0; i < len(s); {
+		if i+len(old) <= len(s) && s[i:i+len(old)] == old {
+			result = append(result, []byte(new)...)
+			i += len(old)
+		} else {
+			result = append(result, s[i])
+			i++
+		}
+	}
+	return string(result)
+}
 
 const (
 	slaGreenSecs  = 4 * 3600  // < 4 h → green

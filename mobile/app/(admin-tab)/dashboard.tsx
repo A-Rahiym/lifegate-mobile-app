@@ -27,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAdminStore } from '../../stores/admin-store';
 import { useAuthStore } from '../../stores/auth-store';
-import type { AdminCaseRow, SLAItem, FlagCount, PhysicianRow, SLABreachAlert } from '../../types/admin-types';
+import type { AdminCaseRow, SLAItem, FlagCount, PhysicianRow, SLABreachAlert, AuditEvent, AdminTransactionRow, NDPASnapshot } from '../../types/admin-types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -244,6 +244,97 @@ function BreachAlertRow({ item }: { item: SLABreachAlert }) {
 
 // ─── Reassignment Log Row ─────────────────────────────────────────────────────
 
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  'case.status_change': '#6366f1',
+  'case.reviewed':      '#0AADA2',
+  'case.escalated':     '#f97316',
+  'admin.action':       '#8b5cf6',
+  'auth.login':         '#22c55e',
+  'auth.logout':        '#64748b',
+};
+
+function AuditEventRow({ item }: { item: AuditEvent }) {
+  const color = EVENT_TYPE_COLORS[item.eventType] ?? '#6b7280';
+  const dateStr = item.createdAt
+    ? new Date(item.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : '';
+  return (
+    <View className="py-3 border-b border-gray-50">
+      <View className="flex-row items-start justify-between mb-1">
+        <View className="flex-1 pr-2">
+          <View className="flex-row items-center">
+            <View className="px-2 py-0.5 rounded mr-2" style={{ backgroundColor: color + '18' }}>
+              <Text className="text-[10px] font-bold" style={{ color }}>{item.eventType}</Text>
+            </View>
+            <Text className="text-[11px] text-gray-400">{dateStr}</Text>
+          </View>
+          <Text className="text-sm font-medium text-gray-800 mt-0.5" numberOfLines={1}>
+            {item.actorName || item.actorId}
+          </Text>
+        </View>
+        <View className="bg-gray-100 px-2 py-0.5 rounded">
+          <Text className="text-[10px] text-gray-500 font-medium">{item.actorRole}</Text>
+        </View>
+      </View>
+      <View className="flex-row items-center gap-2 flex-wrap">
+        <Text className="text-[11px] text-gray-500">
+          <Text className="text-gray-400">Resource: </Text>{item.resource}/{item.resourceId}
+        </Text>
+        {item.ipAddress ? (
+          <Text className="text-[10px] text-gray-400">IP: {item.ipAddress}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const TX_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  success: { bg: '#dcfce7', text: '#166534' },
+  pending: { bg: '#fef9c3', text: '#854d0e' },
+  failed:  { bg: '#fee2e2', text: '#991b1b' },
+};
+
+function TransactionRow({ item }: { item: AdminTransactionRow }) {
+  const style = TX_STATUS_COLORS[item.status] ?? { bg: '#f1f5f9', text: '#475569' };
+  const dateStr = item.createdAt
+    ? new Date(item.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '';
+  return (
+    <View className="py-3 border-b border-gray-50">
+      <View className="flex-row items-start justify-between mb-1">
+        <View className="flex-1 pr-2">
+          <Text className="text-sm font-semibold text-gray-800" numberOfLines={1}>
+            {item.patientName || item.patientEmail || item.userId}
+          </Text>
+          <Text className="text-[11px] text-gray-400 mt-0.5">{item.patientEmail}</Text>
+        </View>
+        <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: style.bg }}>
+          <Text className="text-[10px] font-semibold" style={{ color: style.text }}>{item.status.toUpperCase()}</Text>
+        </View>
+      </View>
+      <View className="flex-row items-center gap-3 flex-wrap">
+        <Text className="text-sm font-bold text-gray-800">₦{item.amount.toLocaleString('en-NG')}</Text>
+        {item.creditsGranted > 0 && (
+          <Text className="text-[11px] text-teal-700">{item.creditsGranted} credits</Text>
+        )}
+        <Text className="text-[10px] text-gray-400 ml-auto">{dateStr}</Text>
+      </View>
+    </View>
+  );
+}
+
+function NDPAMetricRow({ label, value, ok }: { label: string; value: string; ok: boolean }) {
+  return (
+    <View className="flex-row items-center justify-between">
+      <Text className="text-sm text-teal-700">{label}</Text>
+      <View className="flex-row items-center">
+        <Text className="text-sm font-semibold text-teal-900 mr-1.5">{value}</Text>
+        <Ionicons name={ok ? 'checkmark-circle' : 'alert-circle'} size={14} color={ok ? '#16a34a' : '#dc2626'} />
+      </View>
+    </View>
+  );
+}
+
 function ReassignmentRow({ item, index }: { item: SLABreachAlert; index: number }) {
   const urgColor = URGENCY_COLORS[item.urgency] ?? '#6b7280';
   const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-GB', {
@@ -354,16 +445,19 @@ function FilterBar({
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
-type Panel = 'overview' | 'sla' | 'edis' | 'physicians' | 'cases' | 'breaches' | 'reassignments';
+type Panel = 'overview' | 'sla' | 'edis' | 'physicians' | 'cases' | 'breaches' | 'reassignments' | 'audit' | 'transactions' | 'compliance';
 
 const PANELS: { key: Panel; label: string; icon: string }[] = [
-  { key: 'overview',       label: 'Overview',    icon: 'grid'          },
-  { key: 'sla',            label: 'SLA',         icon: 'timer'         },
-  { key: 'breaches',       label: 'Breaches',    icon: 'warning'       },
-  { key: 'reassignments',  label: 'Reassigned',  icon: 'swap-horizontal'},
-  { key: 'edis',           label: 'EDIS',        icon: 'analytics'     },
-  { key: 'physicians',     label: 'Physicians',  icon: 'people'        },
-  { key: 'cases',          label: 'Cases',       icon: 'folder-open'   },
+  { key: 'overview',       label: 'Overview',    icon: 'grid'            },
+  { key: 'sla',            label: 'SLA',         icon: 'timer'           },
+  { key: 'breaches',       label: 'Breaches',    icon: 'warning'         },
+  { key: 'reassignments',  label: 'Reassigned',  icon: 'swap-horizontal' },
+  { key: 'edis',           label: 'EDIS',        icon: 'analytics'       },
+  { key: 'physicians',     label: 'Physicians',  icon: 'people'          },
+  { key: 'cases',          label: 'Cases',       icon: 'folder-open'     },
+  { key: 'audit',          label: 'Audit',       icon: 'document-text'   },
+  { key: 'transactions',   label: 'Payments',    icon: 'card'            },
+  { key: 'compliance',     label: 'Compliance',  icon: 'shield-checkmark'},
 ];
 
 export default function AdminDashboardScreen() {
@@ -373,8 +467,12 @@ export default function AdminDashboardScreen() {
     dashboard, cases, casesTotal, slaItems, edisMetrics, physicians,
     slaBreachAlerts, reassignmentLog, reassignmentLogTotal,
     breachAlertsLoading, reassignmentLogLoading,
+    auditEvents, auditTotal, auditLoading,
+    transactions, transactionsTotal, transactionsLoading,
+    ndpaSnapshots, complianceLoading,
     loading, error,
     fetchAll, fetchCases, fetchSLABreachAlerts, fetchReassignmentLog,
+    fetchAuditLog, fetchAllTransactions, fetchNDPASnapshots, generateNDPASnapshot,
     setFilters, filters, clearError,
   } = useAdminStore();
 
@@ -405,8 +503,14 @@ export default function AdminDashboardScreen() {
       fetchSLABreachAlerts();
     } else if (activePanel === 'reassignments') {
       fetchReassignmentLog();
+    } else if (activePanel === 'audit') {
+      fetchAuditLog();
+    } else if (activePanel === 'transactions') {
+      fetchAllTransactions();
+    } else if (activePanel === 'compliance') {
+      fetchNDPASnapshots();
     }
-  }, [activePanel, fetchSLABreachAlerts, fetchReassignmentLog]);
+  }, [activePanel, fetchSLABreachAlerts, fetchReassignmentLog, fetchAuditLog, fetchAllTransactions, fetchNDPASnapshots]);
 
   const applyFilters = useCallback((extra?: { status?: string; urgency?: string; search?: string }) => {
     fetchCases({ status: statusFilter, urgency: urgencyFilter, search, page: 1, ...extra });
@@ -760,6 +864,229 @@ export default function AdminDashboardScreen() {
     );
   };
 
+  // ── Audit Log panel ───────────────────────────────────────────────────────
+
+  const [auditEventTypeFilter, setAuditEventTypeFilter] = useState('');
+  const [auditRoleFilter, setAuditRoleFilter] = useState('');
+
+  const EVENT_TYPES = ['', 'case.status_change', 'case.reviewed', 'case.escalated', 'admin.action', 'auth.login', 'auth.logout'];
+  const ACTOR_ROLES = ['', 'admin', 'physician', 'patient', 'system'];
+
+  const renderAuditLog = () => {
+    if (auditLoading) return <View className="items-center py-12"><ActivityIndicator color="#0AADA2" /></View>;
+    return (
+      <View>
+        {/* Event type filter */}
+        <Text className="text-xs font-semibold text-gray-500 mb-1.5 uppercase">Filter by Event</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
+          {EVENT_TYPES.map((et) => (
+            <TouchableOpacity
+              key={et || 'all-events'}
+              onPress={() => {
+                setAuditEventTypeFilter(et);
+                fetchAuditLog({ eventType: et, actorRole: auditRoleFilter, page: 1 });
+              }}
+              className="mr-2 px-3 py-1 rounded-full"
+              style={{ backgroundColor: auditEventTypeFilter === et ? '#6366f1' : '#f1f5f9' }}>
+              <Text className="text-xs font-medium" style={{ color: auditEventTypeFilter === et ? '#fff' : '#64748b' }}>
+                {et || 'All Events'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Role filter */}
+        <Text className="text-xs font-semibold text-gray-500 mb-1.5 uppercase">Filter by Role</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
+          {ACTOR_ROLES.map((r) => (
+            <TouchableOpacity
+              key={r || 'all-roles'}
+              onPress={() => {
+                setAuditRoleFilter(r);
+                fetchAuditLog({ eventType: auditEventTypeFilter, actorRole: r, page: 1 });
+              }}
+              className="mr-2 px-3 py-1 rounded-full"
+              style={{ backgroundColor: auditRoleFilter === r ? '#0AADA2' : '#f1f5f9' }}>
+              <Text className="text-xs font-medium" style={{ color: auditRoleFilter === r ? '#fff' : '#64748b' }}>
+                {r || 'All Roles'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <Text className="text-xs text-gray-400 mb-2">{auditTotal} event{auditTotal !== 1 ? 's' : ''} found</Text>
+
+        <View className="bg-white rounded-2xl px-4 py-2"
+          style={{ elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 }}>
+          <View className="flex-row items-center justify-between py-2 mb-1">
+            <Text className="text-xs font-semibold text-gray-500 uppercase">Audit Events (Most Recent First)</Text>
+            <TouchableOpacity onPress={() => fetchAuditLog({ page: 1 })}>
+              <Ionicons name="refresh" size={15} color="#9ca3af" />
+            </TouchableOpacity>
+          </View>
+          {auditEvents.length === 0 ? (
+            <View className="items-center py-10">
+              <Ionicons name="document-text-outline" size={36} color="#d1d5db" />
+              <Text className="text-sm text-gray-400 mt-2">No audit events match the filters</Text>
+            </View>
+          ) : (
+            auditEvents.map((item) => <AuditEventRow key={item.id} item={item} />)
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  // ── Transactions panel ────────────────────────────────────────────────────
+
+  const [txStatusFilter, setTxStatusFilter] = useState('');
+  const TX_STATUSES = ['', 'success', 'pending', 'failed'];
+
+  const renderTransactions = () => {
+    if (transactionsLoading) return <View className="items-center py-12"><ActivityIndicator color="#0AADA2" /></View>;
+    const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+    return (
+      <View>
+        {/* Summary */}
+        <View className="flex-row mb-4">
+          <StatCard icon="card" label="Total Transactions" value={transactionsTotal} color="#6366f1" />
+          <StatCard icon="cash" label="Total Volume (₦)" value={totalAmount.toLocaleString('en-NG')} color="#22c55e" />
+        </View>
+
+        {/* Status filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
+          {TX_STATUSES.map((s) => (
+            <TouchableOpacity
+              key={s || 'all-tx'}
+              onPress={() => {
+                setTxStatusFilter(s);
+                fetchAllTransactions(s, 1);
+              }}
+              className="mr-2 px-3 py-1 rounded-full"
+              style={{ backgroundColor: txStatusFilter === s ? '#0AADA2' : '#f1f5f9' }}>
+              <Text className="text-xs font-medium" style={{ color: txStatusFilter === s ? '#fff' : '#64748b' }}>
+                {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All Status'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View className="bg-white rounded-2xl px-4 py-2"
+          style={{ elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 }}>
+          <View className="flex-row items-center justify-between py-2 mb-1">
+            <Text className="text-xs font-semibold text-gray-500 uppercase">Payment Transactions</Text>
+            <TouchableOpacity onPress={() => fetchAllTransactions(txStatusFilter, 1)}>
+              <Ionicons name="refresh" size={15} color="#9ca3af" />
+            </TouchableOpacity>
+          </View>
+          {transactions.length === 0 ? (
+            <View className="items-center py-10">
+              <Ionicons name="card-outline" size={36} color="#d1d5db" />
+              <Text className="text-sm text-gray-400 mt-2">No transactions found</Text>
+            </View>
+          ) : (
+            transactions.map((item) => <TransactionRow key={item.id} item={item} />)
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  // ── Compliance panel ──────────────────────────────────────────────────────
+
+  const renderCompliance = () => {
+    if (complianceLoading) return <View className="items-center py-12"><ActivityIndicator color="#0AADA2" /></View>;
+    const latest = ndpaSnapshots[0] ?? null;
+    return (
+      <View>
+        {/* NDPA summary from latest snapshot */}
+        {latest ? (
+          <View>
+            <View className="bg-teal-50 border border-teal-100 rounded-2xl p-4 mb-4">
+              <View className="flex-row items-center mb-3">
+                <View className="w-9 h-9 rounded-full bg-teal-100 items-center justify-center mr-3">
+                  <Ionicons name="shield-checkmark" size={18} color="#0d9488" />
+                </View>
+                <View>
+                  <Text className="text-base font-bold text-teal-800">NDPA 2023 Status</Text>
+                  <Text className="text-xs text-teal-600">
+                    Snapshot: {new Date(latest.snapshotDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </Text>
+                </View>
+              </View>
+              <View className="gap-2">
+                <NDPAMetricRow label="Consent Captured" value={`${latest.consentCapturedPct.toFixed(1)}%`} ok={latest.consentCapturedPct >= 95} />
+                <NDPAMetricRow label="Data Minimisation" value={latest.dataMinimisationOk ? 'Compliant' : 'Review Needed'} ok={latest.dataMinimisationOk} />
+                <NDPAMetricRow label="Retention Policy" value={latest.retentionPolicyOk ? 'Compliant' : 'Review Needed'} ok={latest.retentionPolicyOk} />
+                <NDPAMetricRow label="Breach Incidents (30d)" value={String(latest.breachIncidents30d)} ok={latest.breachIncidents30d === 0} />
+                <NDPAMetricRow label="Pending DSAR" value={String(latest.pendingDsar)} ok={latest.pendingDsar === 0} />
+                <NDPAMetricRow label="Data Subjects" value={latest.totalDataSubjects.toLocaleString()} ok />
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View className="bg-gray-50 rounded-2xl p-6 mb-4 items-center">
+            <Ionicons name="shield-outline" size={36} color="#d1d5db" />
+            <Text className="text-sm text-gray-400 mt-2">No compliance snapshots yet</Text>
+          </View>
+        )}
+
+        {/* Action buttons */}
+        <View className="flex-row gap-3 mb-4">
+          <TouchableOpacity
+            onPress={async () => {
+              try {
+                await generateNDPASnapshot();
+                Alert.alert('Success', 'Compliance snapshot generated');
+              } catch {
+                Alert.alert('Error', 'Could not generate snapshot');
+              }
+            }}
+            className="flex-1 flex-row items-center justify-center bg-teal-600 rounded-xl py-3">
+            <Ionicons name="add-circle-outline" size={16} color="#fff" />
+            <Text className="text-sm font-semibold text-white ml-2">Generate Snapshot</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/(admin-tab)/alert-settings')}
+            className="flex-1 flex-row items-center justify-center bg-indigo-600 rounded-xl py-3">
+            <Ionicons name="settings-outline" size={16} color="#fff" />
+            <Text className="text-sm font-semibold text-white ml-2">Alert Settings</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Snapshot history */}
+        {ndpaSnapshots.length > 1 && (
+          <View>
+            <SectionHeader title="Snapshot History" icon="time" accent="#0d9488" />
+            <View className="bg-white rounded-2xl px-4 py-2"
+              style={{ elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 }}>
+              {ndpaSnapshots.slice(1).map((snap) => (
+                <View key={snap.id} className="py-3 border-b border-gray-50 flex-row items-center">
+                  <View className="flex-1">
+                    <Text className="text-sm font-medium text-gray-800">
+                      {new Date(snap.snapshotDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </Text>
+                    <Text className="text-xs text-gray-400 mt-0.5">
+                      Consent: {snap.consentCapturedPct.toFixed(1)}% · Breaches: {snap.breachIncidents30d} · DSAR: {snap.pendingDsar}
+                    </Text>
+                  </View>
+                  <View className="w-6 h-6 rounded-full items-center justify-center"
+                    style={{ backgroundColor: (snap.dataMinimisationOk && snap.retentionPolicyOk && snap.breachIncidents30d === 0) ? '#dcfce7' : '#fee2e2' }}>
+                    <Ionicons
+                      name={(snap.dataMinimisationOk && snap.retentionPolicyOk && snap.breachIncidents30d === 0) ? 'checkmark' : 'close'}
+                      size={12}
+                      color={(snap.dataMinimisationOk && snap.retentionPolicyOk && snap.breachIncidents30d === 0) ? '#16a34a' : '#dc2626'}
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   // ── Panel renderer ────────────────────────────────────────────────────────
 
   const renderPanel = () => {
@@ -771,6 +1098,9 @@ export default function AdminDashboardScreen() {
       case 'edis':          return renderEDIS();
       case 'physicians':    return renderPhysicians();
       case 'cases':         return renderCases();
+      case 'audit':         return renderAuditLog();
+      case 'transactions':  return renderTransactions();
+      case 'compliance':    return renderCompliance();
     }
   };
 

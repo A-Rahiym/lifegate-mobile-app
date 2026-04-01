@@ -8,6 +8,7 @@ import (
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/admin"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/alerts"
+	auditpkg "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/audit"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/edis"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/auth"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/config"
@@ -118,6 +119,12 @@ r := gin.New()
 r.Use(middleware.Logger())
 r.Use(middleware.CORS())
 r.Use(gin.Recovery())
+// Attach the audit writer to every request context.
+r.Use(func(c *gin.Context) {
+	ctx := auditpkg.NewContext(c.Request.Context(), adminSvc)
+	c.Request = c.Request.WithContext(ctx)
+	c.Next()
+})
 
 api := r.Group("/api")
 
@@ -294,6 +301,23 @@ physicianGroup.POST("/push-token", func(c *gin.Context) {
 		adminGroup.POST("/physicians/:id/suspend", adminHandler.SuspendPhysician)
 		adminGroup.POST("/physicians/:id/unsuspend", adminHandler.UnsuspendPhysician)
 		adminGroup.POST("/physicians/:id/mdcn-override", adminHandler.OverrideMDCN)
+
+		// Comprehensive audit log
+		adminGroup.GET("/audit", adminHandler.GetAuditLog)
+		adminGroup.GET("/audit/export", adminHandler.ExportAuditCSV)
+
+		// Payment & credit transaction log (admin view)
+		adminGroup.GET("/transactions", adminHandler.GetAllTransactions)
+		adminGroup.GET("/transactions/export", adminHandler.ExportTransactionsCSV)
+
+		// NDPA 2023 compliance
+		adminGroup.GET("/compliance/ndpa", adminHandler.GetNDPASnapshots)
+		adminGroup.POST("/compliance/ndpa/generate", adminHandler.GenerateNDPASnapshot)
+		adminGroup.GET("/compliance/ndpa/export", adminHandler.ExportNDPACSV)
+
+		// Alert threshold configuration
+		adminGroup.GET("/settings/alerts", adminHandler.GetAlertThresholds)
+		adminGroup.PATCH("/settings/alerts/:key", adminHandler.UpdateAlertThreshold)
 	}
 
 	// WebSocket (supports optional ?token= for user-aware broadcasting)

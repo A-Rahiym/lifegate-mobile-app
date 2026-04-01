@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -306,4 +307,211 @@ func (h *Handler) GetReassignmentLog(c *gin.Context) {
 			"pageSize": pageSize,
 		},
 	})
+}
+
+// ─── GET /api/admin/audit ─────────────────────────────────────────────────────
+
+// GetAuditLog returns a filtered, paginated audit event list.
+// Query: eventType, actorRole, resource, dateFrom, dateTo, page, pageSize
+func (h *Handler) GetAuditLog(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "50"))
+
+	f := AuditFilters{
+		EventType: c.Query("eventType"),
+		ActorRole: c.Query("actorRole"),
+		Resource:  c.Query("resource"),
+		DateFrom:  c.Query("dateFrom"),
+		DateTo:    c.Query("dateTo"),
+		Page:      page,
+		PageSize:  pageSize,
+	}
+
+	events, total, err := h.svc.GetAuditEvents(f)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to load audit log"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    events,
+		"meta":    gin.H{"total": total, "page": page, "pageSize": pageSize},
+	})
+}
+
+// ─── GET /api/admin/audit/export ─────────────────────────────────────────────
+
+// ExportAuditCSV streams a CSV file download of filtered audit events.
+func (h *Handler) ExportAuditCSV(c *gin.Context) {
+	f := AuditFilters{
+		EventType: c.Query("eventType"),
+		ActorRole: c.Query("actorRole"),
+		Resource:  c.Query("resource"),
+		DateFrom:  c.Query("dateFrom"),
+		DateTo:    c.Query("dateTo"),
+	}
+
+	csv, err := h.svc.BuildAuditCSV(f)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to generate CSV"})
+		return
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="lifegate-audit-log.csv"`)
+	c.Header("Content-Length", fmt.Sprintf("%d", len(csv)))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", csv)
+}
+
+// ─── GET /api/admin/transactions ─────────────────────────────────────────────
+
+// GetAllTransactions returns a paginated admin view of all payment transactions.
+// Query: status (pending|success|failed), page, pageSize
+func (h *Handler) GetAllTransactions(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	status := c.Query("status")
+
+	txns, total, err := h.svc.GetAllTransactions(status, page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to load transactions"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    txns,
+		"meta":    gin.H{"total": total, "page": page, "pageSize": pageSize},
+	})
+}
+
+// ─── GET /api/admin/transactions/export ──────────────────────────────────────
+
+// ExportTransactionsCSV streams a CSV of all payment transactions.
+func (h *Handler) ExportTransactionsCSV(c *gin.Context) {
+	status := c.Query("status")
+	csv, err := h.svc.BuildTransactionCSV(status)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to generate CSV"})
+		return
+	}
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="lifegate-transactions.csv"`)
+	c.Header("Content-Length", fmt.Sprintf("%d", len(csv)))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", csv)
+}
+
+// ─── GET /api/admin/compliance/ndpa ──────────────────────────────────────────
+
+// GetNDPASnapshots returns recent NDPA 2023 compliance snapshots.
+func (h *Handler) GetNDPASnapshots(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "30"))
+	snaps, err := h.svc.GetNDPASnapshots(limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to load NDPA snapshots"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": snaps})
+}
+
+// ─── POST /api/admin/compliance/ndpa/generate ────────────────────────────────
+
+// GenerateNDPASnapshot computes and persists a fresh NDPA compliance snapshot.
+func (h *Handler) GenerateNDPASnapshot(c *gin.Context) {
+	snap, err := h.svc.GenerateNDPASnapshot()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to generate NDPA snapshot"})
+		return
+	}
+
+	adminID, _ := c.Get("userID")
+	adminIDStr, _ := adminID.(string)
+	h.svc.LogAction(adminIDStr, "compliance.ndpa_snapshot", "compliance", &snap.ID,
+		map[string]interface{}{"snapshotDate": snap.SnapshotDate})
+
+	c.JSON(http.StatusCreated, gin.H{"success": true, "data": snap})
+}
+
+// ─── GET /api/admin/compliance/ndpa/export ───────────────────────────────────
+
+// ExportNDPACSV streams a CSV of NDPA compliance snapshots.
+func (h *Handler) ExportNDPACSV(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "90"))
+	snaps, err := h.svc.GetNDPASnapshots(limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to generate CSV"})
+		return
+	}
+
+	var data []byte
+	data = append(data, 0xEF, 0xBB, 0xBF) // UTF-8 BOM
+	data = append(data, []byte("Snapshot Date,Data Subjects,Consent Captured %,Data Min OK,Retention OK,Breach Incidents (30d),Pending DSAR,Created At\n")...)
+	for _, s := range snaps {
+		dm := "No"
+		if s.DataMinimisationOk {
+			dm = "Yes"
+		}
+		rp := "No"
+		if s.RetentionPolicyOk {
+			rp = "Yes"
+		}
+		line := fmt.Sprintf("%s,%d,%.2f,%s,%s,%d,%d,%s\n",
+			s.SnapshotDate, s.TotalDataSubjects, s.ConsentCapturedPct,
+			dm, rp, s.BreachIncidents30d, s.PendingDSAR, s.CreatedAt)
+		data = append(data, []byte(line)...)
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="lifegate-ndpa-compliance.csv"`)
+	c.Header("Content-Length", fmt.Sprintf("%d", len(data)))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", data)
+}
+
+// ─── GET /api/admin/settings/alerts ──────────────────────────────────────────
+
+// GetAlertThresholds returns all configurable alert thresholds.
+func (h *Handler) GetAlertThresholds(c *gin.Context) {
+	thresholds, err := h.svc.GetAlertThresholds()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to load alert thresholds"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": thresholds})
+}
+
+// ─── PATCH /api/admin/settings/alerts/:key ───────────────────────────────────
+
+// UpdateAlertThreshold updates a single threshold's value and enabled state.
+// Body: { "value": 4.0, "enabled": true }
+func (h *Handler) UpdateAlertThreshold(c *gin.Context) {
+	key := c.Param("key")
+	var body struct {
+		Value   float64 `json:"value"`
+		Enabled *bool   `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	enabled := true
+	if body.Enabled != nil {
+		enabled = *body.Enabled
+	}
+
+	adminID, _ := c.Get("userID")
+	adminIDStr, _ := adminID.(string)
+
+	if err := h.svc.UpdateAlertThreshold(adminIDStr, key, body.Value, enabled); err != nil {
+		status := http.StatusInternalServerError
+		if err.Error()[:9] == "threshold" {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	h.svc.LogAction(adminIDStr, "alert_threshold.update", "config", nil,
+		map[string]interface{}{"key": key, "value": body.Value, "enabled": enabled})
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Threshold updated"})
 }

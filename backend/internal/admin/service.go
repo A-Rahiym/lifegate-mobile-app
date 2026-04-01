@@ -85,3 +85,47 @@ func (s *Service) GetSLABreachAlerts(limit int) ([]SLABreachAlert, error) {
 func (s *Service) GetReassignmentLog(page, pageSize int) ([]SLABreachAlert, int, error) {
 	return s.repo.GetReassignmentLog(page, pageSize)
 }
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+
+func (s *Service) WriteAuditEvent(actorID, actorRole, eventType, resource, resourceID string, oldVal, newVal, metadata interface{}, ipAddress string) {
+	s.repo.WriteAuditEvent(actorID, actorRole, eventType, resource, resourceID, oldVal, newVal, metadata, ipAddress)
+}
+
+func (s *Service) GetAuditEvents(f AuditFilters) ([]AuditEvent, int, error) {
+	return s.repo.GetAuditEvents(f)
+}
+
+func (s *Service) BuildAuditCSV(f AuditFilters) ([]byte, error) {
+	return s.repo.BuildAuditCSV(f)
+}
+
+// ── Transaction log ───────────────────────────────────────────────────────────
+
+func (s *Service) GetAllTransactions(status string, page, pageSize int) ([]AdminTransactionRow, int, error) {
+	return s.repo.GetAllTransactions(status, page, pageSize)
+}
+
+func (s *Service) BuildTransactionCSV(status string) ([]byte, error) {
+	return s.repo.BuildTransactionCSV(status)
+}
+
+// ── NDPA compliance ───────────────────────────────────────────────────────────
+
+func (s *Service) GenerateNDPASnapshot() (*NDPASnapshot, error) {
+	return s.repo.GenerateNDPASnapshot()
+}
+
+func (s *Service) GetNDPASnapshots(limit int) ([]NDPASnapshot, error) {
+	return s.repo.GetNDPASnapshots(limit)
+}
+
+// ── Alert thresholds ──────────────────────────────────────────────────────────
+
+func (s *Service) GetAlertThresholds() ([]AlertThreshold, error) {
+	return s.repo.GetAlertThresholds()
+}
+
+func (s *Service) UpdateAlertThreshold(adminID, key string, value float64, enabled bool) error {
+	return s.repo.UpdateAlertThreshold(adminID, key, value, enabled)
+}
