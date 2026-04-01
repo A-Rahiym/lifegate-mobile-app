@@ -2,7 +2,7 @@ import { View, Pressable, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-export type TabBarTab = 'consultation' | 'chat' | 'review';
+export type TabBarTab = 'consultation' | 'chat' | 'review' | 'history';
 
 interface BottomTabBarProps {
   currentTab: TabBarTab;
@@ -30,6 +30,11 @@ const TABS: Record<TabBarTab, TabConfig> = {
     label: 'Review',
     icon: 'document-text',
     route: '/(prof-tab)/review',
+  },
+  history: {
+    label: 'History',
+    icon: 'time-outline',
+    route: '/(prof-tab)/patientHistory',
   },
 };
 

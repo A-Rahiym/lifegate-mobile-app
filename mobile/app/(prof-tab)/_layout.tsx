@@ -19,6 +19,7 @@ export default function ProfTabLayout() {
         <Stack.Screen name="chat" />
         <Stack.Screen name="notification" />
         <Stack.Screen name="profile" />
+        <Stack.Screen name="patientHistory" />
       </Stack>
 
       {/* Bottom Tab Bar */}

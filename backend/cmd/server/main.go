@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
+	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/alerts"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/auth"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/config"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/db"
@@ -57,6 +58,9 @@ hub := wshub.NewHub()
 
 	diagnosisSvc := diagnosis.NewService(database)
 	diagnosisHandler := diagnosis.NewHandler(diagnosisSvc)
+
+	alertsSvc := alerts.NewService(database)
+	alertsHandler := alerts.NewHandler(alertsSvc)
 
 // Router
 r := gin.New()
@@ -112,6 +116,12 @@ physicianGroup.POST("/reports/:id/review", physicianHandler.ReviewReport)
 		diagnosisGroup.GET("", diagnosisHandler.GetDiagnoses)
 		diagnosisGroup.GET("/:id", diagnosisHandler.GetDiagnosisDetail)
 	}
+
+	// Patient preventive alerts
+	api.GET("/alerts", middleware.Auth(cfg.JWTSecret), alertsHandler.GetPatientAlerts)
+
+	// Physician workload alerts (added to existing physician group above)
+	api.GET("/physician/alerts", middleware.Auth(cfg.JWTSecret), alertsHandler.GetPhysicianAlerts)
 
 	// WebSocket (supports optional ?token= for user-aware broadcasting)
 	r.GET("/ws", hub.Handler(cfg.JWTSecret))

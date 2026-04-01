@@ -60,6 +60,17 @@ export default function TabLayout() {
             ),
           }}
         />
+        {/* Health History & Alerts */}
+        <Drawer.Screen
+          name="health"
+          options={{
+            title: 'Health History',
+            drawerLabel: 'Health History',
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="heart-outline" size={size} color={color} />
+            ),
+          }}
+        />
       </Drawer>
     </GestureHandlerRootView>
   );
