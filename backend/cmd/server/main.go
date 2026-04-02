@@ -360,8 +360,18 @@ physicianGroup.POST("/push-token", func(c *gin.Context) {
 	// WebSocket (supports optional ?token= for user-aware broadcasting)
 	r.GET("/ws", hub.Handler(cfg.JWTSecret))
 
-	// Swagger UI — GET /swagger/index.html
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Swagger UI — /swagger and /swagger/ both redirect to /swagger/index.html
+	swaggerHandler := ginSwagger.WrapHandler(swaggerFiles.Handler)
+	r.GET("/swagger", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
+	})
+	r.GET("/swagger/*any", func(c *gin.Context) {
+		if c.Param("any") == "/" {
+			c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
+			return
+		}
+		swaggerHandler(c)
+	})
 
 	// ── Health / readiness probes ─────────────────────────────────────────────
 	// GET /health  — liveness probe (Render, Docker, k8s)
