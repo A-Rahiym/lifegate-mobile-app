@@ -12,7 +12,7 @@
 //
 // @host                       lifegatemobilebackend-2.onrender.com
 // @BasePath                   /api
-// @schemes                    https
+// @schemes                    https http
 //
 // @securityDefinitions.apikey BearerAuth
 // @in                         header
@@ -25,7 +25,7 @@ import (
 	"log"
 	"net/http"
 
-	_ "github.com/DiniMuhd7/lifegate-mobile-app/backend/docs"
+	docs "github.com/DiniMuhd7/lifegate-mobile-app/backend/docs"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/admin"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/alerts"
@@ -53,6 +53,20 @@ import (
 
 func main() {
 	cfg := config.Load()
+
+	// Configure Swagger UI host dynamically so it works on both localhost
+	// and the production Render URL without rebuilding.
+	// On Render, the HOST env var is set. Locally it is unset, so we default
+	// to localhost:<port> with http so the "Try it out" button hits the right server.
+	swaggerHost := cfg.SwaggerHost
+	if swaggerHost == "" {
+		// No explicit override — running locally.
+		docs.SwaggerInfo.Host = "localhost:" + cfg.Port
+		docs.SwaggerInfo.Schemes = []string{"http"}
+	} else {
+		docs.SwaggerInfo.Host = swaggerHost
+		docs.SwaggerInfo.Schemes = []string{"https"}
+	}
 
 	// Fail fast on a weak JWT secret — minimum 32 bytes for HS256 security.
 	if len(cfg.JWTSecret) < 32 {

@@ -47,6 +47,11 @@ type Config struct {
 	// sensitive health fields in the users table. Falls back to JWT_SECRET
 	// when not explicitly set — override in production with a dedicated secret.
 	HealthDataKey string
+
+	// SwaggerHost overrides the Swagger UI host. Set to the public domain in
+	// production (e.g. lifegatemobilebackend-2.onrender.com). Leave empty to
+	// auto-detect localhost for local development.
+	SwaggerHost string
 }
 
 func Load() *Config {
@@ -93,6 +98,8 @@ func Load() *Config {
 		FlutterwaveRedirectURL:  getEnv("FLW_REDIRECT_URL", "lifegate://payment/callback"),
 
 		HealthDataKey: getEnv("HEALTH_DATA_KEY", getEnv("JWT_SECRET", "changeme-secret")),
+
+		SwaggerHost: getEnv("SWAGGER_HOST", ""),
 	}
 }
 

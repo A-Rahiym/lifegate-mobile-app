@@ -54,6 +54,10 @@ services:
       - key: HEALTH_DATA_KEY
         generateValue: true
 
+      # Swagger UI host — set to the public Render URL so "Try it out" works in production
+      - key: SWAGGER_HOST
+        value: lifegatemobilebackend-2.onrender.com
+
       # AI — set the provider and fill in the key(s) via Render dashboard
       - key: AI_PROVIDER
         value: openai          # openai | gemini | anthropic
