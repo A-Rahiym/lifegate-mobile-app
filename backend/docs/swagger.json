@@ -16,7 +16,7 @@
         },
         "version": "1.0"
     },
-    "host": "lifegatemobilebackend-2.onrender.com",
+    "host": "lifegate-backend.onrender.com",
     "basePath": "/api",
     "paths": {
         "/admin/audit": {

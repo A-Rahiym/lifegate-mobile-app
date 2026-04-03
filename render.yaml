@@ -56,7 +56,7 @@ services:
 
       # Swagger UI host — set to the public Render URL so "Try it out" works in production
       - key: SWAGGER_HOST
-        value: lifegatemobilebackend-2.onrender.com
+        value: lifegate-backend.onrender.com
 
       # AI — set the provider and fill in the key(s) via Render dashboard
       - key: AI_PROVIDER
@@ -99,7 +99,7 @@ services:
         value: noreply@lifegate.app
 
       # CORS — comma-separated list of allowed origins (Expo Go, web client, etc.)
-      # Example: https://lifegatemobilebackend-2.onrender.com,exp://...
+      # Example: https://lifegate-backend.onrender.com,exp://...
       - key: ALLOWED_ORIGINS
         sync: false
 

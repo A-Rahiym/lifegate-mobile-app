@@ -10,7 +10,7 @@
 //
 // @license.name               Proprietary
 //
-// @host                       lifegatemobilebackend-2.onrender.com
+// @host                       lifegate-backend.onrender.com
 // @BasePath                   /api
 // @schemes                    https http
 //
