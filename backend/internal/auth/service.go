@@ -21,9 +21,10 @@ redisclient "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/redis"
 )
 
 type Service struct {
-repo   *Repository
-redis  *redisclient.Client
-cfg    *config.Config
+repo       *Repository
+redis      *redisclient.Client
+cfg        *config.Config
+resendURL  string
 trialGranter TrialCreditGranter
 }
 
@@ -33,7 +34,7 @@ type TrialCreditGranter interface {
 }
 
 func NewService(repo *Repository, redis *redisclient.Client, cfg *config.Config) *Service {
-return &Service{repo: repo, redis: redis, cfg: cfg}
+return &Service{repo: repo, redis: redis, cfg: cfg, resendURL: "https://api.resend.com/emails"}
 }
 
 // SetTrialCreditGranter wires up the payments service so that new patient
@@ -627,7 +628,7 @@ func (s *Service) sendEmail(to, subject, body string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, "https://api.resend.com/emails", bytes.NewReader(data))
+	req, err := http.NewRequest(http.MethodPost, s.resendURL, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,9 @@ package auth
 import (
 	"encoding/base64"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -252,6 +255,205 @@ func TestGenerateJWT_ExpAfterIat(t *testing.T) {
 	exp := claims["exp"].(float64)
 	if exp <= iat {
 		t.Errorf("expected exp > iat, got exp=%v iat=%v", exp, iat)
+	}
+}
+
+// ─── sendEmail (Resend) ───────────────────────────────────────────────────────
+
+// newResendTestServer starts a mock HTTP server that responds with the given
+// status code and returns its URL plus a cleanup function.
+func newResendTestServer(t *testing.T, status int, handler func(r *http.Request)) (string, func()) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if handler != nil {
+			handler(r)
+		}
+		w.WriteHeader(status)
+	}))
+	return srv.URL, srv.Close
+}
+
+func newResendSvc(apiKey, from, serverURL string) *Service {
+	return &Service{
+		cfg: &config.Config{
+			ResendAPIKey: apiKey,
+			EmailFrom:    from,
+		},
+		resendURL: serverURL,
+	}
+}
+
+func TestSendEmail_PostsToResendEndpoint(t *testing.T) {
+	var gotMethod, gotPath string
+	url, cleanup := newResendTestServer(t, http.StatusOK, func(r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+	})
+	defer cleanup()
+
+	svc := newResendSvc("test-key", "contact@dshub.com.ng", url)
+	if err := svc.sendEmail("user@example.com", "Test Subject", "Test body"); err != nil {
+		t.Fatalf("sendEmail: unexpected error: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("expected POST, got %q", gotMethod)
+	}
+	// httptest server URL has no path; the request should hit "/"
+	if gotPath != "/" {
+		t.Errorf("unexpected path %q", gotPath)
+	}
+}
+
+func TestSendEmail_SetsAuthorizationHeader(t *testing.T) {
+	const apiKey = "re_test_key_123"
+	var gotAuth string
+	url, cleanup := newResendTestServer(t, http.StatusOK, func(r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+	})
+	defer cleanup()
+
+	svc := newResendSvc(apiKey, "contact@dshub.com.ng", url)
+	if err := svc.sendEmail("user@example.com", "Subject", "Body"); err != nil {
+		t.Fatalf("sendEmail: unexpected error: %v", err)
+	}
+	if gotAuth != "Bearer "+apiKey {
+		t.Errorf("expected Authorization 'Bearer %s', got %q", apiKey, gotAuth)
+	}
+}
+
+func TestSendEmail_SetsContentTypeJSON(t *testing.T) {
+	var gotCT string
+	url, cleanup := newResendTestServer(t, http.StatusOK, func(r *http.Request) {
+		gotCT = r.Header.Get("Content-Type")
+	})
+	defer cleanup()
+
+	svc := newResendSvc("key", "contact@dshub.com.ng", url)
+	_ = svc.sendEmail("user@example.com", "Subject", "Body")
+	if gotCT != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %q", gotCT)
+	}
+}
+
+func TestSendEmail_JSONBodyFields(t *testing.T) {
+	const (
+		fromAddr = "contact@dshub.com.ng"
+		toAddr   = "patient@example.com"
+		subject  = "LifeGate OTP"
+		body     = "Your code is 123456"
+	)
+	var gotBody map[string]interface{}
+	url, cleanup := newResendTestServer(t, http.StatusOK, func(r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+	})
+	defer cleanup()
+
+	svc := newResendSvc("key", fromAddr, url)
+	if err := svc.sendEmail(toAddr, subject, body); err != nil {
+		t.Fatalf("sendEmail: unexpected error: %v", err)
+	}
+
+	if gotBody["from"] != fromAddr {
+		t.Errorf("from: got %v, want %q", gotBody["from"], fromAddr)
+	}
+	if gotBody["subject"] != subject {
+		t.Errorf("subject: got %v, want %q", gotBody["subject"], subject)
+	}
+	if gotBody["text"] != body {
+		t.Errorf("text: got %v, want %q", gotBody["text"], body)
+	}
+	tos, ok := gotBody["to"].([]interface{})
+	if !ok || len(tos) != 1 || tos[0] != toAddr {
+		t.Errorf("to: got %v, want [%q]", gotBody["to"], toAddr)
+	}
+}
+
+func TestSendEmail_ReturnsErrorOn4xx(t *testing.T) {
+	url, cleanup := newResendTestServer(t, http.StatusUnauthorized, nil)
+	defer cleanup()
+
+	svc := newResendSvc("bad-key", "contact@dshub.com.ng", url)
+	err := svc.sendEmail("user@example.com", "Subject", "Body")
+	if err == nil {
+		t.Fatal("sendEmail: expected error on 401, got nil")
+	}
+	if !strings.Contains(err.Error(), "401") {
+		t.Errorf("expected error to mention status 401, got %q", err.Error())
+	}
+}
+
+func TestSendEmail_ReturnsErrorOn5xx(t *testing.T) {
+	url, cleanup := newResendTestServer(t, http.StatusInternalServerError, nil)
+	defer cleanup()
+
+	svc := newResendSvc("key", "contact@dshub.com.ng", url)
+	err := svc.sendEmail("user@example.com", "Subject", "Body")
+	if err == nil {
+		t.Fatal("sendEmail: expected error on 500, got nil")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("expected error to mention status 500, got %q", err.Error())
+	}
+}
+
+func TestSendEmail_SucceedsOn2xx(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusCreated} {
+		url, cleanup := newResendTestServer(t, status, nil)
+		svc := newResendSvc("key", "contact@dshub.com.ng", url)
+		if err := svc.sendEmail("user@example.com", "Subject", "Body"); err != nil {
+			t.Errorf("sendEmail: unexpected error for status %d: %v", status, err)
+		}
+		cleanup()
+	}
+}
+
+// ─── sendOTPEmail / sendPasswordResetEmail ────────────────────────────────────
+
+func TestSendOTPEmail_SubjectAndBody(t *testing.T) {
+	var gotBody map[string]interface{}
+	url, cleanup := newResendTestServer(t, http.StatusOK, func(r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+	})
+	defer cleanup()
+
+	svc := newResendSvc("key", "contact@dshub.com.ng", url)
+	if err := svc.sendOTPEmail("user@example.com", "Alice", "987654"); err != nil {
+		t.Fatalf("sendOTPEmail: unexpected error: %v", err)
+	}
+	subject, _ := gotBody["subject"].(string)
+	text, _ := gotBody["text"].(string)
+	if !strings.Contains(subject, "Verify") {
+		t.Errorf("subject should mention Verify, got %q", subject)
+	}
+	if !strings.Contains(text, "987654") {
+		t.Errorf("body should contain OTP code, got %q", text)
+	}
+	if !strings.Contains(text, "Alice") {
+		t.Errorf("body should contain recipient name, got %q", text)
+	}
+}
+
+func TestSendPasswordResetEmail_SubjectAndBody(t *testing.T) {
+	var gotBody map[string]interface{}
+	url, cleanup := newResendTestServer(t, http.StatusOK, func(r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+	})
+	defer cleanup()
+
+	svc := newResendSvc("key", "contact@dshub.com.ng", url)
+	if err := svc.sendPasswordResetEmail("user@example.com", "112233"); err != nil {
+		t.Fatalf("sendPasswordResetEmail: unexpected error: %v", err)
+	}
+	subject, _ := gotBody["subject"].(string)
+	text, _ := gotBody["text"].(string)
+	if !strings.Contains(subject, "Password Reset") && !strings.Contains(subject, "Reset") {
+		t.Errorf("subject should mention Reset, got %q", subject)
+	}
+	if !strings.Contains(text, "112233") {
+		t.Errorf("body should contain reset code, got %q", text)
 	}
 }
 
