@@ -1,6 +1,7 @@
 package auth
 
 import (
+"bytes"
 "context"
 "crypto/rand"
 "crypto/subtle"
@@ -9,7 +10,7 @@ import (
 "errors"
 "fmt"
 "math/big"
-"net/smtp"
+"net/http"
 "strings"
 "time"
 
@@ -611,13 +612,37 @@ return s.sendEmail(to, subject, body)
 }
 
 func (s *Service) sendEmail(to, subject, body string) error {
-addr := s.cfg.SMTPHost + ":" + s.cfg.SMTPPort
-auth := smtp.PlainAuth("", s.cfg.SMTPUser, s.cfg.SMTPPassword, s.cfg.SMTPHost)
-msg := []byte("From: " + s.cfg.SMTPFrom + "\r\n" +
-"To: " + to + "\r\n" +
-"Subject: " + subject + "\r\n" +
-"\r\n" + body + "\r\n")
-return smtp.SendMail(addr, auth, s.cfg.SMTPFrom, []string{to}, msg)
+	type payload struct {
+		From    string   `json:"from"`
+		To      []string `json:"to"`
+		Subject string   `json:"subject"`
+		Text    string   `json:"text"`
+	}
+	data, err := json.Marshal(payload{
+		From:    s.cfg.EmailFrom,
+		To:      []string{to},
+		Subject: subject,
+		Text:    body,
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, "https://api.resend.com/emails", bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.cfg.ResendAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("resend: unexpected status %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func generateOTP(n int) (string, error) {

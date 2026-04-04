@@ -31,11 +31,8 @@ type Config struct {
 	CodexModel      string
 	ClaudeCodeModel string
 
-	SMTPHost     string
-	SMTPPort     string
-	SMTPUser     string
-	SMTPPassword string
-	SMTPFrom     string
+	ResendAPIKey string
+	EmailFrom    string
 
 	UploadDir string
 
@@ -85,11 +82,8 @@ func Load() *Config {
 		CodexModel:      getEnv("CODEX_MODEL", "codex-mini-latest"),
 		ClaudeCodeModel: getEnv("CLAUDE_CODE_MODEL", "claude-opus-4-5"),
 
-		SMTPHost:     getEnv("SMTP_HOST", "smtp.gmail.com"),
-		SMTPPort:     getEnv("SMTP_PORT", "587"),
-		SMTPUser:     getEnv("SMTP_USER", ""),
-		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
-		SMTPFrom:     getEnv("SMTP_FROM", "noreply@lifegate.app"),
+		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
+		EmailFrom:    getEnv("EMAIL_FROM", "noreply@lifegate.app"),
 
 		UploadDir: getEnv("UPLOAD_DIR", "./uploads"),
 
