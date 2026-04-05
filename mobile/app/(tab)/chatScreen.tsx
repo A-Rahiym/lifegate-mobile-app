@@ -250,26 +250,7 @@ const ChatScreen: React.FC = () => {
                 >
                   Life<Text style={{ color: '#0AADA2' }}>Gate</Text>
                 </Text>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 4,
-                    marginTop: 1,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 3,
-                      backgroundColor: isConnected === false ? '#f59e0b' : '#22c55e',
-                    }}
-                  />
-                  <Text style={{ fontSize: 10, color: '#6b7280', fontWeight: '500' }}>
-                    {isConnected === false ? 'Offline' : 'AI · Online'}
-                  </Text>
-                </View>
+
               </View>
 
               {/* Right: Chat icon + Settings */}
