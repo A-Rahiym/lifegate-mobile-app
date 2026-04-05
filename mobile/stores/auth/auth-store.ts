@@ -115,7 +115,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
 
-      if (rememberMe && response.token) {
+      // Always persist the token so the session survives refresh.
+      // rememberMe controls UI affordances only — storage is always needed
+      // because Zustand state is in-memory and is wiped on reload.
+      if (response.token) {
         await saveToken(response.token);
       }
 
