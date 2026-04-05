@@ -125,6 +125,10 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, onRetry, onF
           }
           const msg = item.msg;
           const msgIndex = messages.indexOf(msg);
+          const prevMsg = msgIndex > 0 ? messages[msgIndex - 1] : null;
+          const nextMsg = msgIndex < messages.length - 1 ? messages[msgIndex + 1] : null;
+          const isFirstInGroup = !prevMsg || prevMsg.type !== msg.type;
+          const isLastInGroup = !nextMsg || nextMsg.type !== msg.type;
           return (
             <MessageBubble
               key={msg.id}
@@ -142,6 +146,8 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, onRetry, onF
               conditions={msg.conditions}
               riskFlags={msg.riskFlags}
               investigations={msg.investigations}
+              isFirstInGroup={isFirstInGroup}
+              isLastInGroup={isLastInGroup}
             />
           );
         })}

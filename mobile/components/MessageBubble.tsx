@@ -28,6 +28,10 @@ interface MessageBubbleProps {
   conditions?: ConditionScore[];
   riskFlags?: RiskFlag[];
   investigations?: Investigation[];
+  /** Whether this is the first bubble in a consecutive same-sender group */
+  isFirstInGroup?: boolean;
+  /** Whether this is the last bubble in a consecutive same-sender group */
+  isLastInGroup?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -45,6 +49,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   conditions,
   riskFlags,
   investigations,
+  isFirstInGroup = true,
+  isLastInGroup = true,
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(12)).current;
@@ -75,6 +81,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
+  // iMessage-style adaptive corner radii based on group position
+  const sentRadius = {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: isFirstInGroup ? 20 : 14,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: isLastInGroup ? 5 : 14,
+  };
+  const receivedRadius = {
+    borderTopLeftRadius: isFirstInGroup ? 20 : 14,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: isLastInGroup ? 5 : 14,
+    borderBottomRightRadius: 20,
+  };
+
+  // More gap after the last message in a group
+  const marginBottom = isLastInGroup ? 18 : 3;
+
   return (
     <Animated.View
       style={{
@@ -83,134 +106,194 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         flexDirection: 'row',
         alignItems: 'flex-end',
         justifyContent: isSent ? 'flex-end' : 'flex-start',
+        marginBottom,
+        paddingHorizontal: 14,
       }}
-      className={`${UI_SPACING.MESSAGE_MARGIN_BOTTOM} ${UI_SPACING.MESSAGE_HORIZONTAL_PADDING}`}
     >
-      {/* AI Avatar — only for received messages */}
-      {!isSent && (
-        <View
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: '#0f766e',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 8,
-            marginBottom: 2,
-            flexShrink: 0,
-          }}
-        >
-          <Ionicons name="pulse" size={15} color="white" />
-        </View>
-      )}
+      {/* AI Avatar — only on the last received bubble in a group */}
+      {!isSent ? (
+        isLastInGroup ? (
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: '#0f766e',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 8,
+              marginBottom: 2,
+              flexShrink: 0,
+              shadowColor: '#0d4a40',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+          >
+            <Ionicons name="pulse" size={16} color="white" />
+          </View>
+        ) : (
+          // Spacer so non-last bubbles align with last bubble's avatar
+          <View style={{ width: 40, flexShrink: 0 }} />
+        )
+      ) : null}
 
       {/* Bubble */}
       <TouchableOpacity
         onLongPress={handleLongPress}
         activeOpacity={1}
         delayLongPress={400}
-        style={{ maxWidth: '82%' }}
+        style={{ maxWidth: '80%' }}
       >
-        <View
-          className={`
-            px-4 py-3
-            ${isSent
-              ? 'bg-teal-700 rounded-3xl rounded-br-md'
-              : 'bg-teal-50 border border-teal-100 rounded-3xl rounded-bl-md'
-            }
-          `}
-        >
-          {/* Message text — markdown-rendered for AI, plain for user */}
-          {isSent ? (
+        {isSent ? (
+          /* ── Sent bubble ── rich teal, clean, right-anchored */
+          <View
+            style={{
+              ...sentRadius,
+              backgroundColor: '#0f766e',
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              shadowColor: '#0d4a40',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 5,
+              elevation: 3,
+            }}
+          >
             <Text
-              className="text-white font-medium leading-5"
-              style={{ fontSize: UI_FONT_SIZES.MESSAGE_TEXT }}
+              style={{
+                fontSize: UI_FONT_SIZES.MESSAGE_TEXT,
+                color: '#ffffff',
+                fontWeight: '500',
+                lineHeight: 22,
+              }}
             >
               {message}
             </Text>
-          ) : (
+
+            {/* Status indicator */}
+            {status && (
+              <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                {status === 'SENDING' && (
+                  <>
+                    <Ionicons name="ellipsis-horizontal" size={12} color="rgba(255,255,255,0.6)" />
+                    <Text style={{ fontSize: UI_FONT_SIZES.MESSAGE_STATUS, color: 'rgba(255,255,255,0.65)' }}>
+                      Sending…
+                    </Text>
+                  </>
+                )}
+                {status === 'FAILED' && (
+                  <>
+                    <Ionicons name="alert-circle" size={12} color="#fca5a5" />
+                    <Text style={{ fontSize: UI_FONT_SIZES.MESSAGE_STATUS, color: '#fca5a5' }}>
+                      Failed
+                    </Text>
+                    {onRetry && (
+                      <TouchableOpacity onPress={onRetry} activeOpacity={0.7}>
+                        <Text style={{ fontSize: UI_FONT_SIZES.MESSAGE_STATUS, color: '#67e8f9', textDecorationLine: 'underline' }}>
+                          Retry
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
+
+            {/* Timestamp — only on last in group */}
+            {isLastInGroup && timestamp && (
+              <Text
+                style={{
+                  fontSize: UI_FONT_SIZES.MESSAGE_TIMESTAMP,
+                  color: 'rgba(255,255,255,0.55)',
+                  textAlign: 'right',
+                  marginTop: 3,
+                }}
+              >
+                {timestamp}
+              </Text>
+            )}
+          </View>
+        ) : (
+          /* ── Received bubble ── white card, teal accent left bar, soft shadow */
+          <View
+            style={{
+              ...receivedRadius,
+              backgroundColor: '#ffffff',
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              borderWidth: 1,
+              borderColor: 'rgba(13,148,136,0.12)',
+              shadowColor: '#0d9488',
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 3,
+            }}
+          >
+            {/* Teal left accent stripe */}
+            <View
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: receivedRadius.borderTopLeftRadius === 20 ? 10 : 4,
+                bottom: receivedRadius.borderBottomLeftRadius === 20 ? 10 : 4,
+                width: 3,
+                borderRadius: 2,
+                backgroundColor: '#0d9488',
+                opacity: 0.55,
+              }}
+            />
+
+            {/* Message text — markdown-rendered */}
             <MarkdownText isSent={false} style={{ fontSize: UI_FONT_SIZES.MESSAGE_TEXT }}>
               {message}
             </MarkdownText>
-          )}
 
-          {/* Risk flags — shown before diagnosis to surface safety signals */}
-          {!isSent && riskFlags && riskFlags.length > 0 && (
-            <RiskFlagList riskFlags={riskFlags} />
-          )}
+            {/* Risk flags */}
+            {riskFlags && riskFlags.length > 0 && (
+              <RiskFlagList riskFlags={riskFlags} />
+            )}
 
-          {/* Primary diagnosis card */}
-          {!isSent && diagnosis && diagnosis.condition?.trim() && (
-            <DiagnosisCard diagnosis={diagnosis} diagnosisId={diagnosisId} />
-          )}
+            {/* Diagnosis card */}
+            {diagnosis && diagnosis.condition?.trim() && (
+              <DiagnosisCard diagnosis={diagnosis} diagnosisId={diagnosisId} />
+            )}
 
-          {/* Differential diagnosis list */}
-          {!isSent && conditions && conditions.length > 0 && (
-            <DifferentialList conditions={conditions} />
-          )}
+            {/* Differential diagnosis */}
+            {conditions && conditions.length > 0 && (
+              <DifferentialList conditions={conditions} />
+            )}
 
-          {/* Prescription card */}
-          {!isSent && prescription && <PrescriptionCard prescription={prescription} />}
+            {/* Prescription */}
+            {prescription && <PrescriptionCard prescription={prescription} />}
 
-          {/* Recommended investigations */}
-          {!isSent && investigations && investigations.length > 0 && (
-            <InvestigationList investigations={investigations} />
-          )}
+            {/* Investigations */}
+            {investigations && investigations.length > 0 && (
+              <InvestigationList investigations={investigations} />
+            )}
 
-          {/* Follow-up question chips — at the bottom of the AI bubble */}
-          {!isSent && followUpQuestions && followUpQuestions.length > 0 && onFollowUp && (
-            <FollowUpChips questions={followUpQuestions} onSelect={onFollowUp} />
-          )}
+            {/* Follow-up chips */}
+            {followUpQuestions && followUpQuestions.length > 0 && onFollowUp && (
+              <FollowUpChips questions={followUpQuestions} onSelect={onFollowUp} />
+            )}
 
-          {/* Timestamp */}
-          {timestamp && (
-            <Text
-              className={`mt-1 ${isSent ? 'text-white text-right' : 'text-gray-400 text-left'}`}
-              style={{ fontSize: UI_FONT_SIZES.MESSAGE_TIMESTAMP }}
-            >
-              {timestamp}
-            </Text>
-          )}
-
-          {/* Status indicator for sent messages */}
-          {isSent && status && (
-            <View className="mt-1 flex-row items-center justify-end gap-1">
-              {status === 'SENDING' && (
-                <>
-                  <Ionicons name="ellipsis-horizontal" size={12} color="#a7e8dc" />
-                  <Text
-                    className="text-teal-200"
-                    style={{ fontSize: UI_FONT_SIZES.MESSAGE_STATUS }}
-                  >
-                    Sending...
-                  </Text>
-                </>
-              )}
-              {status === 'FAILED' && (
-                <>
-                  <Ionicons name="alert-circle" size={12} color="#ef4444" />
-                  <Text
-                    className="text-red-400"
-                    style={{ fontSize: UI_FONT_SIZES.MESSAGE_STATUS }}
-                  >
-                    Failed to send
-                  </Text>
-                  {onRetry && (
-                    <TouchableOpacity onPress={onRetry} activeOpacity={0.7}>
-                      <Text
-                        className="text-teal-300 underline"
-                        style={{ fontSize: UI_FONT_SIZES.MESSAGE_STATUS }}
-                      >
-                        Retry
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
-            </View>
-          )}
-        </View>
+            {/* Timestamp — only on last in group */}
+            {isLastInGroup && timestamp && (
+              <Text
+                style={{
+                  fontSize: UI_FONT_SIZES.MESSAGE_TIMESTAMP,
+                  color: '#94a3b8',
+                  textAlign: 'left',
+                  marginTop: 4,
+                }}
+              >
+                {timestamp}
+              </Text>
+            )}
+          </View>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
