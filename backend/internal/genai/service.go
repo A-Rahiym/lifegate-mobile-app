@@ -185,7 +185,7 @@ func (s *Service) FinalizeSession(ctx context.Context, sessionID, userID string)
 	resp, _ := s.engine.Process(ctx, history, session.Category)
 
 	// Final reports always enter the physician review queue.
-	diagnosisID := s.saveDiagnosis(userID, "Session Summary: "+session.Title, resp.AIResponse, resp.Escalated)
+	diagnosisID, _ := s.saveDiagnosis(userID, "Session Summary: "+session.Title, resp.AIResponse, resp.Escalated)
 
 	// Mark the session completed.
 	completedStatus := "completed"
@@ -295,7 +295,7 @@ func (s *Service) buildAndPublish(ctx context.Context, userID, message string, r
 	}
 
 	// Persist diagnosis and publish ai.diagnosis.preliminary.
-	id := s.saveDiagnosis(userID, message, resp.AIResponse, resp.Escalated)
+	id, isNewCase := s.saveDiagnosis(userID, message, resp.AIResponse, resp.Escalated)
 	if id == "" {
 		return cr, nil
 	}
@@ -308,17 +308,25 @@ func (s *Service) buildAndPublish(ctx context.Context, userID, message string, r
 		"diagnosis":    resp.Diagnosis,
 		"conditions":   resp.Conditions,
 		"escalated":    resp.Escalated,
+		"is_new_case":  isNewCase,
 	})
 	_ = s.nats.Publish("ai.diagnosis.preliminary", diagData)
 
 	// Real-time physician notification for escalated / high-risk cases.
+	// Use different events for new cases vs. updated existing cases so the
+	// physician queue can handle them appropriately.
 	if resp.Escalated && s.notifier != nil {
+		event := "physician.case.updated"
+		if isNewCase {
+			event = "physician.case.new"
+		}
 		casePayload, _ := json.Marshal(map[string]interface{}{
 			"caseId":  id,
 			"urgency": resp.Diagnosis.Urgency,
 			"title":   truncateMsg(message, 80),
+			"isNew":   isNewCase,
 		})
-		s.notifier.Broadcast("physician.case.new", casePayload)
+		s.notifier.Broadcast(event, casePayload)
 	}
 
 	return cr, nil
@@ -326,7 +334,7 @@ func (s *Service) buildAndPublish(ctx context.Context, userID, message string, r
 
 // ─── Persistence helpers ──────────────────────────────────────────────────────
 
-func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, escalated bool) string {
+func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, escalated bool) (string, bool) {
 	aiJSON, _ := json.Marshal(resp)
 
 	// Use the AI's top condition as the case title — this is the "possible condition"
@@ -394,20 +402,21 @@ func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, esc
 			// may have refined the diagnosis, urgency, or prescription details).
 			_, updateErr := s.db.Exec(`
 				UPDATE diagnoses
-				SET description = $2,
-				    condition   = $3,
-				    urgency     = $4,
-				    ai_response = $5,
-				    escalated   = $6,
+				SET title       = $2,
+				    description = $3,
+				    condition   = $4,
+				    urgency     = $5,
+				    ai_response = $6,
+				    escalated   = $7,
 				    updated_at  = NOW()
 				WHERE id = $1::uuid`,
-				existingID, resp.Text, condition, urgency, aiJSON, escalated,
+				existingID, title, resp.Text, condition, urgency, aiJSON, escalated,
 			)
 			if updateErr != nil {
 				log.Printf("[EDIS] failed to update existing case %s: %v", existingID, updateErr)
 			} else {
 				log.Printf("[EDIS] reusing existing case %s (matched conditions: %v user=%s)", existingID, condNames, userID)
-				return existingID
+				return existingID, false
 			}
 		}
 	}
@@ -420,7 +429,7 @@ func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, esc
 		 RETURNING id::text`,
 		userID, title, resp.Text, condition, urgency, aiJSON, escalated,
 	).Scan(&id)
-	return id
+	return id, true
 }
 
 func (s *Service) logAudit(userID, action string, details map[string]interface{}) {
