@@ -324,11 +324,20 @@ func (s *Service) buildAndPublish(ctx context.Context, userID, message string, r
 
 func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, escalated bool) string {
 	aiJSON, _ := json.Marshal(resp)
-	runes := []rune(message)
-	title := message
-	if len(runes) > 100 {
-		title = string(runes[:100])
+
+	// Use the AI's top condition as the case title — this is the "possible condition"
+	// shown to the patient in their dashboard. Fall back to a truncated message excerpt.
+	title := ""
+	if resp.Diagnosis != nil && resp.Diagnosis.Condition != "" {
+		title = resp.Diagnosis.Condition
+	} else {
+		runes := []rune(message)
+		title = message
+		if len(runes) > 100 {
+			title = string(runes[:100])
+		}
 	}
+
 	condition, urgency := "", ""
 	if resp.Diagnosis != nil {
 		condition = resp.Diagnosis.Condition
