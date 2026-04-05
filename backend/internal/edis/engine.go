@@ -135,6 +135,20 @@ func analyze(raw *ai.AIResponse) *EDISResponse {
 		raw.Mode = "general"
 	}
 
+	// ── Diagnosis synthesis fallback ───────────────────────────────────────────
+	// If the AI returned conditions and/or investigations but omitted a primary
+	// diagnosis, promote the top-ranked condition so the patient always sees a
+	// diagnosis card after triage — not just a bare list of possibilities.
+	if raw.Diagnosis == nil && len(raw.Conditions) > 0 && raw.Conditions[0].Confidence >= 50 {
+		top := raw.Conditions[0]
+		raw.Diagnosis = &ai.Diagnosis{
+			Condition:   top.Condition,
+			Urgency:     synthesisUrgency(top.Confidence, raw.Investigations),
+			Description: top.Description,
+			Confidence:  top.Confidence,
+		}
+	}
+
 	// ── Low-confidence detection ───────────────────────────────────────────────
 	// A diagnosis with confidence present but below threshold → mandatory review.
 	if raw.Diagnosis != nil && raw.Diagnosis.Confidence > 0 && raw.Diagnosis.Confidence < LowConfidenceThreshold {
@@ -176,7 +190,6 @@ func analyze(raw *ai.AIResponse) *EDISResponse {
 }
 
 // gracefulFallback returns a user-safe response when the AI provider fails or times out.
-// It never exposes internal errors or provider-specific messages to the caller.
 func gracefulFallback() *EDISResponse {
 	return &EDISResponse{
 		AIResponse: &ai.AIResponse{
@@ -196,4 +209,23 @@ func buildEDISPrompt(category string) string {
 		return base + "\n\n" + snippet
 	}
 	return base
+}
+
+// synthesisUrgency maps a top-condition confidence score (and presence of investigations)
+// to an urgency level for a synthesised diagnosis.
+func synthesisUrgency(confidence int, investigations []ai.Investigation) string {
+	// If any URGENT or STAT test is recommended the case warrants at least MEDIUM urgency.
+	for _, inv := range investigations {
+		urg := strings.ToUpper(inv.Urgency)
+		if urg == "STAT" {
+			return "HIGH"
+		}
+		if urg == "URGENT" {
+			return "MEDIUM"
+		}
+	}
+	if confidence >= 75 {
+		return "MEDIUM"
+	}
+	return "LOW"
 }
