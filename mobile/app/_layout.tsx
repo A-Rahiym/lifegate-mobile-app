@@ -10,8 +10,10 @@ export default function RootLayout() {
     <ErrorBoundary>
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false }}>
-          {/* Splash first */}
-          <Stack.Screen name="index" />
+          {/* Splash first — no back gesture so auth can't be reached from authenticated area */}
+          <Stack.Screen name="index" options={{ gestureEnabled: false }} />
+          {/* Auth group — gestures disabled; replace() clears history on login success */}
+          <Stack.Screen name="(auth)" options={{ gestureEnabled: false }} />
         </Stack>
         {/* Offline indicator — floats above all screens */}
         <OfflineBanner />

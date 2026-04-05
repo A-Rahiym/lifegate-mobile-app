@@ -6,8 +6,8 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
-import { Drawer } from 'expo-router/drawer';
+import { AppState, AppStateStatus, BackHandler } from 'react-native';
+import { Drawer, router } from 'expo-router/drawer';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConversationDrawer } from 'components/ConversationDrawer';
 import { ResumeSessionModal } from 'components/ResumeSessionModal';
@@ -29,6 +29,20 @@ export default function TabLayout() {
 
   // ── Abandoned-session detection (save state when app goes to background) ──
   const appState = useRef<AppStateStatus>(AppState.currentState);
+
+  // ── Block back navigation to auth/splash screens ──────────────────────────
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (router.canGoBack()) {
+        router.back();
+        return true;
+      }
+      // At the root of the authenticated area — exit the app cleanly
+      BackHandler.exitApp();
+      return true;
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextState) => {
