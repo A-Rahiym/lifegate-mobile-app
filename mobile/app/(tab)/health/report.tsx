@@ -77,6 +77,18 @@ function urgencyDistribution(entries: HealthTimelineEntry[]) {
 
 // ─── HTML Report Generator ───────────────────────────────────────────────────
 
+function groupByMonth(entries: HealthTimelineEntry[]): { month: string; items: HealthTimelineEntry[] }[] {
+  const groups: { month: string; items: HealthTimelineEntry[] }[] = [];
+  const seen = new Map<string, number>();
+  for (const e of entries) {
+    let key = '';
+    try { key = new Date(e.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); } catch { key = 'Unknown'; }
+    if (seen.has(key)) { groups[seen.get(key)!].items.push(e); }
+    else { seen.set(key, groups.length); groups.push({ month: key, items: [e] }); }
+  }
+  return groups;
+}
+
 function buildReportHTML(
   patientName: string,
   entries: HealthTimelineEntry[],
@@ -87,38 +99,74 @@ function buildReportHTML(
   const abnormal = entries.filter((e) => e.urgency === 'HIGH' || e.urgency === 'CRITICAL');
   const escalated = entries.filter((e) => e.escalated);
   const completed = entries.filter((e) => e.status === 'Completed').length;
+  const active = entries.filter((e) => e.status !== 'Completed').length;
   const recurringSet = detectRecurring(entries);
-  const preview = entries.slice(0, 15);
+  const groups = groupByMonth(entries);
 
-  const entryRows = preview
-    .map(
-      (e) => `
-    <tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;color:#374151;">${e.condition || e.title}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;">
-        <span style="color:${URGENCY_COLOR[e.urgency]};font-weight:700;">${URGENCY_LABEL[e.urgency]}</span>
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;color:${STATUS_COLOR[e.status] ?? '#6b7280'};font-weight:600;">${e.status}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;color:#6b7280;">${formatDate(e.createdAt)}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;">${e.escalated ? '<span style="color:#7c3aed;font-weight:700;">Yes</span>' : '<span style="color:#9ca3af;">No</span>'}</td>
-    </tr>`
-    )
-    .join('');
+  // Per-entry full detail card
+  const entryCard = (e: HealthTimelineEntry) => {
+    const isRecurring = recurringSet.has((e.condition || e.title).toLowerCase().trim());
+    const isAbnormal = e.urgency === 'HIGH' || e.urgency === 'CRITICAL';
+    const tags = [
+      isAbnormal ? `<span style="font-size:10px;font-weight:700;color:#dc2626;background:#fef2f2;padding:2px 8px;border-radius:20px;border:1px solid #fecaca;">⚠ Abnormal</span>` : '',
+      isRecurring ? `<span style="font-size:10px;font-weight:700;color:#d97706;background:#fffbeb;padding:2px 8px;border-radius:20px;border:1px solid #fde68a;">↻ Recurring</span>` : '',
+      e.escalated ? `<span style="font-size:10px;font-weight:700;color:#7c3aed;background:#faf5ff;padding:2px 8px;border-radius:20px;border:1px solid #ddd6fe;">↑ Escalated</span>` : '',
+    ].filter(Boolean).join(' ');
 
-  const concernRows = abnormal
-    .slice(0, 5)
-    .map(
-      (e) => `
-    <div style="margin-bottom:10px;padding:12px;background:${URGENCY_BG[e.urgency]};border:1px solid ${URGENCY_BORDER[e.urgency]};border-radius:8px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:13px;font-weight:700;color:#111827;">${e.condition || e.title}</span>
-        <span style="font-size:11px;font-weight:700;color:${URGENCY_COLOR[e.urgency]};background:${URGENCY_COLOR[e.urgency]}18;padding:2px 8px;border-radius:20px;">${URGENCY_LABEL[e.urgency]}</span>
+    return `
+    <div style="margin-bottom:14px;padding:14px;background:${URGENCY_BG[e.urgency]};border:1px solid ${URGENCY_BORDER[e.urgency]};border-radius:10px;page-break-inside:avoid;">
+      <!-- Entry header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:700;color:#111827;">${e.condition || e.title}</div>
+          ${e.condition && e.title && e.title !== e.condition ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;">${e.title}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:12px;">
+          <span style="font-size:11px;font-weight:700;color:${URGENCY_COLOR[e.urgency]};background:${URGENCY_COLOR[e.urgency]}18;padding:3px 10px;border-radius:20px;">${URGENCY_LABEL[e.urgency]}</span>
+          <span style="font-size:11px;font-weight:600;color:${STATUS_COLOR[e.status] ?? '#6b7280'};background:#fff;padding:3px 10px;border-radius:20px;border:1px solid ${STATUS_COLOR[e.status] ?? '#e5e7eb'}44;">${e.status}</span>
+        </div>
       </div>
-      <p style="font-size:12px;color:#6b7280;margin:6px 0 0;">${e.description || 'No description provided.'}</p>
-      <span style="font-size:11px;color:#9ca3af;">${formatDate(e.createdAt)}</span>
-    </div>`
-    )
-    .join('');
+
+      <!-- Tags -->
+      ${tags ? `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;">${tags}</div>` : ''}
+
+      <!-- Description -->
+      ${e.description ? `<p style="font-size:12px;color:#374151;line-height:1.6;margin-bottom:8px;">${e.description}</p>` : ''}
+
+      <!-- Meta row -->
+      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#6b7280;border-top:1px solid ${URGENCY_BORDER[e.urgency]};padding-top:8px;margin-top:4px;">
+        <span>📅 <strong>Date:</strong> ${formatDate(e.createdAt)}</span>
+        ${e.updatedAt && e.updatedAt !== e.createdAt ? `<span>🔄 <strong>Updated:</strong> ${formatDate(e.updatedAt)}</span>` : ''}
+        ${e.confidence > 0 ? `<span>🤖 <strong>AI Confidence:</strong> ${e.confidence}%</span>` : ''}
+      </div>
+
+      <!-- Physician Notes -->
+      ${e.physicianNotes ? `
+      <div style="margin-top:10px;padding:10px;background:#f0f4ff;border-left:3px solid #2563eb;border-radius:0 8px 8px 0;">
+        <div style="font-size:10px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">👨‍⚕️ Physician Notes</div>
+        <p style="font-size:12px;color:#1e3a8a;line-height:1.6;">${e.physicianNotes}</p>
+      </div>` : ''}
+    </div>`;
+  };
+
+  // Month-grouped timeline HTML
+  const timelineHTML = groups.map((g) => `
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;margin-bottom:10px;">
+        <span style="font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;">${g.month}</span>
+        <div style="flex:1;height:1px;background:#f3f4f6;margin:0 10px;"></div>
+        <span style="font-size:11px;color:#9ca3af;">${g.items.length} case${g.items.length !== 1 ? 's' : ''}</span>
+      </div>
+      ${g.items.map(entryCard).join('')}
+    </div>
+  `).join('');
+
+  // Key concerns section
+  const concernsHTML = abnormal.length > 0 ? `
+  <div class="section">
+    <h2>⚠ Key Concerns — Abnormal Entries (${abnormal.length})</h2>
+    ${abnormal.map(entryCard).join('')}
+  </div>` : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -127,93 +175,87 @@ function buildReportHTML(
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #f9fafb; color: #111827; }
-  .page { max-width: 800px; margin: 0 auto; padding: 32px 24px; background: #fff; }
-  h2 { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #f3f4f6; }
-  .section { margin-bottom: 28px; }
-  .badge { display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px; }
-  table { width:100%;border-collapse:collapse; }
-  th { padding:10px;text-align:left;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;background:#f9fafb;border-bottom:1px solid #e5e7eb; }
+  body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #f9fafb; color: #111827; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { max-width: 820px; margin: 0 auto; padding: 32px 24px; background: #fff; }
+  h2 { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #f3f4f6; }
+  .section { margin-bottom: 32px; }
+  @media print { .page { padding: 16px; } }
 </style>
 </head>
 <body>
 <div class="page">
 
-  <!-- Header -->
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px;margin-bottom:24px;background:linear-gradient(135deg,#0AADA2,#0d7c74);border-radius:16px;color:#fff;">
-    <div>
-      <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">LifeGate · Health Report</div>
-      <div style="font-size:22px;font-weight:800;">${patientName}</div>
-      <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:4px;">Generated ${reportDate}</div>
-    </div>
-    <div style="text-align:right;">
-      <div style="font-size:11px;color:rgba(255,255,255,0.75);font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Overall Status</div>
-      <div style="font-size:20px;font-weight:800;color:#fff;margin-top:2px;">${status.label}</div>
+  <!-- ── Cover Header ── -->
+  <div style="padding:24px;margin-bottom:28px;background:linear-gradient(135deg,#0AADA2,#0d7c74);border-radius:16px;color:#fff;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">LifeGate · Comprehensive Health Report</div>
+        <div style="font-size:26px;font-weight:800;">${patientName}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:6px;">Generated on ${reportDate}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:10px;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:.8px;font-weight:600;">Overall Status</div>
+        <div style="font-size:22px;font-weight:800;margin-top:4px;">${status.label}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:4px;">${entries.length} total record${entries.length !== 1 ? 's' : ''}</div>
+      </div>
     </div>
   </div>
 
-  <!-- Summary Stats -->
+  <!-- ── Executive Summary ── -->
   <div class="section">
-    <h2>Summary</h2>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <h2>Executive Summary</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
       ${[
         { label: 'Total Cases', value: entries.length, color: '#0891b2' },
-        { label: 'Active', value: entries.filter((e: HealthTimelineEntry) => e.status !== 'Completed').length, color: '#d97706' },
+        { label: 'Active', value: active, color: '#d97706' },
         { label: 'Completed', value: completed, color: '#16a34a' },
+        { label: 'Pending', value: entries.filter((e: HealthTimelineEntry) => e.status === 'Pending').length, color: '#6b7280' },
         { label: 'Abnormal', value: abnormal.length, color: '#dc2626' },
         { label: 'Escalated', value: escalated.length, color: '#7c3aed' },
-      ]
-        .map(
-          (s) => `<div style="flex:1;min-width:120px;padding:14px;background:#f9fafb;border-radius:12px;text-align:center;border:1px solid #f3f4f6;">
-        <div style="font-size:26px;font-weight:800;color:${s.color};">${s.value}</div>
-        <div style="font-size:11px;color:#9ca3af;margin-top:2px;font-weight:500;">${s.label}</div>
-      </div>`
-        )
-        .join('')}
+      ].map((s) => `
+        <div style="flex:1;min-width:110px;padding:14px 10px;background:#f9fafb;border-radius:12px;text-align:center;border:1px solid #f3f4f6;">
+          <div style="font-size:28px;font-weight:800;color:${s.color};">${s.value}</div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">${s.label}</div>
+        </div>`).join('')}
     </div>
   </div>
 
-  <!-- Urgency Distribution -->
+  <!-- ── Severity Distribution ── -->
   <div class="section">
     <h2>Severity Distribution</h2>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-      ${(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const)
-        .map(
-          (u) => `<div style="flex:1;min-width:100px;padding:12px;background:${URGENCY_BG[u]};border:1px solid ${URGENCY_BORDER[u]};border-radius:12px;text-align:center;">
-        <div style="font-size:22px;font-weight:800;color:${URGENCY_COLOR[u]};">${dist[u]}</div>
-        <div style="font-size:11px;color:${URGENCY_COLOR[u]};font-weight:600;margin-top:2px;">${URGENCY_LABEL[u]}</div>
-      </div>`
-        )
-        .join('')}
+    <div style="display:flex;gap:10px;">
+      ${(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map((u) => {
+        const total = entries.length || 1;
+        const pct = Math.round((dist[u] / total) * 100);
+        return `
+        <div style="flex:1;padding:14px;background:${URGENCY_BG[u]};border:1px solid ${URGENCY_BORDER[u]};border-radius:12px;text-align:center;">
+          <div style="font-size:26px;font-weight:800;color:${URGENCY_COLOR[u]};">${dist[u]}</div>
+          <div style="font-size:10px;font-weight:700;color:${URGENCY_COLOR[u]};text-transform:uppercase;margin-top:3px;">${URGENCY_LABEL[u]}</div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:2px;">${pct}% of total</div>
+          <!-- Bar -->
+          <div style="margin-top:8px;height:4px;background:#e5e7eb;border-radius:2px;">
+            <div style="height:4px;background:${URGENCY_COLOR[u]};border-radius:2px;width:${pct}%;"></div>
+          </div>
+        </div>`;
+      }).join('')}
     </div>
   </div>
 
-  <!-- Key Concerns -->
-  ${
-    abnormal.length > 0
-      ? `<div class="section">
-    <h2>⚠ Key Concerns (Abnormal Entries)</h2>
-    ${concernRows}
-  </div>`
-      : ''
-  }
+  <!-- ── Key Concerns ── -->
+  ${concernsHTML}
 
-  <!-- Symptom History Table -->
+  <!-- ── Full Diagnosis Timeline ── -->
   <div class="section">
-    <h2>Symptom History ${entries.length > 15 ? `(Latest 15 of ${entries.length})` : ''}</h2>
-    <table>
-      <thead><tr>
-        <th>Condition</th><th>Severity</th><th>Status</th><th>Date</th><th>Escalated</th>
-      </tr></thead>
-      <tbody>${entryRows}</tbody>
-    </table>
+    <h2>Complete Diagnosis Timeline (${entries.length} record${entries.length !== 1 ? 's' : ''})</h2>
+    ${timelineHTML}
   </div>
 
-  <!-- Footer -->
-  <div style="margin-top:32px;padding-top:16px;border-top:1px solid #f3f4f6;text-align:center;">
-    <p style="font-size:11px;color:#9ca3af;">This report is generated from data recorded in the LifeGate health platform.</p>
-    <p style="font-size:11px;color:#9ca3af;margin-top:4px;">It is not a substitute for professional medical advice, diagnosis, or treatment.</p>
-    <p style="font-size:12px;font-weight:700;color:#0AADA2;margin-top:8px;">LifeGate · AI-Powered Health Intelligence</p>
+  <!-- ── Footer ── -->
+  <div style="margin-top:40px;padding-top:16px;border-top:2px solid #f3f4f6;text-align:center;">
+    <div style="font-size:13px;font-weight:700;color:#0AADA2;margin-bottom:6px;">LifeGate · AI-Powered Health Intelligence</div>
+    <p style="font-size:11px;color:#9ca3af;line-height:1.6;">This report is generated from data recorded in the LifeGate health platform and covers all ${entries.length} diagnosis record${entries.length !== 1 ? 's' : ''} on file.</p>
+    <p style="font-size:11px;color:#9ca3af;margin-top:4px;">It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider.</p>
+    <p style="font-size:10px;color:#d1d5db;margin-top:8px;">Report ID: LG-${Date.now()} · ${reportDate}</p>
   </div>
 
 </div>
@@ -248,29 +290,58 @@ function EntryRow({ entry, isRecurring }: { entry: HealthTimelineEntry; isRecurr
   const isAbnormal = entry.urgency === 'HIGH' || entry.urgency === 'CRITICAL';
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f9fafb', gap: 10 }}>
-      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, marginTop: 4, flexShrink: 0 }} />
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827' }} numberOfLines={1}>
-          {entry.condition || entry.title}
-        </Text>
-        <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{formatDate(entry.createdAt)}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-        <View style={{ backgroundColor: color + '18', borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
-          <Text style={{ fontSize: 9, fontWeight: '700', color }}>{URGENCY_LABEL[entry.urgency]}</Text>
+    <View style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f9fafb' }}>
+      {/* Header row */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, marginTop: 4, flexShrink: 0 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827' }} numberOfLines={1}>
+            {entry.condition || entry.title}
+          </Text>
+          <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{formatDate(entry.createdAt)}</Text>
         </View>
-        {isAbnormal && (
-          <View style={{ backgroundColor: '#fef2f2', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 }}>
-            <Text style={{ fontSize: 9, fontWeight: '700', color: '#dc2626' }}>⚠</Text>
+        <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+          <View style={{ backgroundColor: color + '18', borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
+            <Text style={{ fontSize: 9, fontWeight: '700', color }}>{URGENCY_LABEL[entry.urgency]}</Text>
           </View>
-        )}
-        {isRecurring && (
-          <View style={{ backgroundColor: '#fffbeb', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 }}>
-            <Text style={{ fontSize: 9, fontWeight: '700', color: '#d97706' }}>↻</Text>
-          </View>
-        )}
+          {entry.escalated && (
+            <View style={{ backgroundColor: '#faf5ff', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: '#7c3aed' }}>↑</Text>
+            </View>
+          )}
+          {isAbnormal && (
+            <View style={{ backgroundColor: '#fef2f2', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: '#dc2626' }}>⚠</Text>
+            </View>
+          )}
+          {isRecurring && (
+            <View style={{ backgroundColor: '#fffbeb', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 9, fontWeight: '700', color: '#d97706' }}>↻</Text>
+            </View>
+          )}
+        </View>
       </View>
+      {/* Description */}
+      {!!entry.description && (
+        <Text style={{ fontSize: 12, color: '#374151', lineHeight: 18, marginTop: 6, marginLeft: 20 }} numberOfLines={4}>
+          {entry.description}
+        </Text>
+      )}
+      {/* Physician Notes */}
+      {!!entry.physicianNotes && (
+        <View style={{ marginTop: 6, marginLeft: 20, padding: 8, backgroundColor: '#f0f4ff', borderLeftWidth: 2, borderLeftColor: '#2563eb', borderRadius: 4 }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: '#2563eb', marginBottom: 2 }}>PHYSICIAN NOTES</Text>
+          <Text style={{ fontSize: 12, color: '#1e3a8a', lineHeight: 17 }} numberOfLines={3}>
+            {entry.physicianNotes}
+          </Text>
+        </View>
+      )}
+      {/* Confidence */}
+      {entry.confidence > 0 && (
+        <Text style={{ fontSize: 10, color: '#9ca3af', marginTop: 4, marginLeft: 20 }}>
+          AI Confidence: {entry.confidence}%
+        </Text>
+      )}
     </View>
   );
 }
@@ -337,7 +408,7 @@ export default function HealthReportScreen() {
   const completed = patientTimeline.filter((e) => e.status === 'Completed').length;
   const active = patientTimeline.filter((e) => e.status !== 'Completed').length;
   const escalatedCount = patientTimeline.filter((e) => e.escalated).length;
-  const preview = patientTimeline.slice(0, 20);
+  const preview = patientTimeline;
 
   const exportPDF = useCallback(async () => {
     try {

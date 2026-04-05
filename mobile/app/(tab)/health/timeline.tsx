@@ -420,6 +420,9 @@ export default function HealthTimelineScreen() {
             </View>
           )}
         </Pressable>
+        <Pressable onPress={() => router.push('/(tab)/health/report' as never)} style={{ padding: 6, borderRadius: 20, backgroundColor: '#f3f4f6', marginLeft: 6 }} hitSlop={8}>
+          <Ionicons name="document-text-outline" size={22} color="#374151" />
+        </Pressable>
       </View>
 
       {/* Loading */}
