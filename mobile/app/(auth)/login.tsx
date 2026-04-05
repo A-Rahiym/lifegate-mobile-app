@@ -70,7 +70,7 @@ export default function LoginScreen() {
         } else if (user?.role === 'professional') {
           router.replace('/(prof-tab)/consultation');
         } else {
-          router.replace('/(tab)/chatScreen');
+          router.replace('/(tab)/health');
         }
       }
     } finally {

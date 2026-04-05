@@ -217,9 +217,9 @@ const ChatScreen: React.FC = () => {
                 borderBottomColor: 'rgba(99,210,194,0.25)',
               }}
             >
-              {/* Left: User avatar */}
+              {/* Left: Home button → Dashboard */}
               <TouchableOpacity
-                onPress={() => router.replace('/(tab)/profile')}
+                onPress={() => router.replace('/(tab)/health')}
                 activeOpacity={0.7}
               >
                 <View
@@ -234,7 +234,7 @@ const ChatScreen: React.FC = () => {
                     justifyContent: 'center',
                   }}
                 >
-                  <Ionicons name="person" size={18} color="#0f766e" />
+                  <Ionicons name="home" size={18} color="#0f766e" />
                 </View>
               </TouchableOpacity>
 
@@ -302,21 +302,14 @@ const ChatScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              {/* Right: New chat + menu */}
+              {/* Right: Settings */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                 <TouchableOpacity
-                  onPress={handleNewChat}
+                  onPress={() => router.replace('/(tab)/settings')}
                   activeOpacity={0.7}
                   style={{ padding: 6 }}
                 >
-                  <Ionicons name="add-circle-outline" size={26} color="#0f766e" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowProfileMenu(true)}
-                  activeOpacity={0.7}
-                  style={{ padding: 6 }}
-                >
-                  <Ionicons name="menu-outline" size={26} color="#0f766e" />
+                  <Ionicons name="settings-outline" size={26} color="#0f766e" />
                 </TouchableOpacity>
               </View>
             </View>

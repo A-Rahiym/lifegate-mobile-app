@@ -525,7 +525,7 @@ export default function HealthDashboardScreen() {
       >
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827' }}>
-            Health Dashboard
+            Dashboard
           </Text>
           <Text style={{ fontSize: 12, color: '#9ca3af', marginTop: 1 }}>
             Good {getTimeOfDay()}, {firstName}
@@ -568,6 +568,15 @@ export default function HealthDashboardScreen() {
           hitSlop={8}
         >
           <Ionicons name="time-outline" size={22} color="#374151" />
+        </Pressable>
+
+        {/* Report */}
+        <Pressable
+          onPress={() => router.push('/(tab)/health/report' as never)}
+          style={{ padding: 8, borderRadius: 20, backgroundColor: '#f3f4f6', marginLeft: 8 }}
+          hitSlop={8}
+        >
+          <Ionicons name="document-text-outline" size={22} color="#374151" />
         </Pressable>
       </View>
 

@@ -103,8 +103,8 @@ export default function VerifySignupOtpScreen() {
           // Route professional users to MDCN license verification screen
           router.replace('/(auth)/mdcn-verify');
         } else {
-          // Route regular users to chat screen
-          router.replace('/(tab)/chatScreen');
+          // Route regular users to health dashboard
+          router.replace('/(tab)/health');
         }
       } else {
         const { error: storeError } = useRegistrationStore.getState();

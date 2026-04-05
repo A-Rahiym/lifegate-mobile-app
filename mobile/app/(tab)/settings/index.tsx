@@ -72,7 +72,7 @@ export default function SettingsScreen() {
           <SettingRow
             icon="account-edit-outline"
             label="Manage Profile"
-            onPress={() => router.push('/(tab)/settings/manage-profile')}
+            onPress={() => router.push('/(tab)/profile')}
           />
           <SettingRow
             icon="bell-outline"
