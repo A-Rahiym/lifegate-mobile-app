@@ -267,43 +267,15 @@ const ChatScreen: React.FC = () => {
                 </View>
               </View>
 
-              {/* Credit balance pill (clinical_diagnosis mode only) */}
-              {activeMode === 'clinical_diagnosis' && creditBalance !== null && (
-                <TouchableOpacity
-                  onPress={() => router.push('/(tab)/settings/subscription')}
-                  activeOpacity={0.75}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 4,
-                    backgroundColor: creditBalance === 0 ? '#fef2f2' : '#f0fdf4',
-                    borderColor: creditBalance === 0 ? '#fca5a5' : '#86efac',
-                    borderWidth: 1,
-                    borderRadius: 20,
-                    paddingHorizontal: 9,
-                    paddingVertical: 4,
-                    marginRight: 4,
-                  }}
-                >
-                  <Ionicons
-                    name="flash"
-                    size={12}
-                    color={creditBalance === 0 ? '#dc2626' : '#16a34a'}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: '700',
-                      color: creditBalance === 0 ? '#dc2626' : '#15803d',
-                    }}
-                  >
-                    {creditBalance}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Right: Settings */}
+              {/* Right: Chat icon + Settings */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                <TouchableOpacity
+                  onPress={() => router.replace('/(tab)/chatScreen')}
+                  activeOpacity={0.7}
+                  style={{ padding: 6 }}
+                >
+                  <Ionicons name="chatbubble-ellipses-outline" size={24} color="#0f766e" />
+                </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => router.replace('/(tab)/settings')}
                   activeOpacity={0.7}
