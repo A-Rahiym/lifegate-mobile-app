@@ -73,30 +73,49 @@ export default function UserReviewStep() {
         )}
 
         {/* Summary card */}
-        <View className="mb-6 overflow-hidden rounded-2xl bg-white"
-        >
-          <View className="border-b border-gray-100 bg-[#EDF9F9] px-4 py-3 flex items-center justify-between">
-            <View className='flex-row w-full items-center justify-between mb-6'>
-
-            <Text className="text-xm font-semibold text-[#0EA5A4] mx-2">Personal Information</Text>
+        <View
+          className="mb-6 overflow-hidden rounded-2xl bg-white"
+          style={{
+            elevation: 2,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.06,
+            shadowRadius: 6,
+          }}>
+          {/* Card header */}
+          <View className="flex-row items-center justify-between border-b border-[#c8f3ef] bg-[#EDF9F9] px-4 py-3">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="person-circle-outline" size={18} color="#0EA5A4" />
+              <Text className="text-sm font-semibold text-[#0EA5A4]">Personal Information</Text>
+            </View>
             <Pressable onPress={() => router.push('/(auth)/(user)/profile')} className="flex-row items-center">
               <Ionicons name="pencil-outline" size={14} color="#0EA5A4" />
-              <Text className="ml-1 text-xm font-medium text-[#0EA5A4] mr-5">Edit</Text>
+              <Text className="ml-1 text-sm font-medium text-[#0EA5A4]">Edit</Text>
             </Pressable>
-            </View>
-            <InfoRow label="Email" value={userDraft.email} />
-            <InfoRow label="Phone" value={userDraft.phone} />
-            <InfoRow label="Date of Birth" value={userDraft.dob} />
-            <InfoRow label="Gender" value={userDraft.gender} />
-            <InfoRow label="Language" value={userDraft.language} />
           </View>
+
+          {/* Data rows */}
+          <View className="px-4">
+            <InfoRow icon="person-outline" label="Full Name" value={userDraft.name} />
+            <InfoRow icon="mail-outline" label="Email Address" value={userDraft.email} />
+            <InfoRow icon="call-outline" label="Phone Number" value={userDraft.phone} />
+            <InfoRow icon="calendar-outline" label="Date of Birth" value={userDraft.dob} />
+            <InfoRow icon="male-female-outline" label="Gender" value={userDraft.gender} />
+            <InfoRow
+              icon="language-outline"
+              label="Preferred Language"
+              value={userDraft.language || '—'}
+              isLast={!userDraft.healthHistory}
+            />
+          </View>
+
           {userDraft.healthHistory ? (
             <>
-              <View className="border-t border-gray-100 bg-[#EDF9F9] px-4 py-3">
+              <View className="border-t border-[#c8f3ef] bg-[#EDF9F9] px-4 py-3">
                 <Text className="text-sm font-semibold text-[#0EA5A4]">Health History</Text>
               </View>
               <View className="p-4">
-                <Text className="text-sm text-gray-800">{userDraft.healthHistory}</Text>
+                <Text className="text-sm leading-5 text-gray-800">{userDraft.healthHistory}</Text>
               </View>
             </>
           ) : null}

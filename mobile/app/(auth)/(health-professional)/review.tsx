@@ -81,13 +81,13 @@ export default function ReviewScreen() {
                 <Text className="ml-1 text-xs font-medium text-[#0EA5A4]">Edit</Text>
               </Pressable>
             </View>
-            <View className="p-4">
-              <InfoRow label="Full Name" value={userDraft.name} />
-              <InfoRow label="Email" value={userDraft.email} />
-              <InfoRow label="Phone" value={userDraft.phone} />
-              <InfoRow label="Date of Birth" value={userDraft.dob} />
-              <InfoRow label="Gender" value={userDraft.gender} />
-              <InfoRow label="Language" value={userDraft.language} />
+            <View className="px-4">
+              <InfoRow icon="person-outline" label="Full Name" value={userDraft.name} />
+              <InfoRow icon="mail-outline" label="Email" value={userDraft.email} />
+              <InfoRow icon="call-outline" label="Phone" value={userDraft.phone} />
+              <InfoRow icon="calendar-outline" label="Date of Birth" value={userDraft.dob} />
+              <InfoRow icon="male-female-outline" label="Gender" value={userDraft.gender} />
+              <InfoRow icon="language-outline" label="Language" value={userDraft.language} isLast />
             </View>
           </View>
 
@@ -102,9 +102,9 @@ export default function ReviewScreen() {
                 <Text className="ml-1 text-xs font-medium text-[#0EA5A4]">Edit</Text>
               </Pressable>
             </View>
-            <View className="p-4">
-              <InfoRow label="Specialization" value={userDraft.specialization} />
-              <InfoRow label="Years of Practice" value={userDraft.yearsOfExperience} />
+            <View className="px-4">
+              <InfoRow icon="medal-outline" label="Specialization" value={userDraft.specialization} />
+              <InfoRow icon="time-outline" label="Years of Practice" value={userDraft.yearsOfExperience} isLast />
             </View>
           </View>
 
@@ -119,13 +119,15 @@ export default function ReviewScreen() {
                 <Text className="ml-1 text-xs font-medium text-[#0EA5A4]">Edit</Text>
               </Pressable>
             </View>
-            <View className="p-4">
-              <InfoRow label="Certificate" value={userDraft.certificateName} />
-              <InfoRow label="Certificate ID" value={userDraft.certificateId} />
-              <InfoRow label="Issue Date" value={userDraft.certificateIssueDate} />
+            <View className="px-4">
+              <InfoRow icon="document-text-outline" label="Certificate" value={userDraft.certificateName} />
+              <InfoRow icon="id-card-outline" label="Certificate ID" value={userDraft.certificateId} />
+              <InfoRow icon="calendar-outline" label="Issue Date" value={userDraft.certificateIssueDate} />
               <InfoRow
+                icon="attach-outline"
                 label="Certificate File"
                 value={userDraft.certificate ? userDraft.certificate.name : 'Not uploaded'}
+                isLast
               />
             </View>
           </View>

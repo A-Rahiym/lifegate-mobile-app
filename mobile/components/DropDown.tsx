@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, Pressable, LayoutRectangle, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface DropdownOption {
@@ -28,11 +28,9 @@ export const Dropdown = ({
   selectedValue,
   onChange,
   triggerClassName = '',
-  menuClassName = '',
 }: DropdownProps) => {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState<string>('');
-  const [triggerLayout, setTriggerLayout] = useState<LayoutRectangle | null>(null);
 
   // Sync selectedValue prop to internal state
   useEffect(() => {
@@ -43,10 +41,10 @@ export const Dropdown = ({
 
   const selectedLabel = options.find((o) => o.value === value)?.label || placeholder;
 
-  const handleSelectOption = (selectedValue: string) => {
-    setValue(selectedValue);
+  const handleSelectOption = (optionValue: string) => {
+    setValue(optionValue);
     setOpen(false);
-    onChange?.(selectedValue); // optional callback to parent
+    onChange?.(optionValue);
   };
 
   return (
@@ -57,45 +55,47 @@ export const Dropdown = ({
 
       <Pressable
         onPress={() => setOpen(!open)}
-        onLayout={(e) => setTriggerLayout(e.nativeEvent.layout)}
         className={`h-12 flex-row items-center rounded-xl px-3 ${
           hasError ? 'border border-red-300 bg-red-50' : 'bg-[#F2F4F7]'
         } ${triggerClassName}`}>
         <Text className={`flex-1 ${value ? 'text-gray-900' : 'text-gray-400'}`}>
           {selectedLabel}
         </Text>
-        <Ionicons name="chevron-down" size={16} color="#0EA5A4" />
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color="#0EA5A4" />
       </Pressable>
 
-      {open && triggerLayout && (
-        <>
-          <Pressable
-            className="absolute inset-0 z-40"
-            onPress={() => setOpen(false)}
-          />
-          
-          <View
-            className={`absolute top-20 left-0 right-0 z-50 rounded-2xl bg-white shadow-lg ${menuClassName}`}
-            style={{ marginHorizontal: 0 }}>
-            <ScrollView style={{ maxHeight: 300 }}>
-              {options.map((option: DropdownOption) => (
-                <Pressable
-                  key={option.value}
-                  onPress={() => handleSelectOption(option.value)}
-                  className="border-b border-gray-100 px-4 py-3 last:border-b-0">
-                  <Text
-                    className={`text-base ${
-                      option.value === value
-                        ? 'font-semibold text-[#0EA5A4]'
-                        : 'text-gray-800'
-                    }`}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </>
+      {/* Inline expanding list — renders in-flow so ScrollView never clips it */}
+      {open && (
+        <View
+          className="mt-1 overflow-hidden rounded-2xl border border-gray-100 bg-white"
+          style={{
+            elevation: 4,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+          }}>
+          <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+            {options.map((option: DropdownOption, index: number) => (
+              <Pressable
+                key={option.value}
+                onPress={() => handleSelectOption(option.value)}
+                className={`flex-row items-center justify-between px-4 py-3 ${
+                  index < options.length - 1 ? 'border-b border-gray-50' : ''
+                }`}>
+                <Text
+                  className={`text-base ${
+                    option.value === value ? 'font-semibold text-[#0EA5A4]' : 'text-gray-800'
+                  }`}>
+                  {option.label}
+                </Text>
+                {option.value === value && (
+                  <Ionicons name="checkmark-circle" size={18} color="#0EA5A4" />
+                )}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
       )}
     </View>
   );
