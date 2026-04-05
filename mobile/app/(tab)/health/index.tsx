@@ -105,7 +105,6 @@ function deriveInsight(entries: HealthTimelineEntry[]): {
   text: string;
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
-  activeTip?: string;
 } {
   if (entries.length === 0) {
     return {
@@ -118,6 +117,8 @@ function deriveInsight(entries: HealthTimelineEntry[]): {
   const latest = entries[0];
   const condition = latest.condition || latest.title || '';
   const cond = condition.toLowerCase();
+  const isActive = latest.status !== 'Completed';
+  const activeNote = isActive ? ' Follow up with LifeGate if symptoms change.' : '';
   const prev = entries[1];
   const URGENCY_RANK: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
   const latestRank = URGENCY_RANK[latest.urgency] ?? 0;
@@ -126,7 +127,7 @@ function deriveInsight(entries: HealthTimelineEntry[]): {
   // ── CRITICAL urgency ──────────────────────────────────────────────────────
   if (latest.urgency === 'CRITICAL') {
     return {
-      text: `With ${condition}, call emergency services or go to A&E immediately. Do not wait for symptoms to worsen.`,
+      text: `Your active ${condition} case requires emergency attention — call emergency services or go to A&E immediately.`,
       icon: 'alert-circle',
       color: '#dc2626',
     };
@@ -135,114 +136,114 @@ function deriveInsight(entries: HealthTimelineEntry[]): {
   // ── Condition-specific actionable tips ────────────────────────────────────
   if (cond.includes('malaria')) {
     return {
-      text: `For ${condition}: complete your full antimalarial course, sleep under treated nets, and stay well-hydrated with ORS or fluids.`,
+      text: `Complete your full antimalarial course, sleep under treated nets, and stay hydrated with ORS or fluids.${activeNote}`,
       icon: 'thermometer-outline',
       color: '#d97706',
     };
   }
   if (cond.includes('typhoid')) {
     return {
-      text: `For ${condition}: eat soft, easy-to-digest foods, drink only boiled or bottled water, and complete your antibiotic course without interruption.`,
+      text: `Eat soft foods, drink only boiled or bottled water, and complete your antibiotic course without interruption.${activeNote}`,
       icon: 'flask-outline',
       color: '#d97706',
     };
   }
   if (cond.includes('hypertension') || cond.includes('blood pressure')) {
     return {
-      text: `For ${condition}: reduce salt and processed foods, exercise 30 minutes daily, avoid stress, and take your medication at the same time every day.`,
+      text: `Reduce salt intake, exercise 30 minutes daily, avoid stress, and take your medication at the same time every day.${activeNote}`,
       icon: 'heart-outline',
       color: '#dc2626',
     };
   }
   if (cond.includes('diabetes')) {
     return {
-      text: `For ${condition}: monitor your blood glucose daily, avoid sugary drinks, eat at regular intervals, and do light exercise such as walking after meals.`,
+      text: `Monitor your blood glucose daily, avoid sugary drinks, eat at regular intervals, and do light exercise after meals.${activeNote}`,
       icon: 'medkit-outline',
       color: '#d97706',
     };
   }
   if (cond.includes('tuberculosis') || cond.includes('tb')) {
     return {
-      text: `For ${condition}: take all TB medications daily without skipping — stopping early causes drug resistance. Ventilate your room and wear a mask around others.`,
+      text: `Take all TB medications daily without skipping — stopping early causes drug resistance — and ventilate your room.${activeNote}`,
       icon: 'lungs-outline' as keyof typeof Ionicons.glyphMap,
       color: '#dc2626',
     };
   }
   if (cond.includes('hiv') || cond.includes('aids')) {
     return {
-      text: `For ${condition}: take your ARV medication daily at the same time, attend all clinic appointments, and maintain a protein-rich diet to support your immune system.`,
+      text: `Take your ARV medication daily at the same time, attend all clinic appointments, and maintain a protein-rich diet.${activeNote}`,
       icon: 'shield-checkmark-outline',
       color: '#7c3aed',
     };
   }
   if (cond.includes('sickle cell') || cond.includes('scd')) {
     return {
-      text: `For ${condition}: stay hydrated, avoid cold temperatures, rest well during crises, and keep hydroxyurea and pain relief medications accessible.`,
+      text: `Stay hydrated, avoid cold temperatures, rest during crises, and keep your pain relief and hydroxyurea accessible.${activeNote}`,
       icon: 'pulse',
       color: '#dc2626',
     };
   }
   if (cond.includes('peptic') || cond.includes('ulcer') || cond.includes('gastritis')) {
     return {
-      text: `For ${condition}: eat small frequent meals, avoid NSAIDs, spicy foods, alcohol, and coffee. Take antacids or proton pump inhibitors as prescribed.`,
+      text: `Eat small frequent meals, avoid NSAIDs, spicy foods, alcohol, and coffee, and take your antacids as prescribed.${activeNote}`,
       icon: 'nutrition-outline',
       color: '#d97706',
     };
   }
   if (cond.includes('uti') || cond.includes('urinary')) {
     return {
-      text: `For ${condition}: drink 2–3 litres of water daily, urinate frequently, and complete your full antibiotic course to prevent recurrence.`,
+      text: `Drink 2–3 litres of water daily, urinate frequently, and complete your full antibiotic course to prevent recurrence.${activeNote}`,
       icon: 'water-outline',
       color: '#0891b2',
     };
   }
   if (cond.includes('respiratory') || cond.includes('pneumonia') || cond.includes('bronchitis') || cond.includes('asthma')) {
     return {
-      text: `For ${condition}: avoid dust and smoke, use your inhaler or prescribed medication as directed, rest well, and sleep with your head slightly elevated.`,
+      text: `Avoid dust and smoke, use your inhaler as directed, rest well, and sleep with your head slightly elevated.${activeNote}`,
       icon: 'medical-outline',
       color: '#0891b2',
     };
   }
   if (cond.includes('dengue')) {
     return {
-      text: `For ${condition}: rest, drink plenty of fluids, use paracetamol for fever — avoid ibuprofen or aspirin. Report any bleeding or severe vomiting immediately.`,
+      text: `Rest, drink plenty of fluids, use paracetamol for fever (avoid ibuprofen), and report any bleeding or severe vomiting immediately.${activeNote}`,
       icon: 'bug-outline' as keyof typeof Ionicons.glyphMap,
       color: '#d97706',
     };
   }
   if (cond.includes('anaemia') || cond.includes('anemia')) {
     return {
-      text: `For ${condition}: eat iron-rich foods (beans, liver, leafy greens), take iron supplements with vitamin C for better absorption, and avoid tea with meals.`,
+      text: `Eat iron-rich foods (beans, liver, leafy greens) and take iron supplements with vitamin C for better absorption.${activeNote}`,
       icon: 'nutrition-outline',
       color: '#d97706',
     };
   }
 
   // ── Urgency / trend-based tips (fallback when no specific condition matched) ──
-  if (latest.urgency === 'HIGH' && latest.status === 'Active') {
+  if (latest.urgency === 'HIGH' && isActive) {
     return {
-      text: `Rest, stay hydrated, and follow your physician's instructions for ${condition}. Avoid self-medicating and report any new symptoms immediately.`,
+      text: `Rest, stay hydrated, and follow your physician's instructions for ${condition} — avoid self-medicating and report new symptoms immediately.`,
       icon: 'warning',
       color: '#dc2626',
     };
   }
   if (latestRank < prevRank && latest.status === 'Completed') {
     return {
-      text: `Great progress recovering from ${condition}! Maintain your medication schedule, eat nutritiously, and get at least 7–8 hours of sleep.`,
+      text: `Great progress recovering from ${condition} — maintain your medication schedule, eat nutritiously, and get at least 7–8 hours of sleep.`,
       icon: 'trending-up',
       color: '#16a34a',
     };
   }
   if (latestRank > prevRank) {
     return {
-      text: `Your ${condition} symptoms appear to be escalating. Increase fluid intake, rest, and consult your physician if fever or pain worsens.`,
+      text: `Your ${condition} symptoms appear to be escalating — increase fluid intake, rest, and consult your physician if fever or pain worsens.`,
       icon: 'pulse',
       color: '#d97706',
     };
   }
   if (latest.urgency === 'MEDIUM') {
     return {
-      text: `For ${condition}: monitor your temperature and symptoms twice daily. Stay hydrated, eat light, and chat with LifeGate if anything changes.`,
+      text: `Monitor your ${condition} symptoms twice daily, stay hydrated, eat light, and update LifeGate if anything changes.`,
       icon: 'eye-outline',
       color: '#d97706',
     };
@@ -250,29 +251,16 @@ function deriveInsight(entries: HealthTimelineEntry[]): {
   const allCompleted = entries.slice(0, 3).every((e) => e.status === 'Completed');
   if (allCompleted) {
     return {
-      text: 'You are on a great health streak! Exercise regularly, eat a balanced diet, and keep your annual checkups to stay ahead of any issues.',
+      text: 'You are on a great health streak — exercise regularly, eat a balanced diet, and keep your annual checkups to stay ahead of any issues.',
       icon: 'checkmark-circle',
       color: '#16a34a',
     };
   }
   return {
-    text: `Stay consistent with your treatment for ${condition}. Regular check-ins with LifeGate help catch changes early.`,
+    text: `Stay consistent with your treatment for ${condition} and check in with LifeGate regularly so any changes are caught early.`,
     icon: 'sparkles-outline',
     color: '#0891b2',
   };
-}
-
-// Returns a one-line active-case tip for the highest-urgency pending case.
-function deriveActiveCaseTip(entries: HealthTimelineEntry[]): string | undefined {
-  const active = entries.filter((e) => e.status !== 'Completed');
-  if (active.length === 0) return undefined;
-  const RANK: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
-  const top = active.sort((a, b) => (RANK[b.urgency] ?? 0) - (RANK[a.urgency] ?? 0))[0];
-  const name = top.condition || top.title || 'your condition';
-  if (top.urgency === 'CRITICAL') return `⚠ Active: ${name} — seek emergency care now.`;
-  if (top.urgency === 'HIGH') return `🔴 Active: ${name} — prioritise rest, fluids, and your prescribed medication today.`;
-  if (top.urgency === 'MEDIUM') return `🟡 Active: ${name} — monitor symptoms twice daily and update LifeGate if they worsen.`;
-  return `🟢 Active: ${name} — maintain your routine and complete the full treatment course.`;
 }
 
 function formatRelativeDate(iso: string): string {
@@ -402,7 +390,7 @@ function HealthStatusCard({
 function AIInsightCard({
   insight,
 }: {
-  insight: { text: string; icon: keyof typeof Ionicons.glyphMap; color: string; activeTip?: string };
+  insight: { text: string; icon: keyof typeof Ionicons.glyphMap; color: string };
 }) {
   return (
     <View
@@ -450,20 +438,6 @@ function AIInsightCard({
           AI Health Insight
         </Text>
         <Text style={{ fontSize: 13, color: '#374151', lineHeight: 19 }}>{insight.text}</Text>
-        {insight.activeTip ? (
-          <View
-            style={{
-              marginTop: 8,
-              paddingTop: 8,
-              borderTopWidth: 1,
-              borderTopColor: '#e0f2fe',
-            }}
-          >
-            <Text style={{ fontSize: 12, color: '#374151', lineHeight: 18, fontWeight: '500' }}>
-              {insight.activeTip}
-            </Text>
-          </View>
-        ) : null}
       </View>
     </View>
   );
@@ -620,11 +594,7 @@ export default function HealthDashboardScreen() {
 
   const isLoading = timelineLoading && patientTimeline.length === 0;
   const status = useMemo(() => deriveStatus(patientTimeline), [patientTimeline]);
-  const activeCaseTip = useMemo(() => deriveActiveCaseTip(patientTimeline), [patientTimeline]);
-  const insight = useMemo(
-    () => ({ ...deriveInsight(patientTimeline), activeTip: activeCaseTip }),
-    [patientTimeline, activeCaseTip]
-  );
+  const insight = useMemo(() => deriveInsight(patientTimeline), [patientTimeline]);
   const latest = patientTimeline[0] ?? null;
   const totalActive = useMemo(
     () => patientTimeline.filter((e) => e.status !== 'Completed').length,
