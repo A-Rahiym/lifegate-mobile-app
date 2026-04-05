@@ -5,7 +5,6 @@ export default function HealthLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="timeline" />
-      <Stack.Screen name="symptoms" />
       <Stack.Screen name="alerts" />
     </Stack>
   );
