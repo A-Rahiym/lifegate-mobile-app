@@ -64,6 +64,21 @@ interface MessageBubbleProps {
   isLastInGroup?: boolean;
 }
 
+/** Returns true when the string is a raw JSON object the AI accidentally leaked. */
+function isRawJson(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return false;
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const FALLBACK_MESSAGE =
+  "I'm having a little trouble right now — it might be a brief connection issue. Please try sending your message again in a moment. If you're experiencing a medical emergency, please call 199 immediately.";
+
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   type,
@@ -83,6 +98,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   isFirstInGroup = true,
   isLastInGroup = true,
 }) => {
+  const displayMessage = isRawJson(message) ? FALLBACK_MESSAGE : message;
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(12)).current;
 
@@ -108,7 +125,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isSent = type === 'sent';
 
   const handleLongPress = async () => {
-    await Clipboard.setStringAsync(message);
+    await Clipboard.setStringAsync(displayMessage);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -200,7 +217,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 lineHeight: 22,
               }}
             >
-              {message}
+              {displayMessage}
             </Text>
 
             {/* Footer: timestamp + tick status */}
@@ -276,7 +293,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
             {/* Message text — markdown-rendered */}
             <MarkdownText isSent={false} style={{ fontSize: UI_FONT_SIZES.MESSAGE_TEXT }}>
-              {message}
+              {displayMessage}
             </MarkdownText>
 
             {/* Risk flags */}
