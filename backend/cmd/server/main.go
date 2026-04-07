@@ -211,6 +211,7 @@ authGroup.POST("/password/verify-reset-code", authHandler.VerifyResetCode)
 authGroup.POST("/password/reset", authHandler.ResetPassword)
 authGroup.GET("/me", middleware.Auth(cfg.JWTSecret), authHandler.Me)
 authGroup.PUT("/change-password", middleware.Auth(cfg.JWTSecret), authHandler.ChangePassword)
+authGroup.PUT("/health-profile", middleware.Auth(cfg.JWTSecret), authHandler.UpdateHealthProfile)
 authGroup.PATCH("/mdcn-verify", middleware.Auth(cfg.JWTSecret), authHandler.MarkMDCNVerified)
 }
 

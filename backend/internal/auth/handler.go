@@ -533,6 +533,38 @@ return
 respond(c, http.StatusOK, true, "Password changed successfully", nil)
 }
 
+// UpdateHealthProfile updates the patient's health profile fields (blood type, allergies, etc.).
+//
+// @Summary      Update health profile
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      object{blood_type=string,allergies=string,medical_history=string,current_medications=string,emergency_contact=string}  true  "Health profile fields"
+// @Success      200   {object}  object{success=bool,message=string,data=object{user=object}}
+// @Failure      400   {object}  object{success=bool,message=string}
+// @Failure      401   {object}  object{success=bool,message=string}
+// @Router       /auth/health-profile [put]
+func (h *Handler) UpdateHealthProfile(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		respond(c, http.StatusUnauthorized, false, "Unauthorized", nil)
+		return
+	}
+	var req HealthProfileInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond(c, http.StatusBadRequest, false, err.Error(), nil)
+		return
+	}
+	user, err := h.svc.repo.UpdateHealthProfile(uid, req)
+	if err != nil {
+		respond(c, http.StatusInternalServerError, false, "Failed to update health profile", nil)
+		return
+	}
+	respond(c, http.StatusOK, true, "Health profile updated", gin.H{"user": user})
+}
+
 // MarkMDCNVerified marks the authenticated professional's MDCN license as verified.
 //
 // @Summary      Confirm MDCN verification

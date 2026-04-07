@@ -17,6 +17,13 @@ type ProfileState = {
   // Actions
   clearError: () => void;
   getProfile: () => Promise<boolean>;
+  updateHealthProfile: (data: {
+    blood_type?: string | null;
+    allergies?: string | null;
+    medical_history?: string | null;
+    current_medications?: string | null;
+    emergency_contact?: string | null;
+  }) => Promise<boolean>;
   changePassword: (
     currentPassword: string,
     newPassword: string,
@@ -53,6 +60,25 @@ getProfile: async () => {
     return false;
   }
 },
+  // -------- PROFILE: UPDATE HEALTH PROFILE --------
+  updateHealthProfile: async (data) => {
+    setUser({ loading: true, error: null });
+    try {
+      const response = await AuthService.updateHealthProfile(data);
+      if (!response.success) {
+        setUser({ loading: false, error: response.message ?? 'Failed to update health profile' });
+        return false;
+      }
+      if (response.user) {
+        useAuthStore.setState({ user: response.user, isAuthenticated: true });
+      }
+      setUser({ loading: false, error: null });
+      return true;
+    } catch (err: any) {
+      setUser({ loading: false, error: extractErrorMessage(err) });
+      return false;
+    }
+  },
   // -------- PROFILE: CHANGE PASSWORD --------
   changePassword: async (currentPassword: string, newPassword: string, confirmPassword: string) => {
     setUser({ loading: true, error: null });

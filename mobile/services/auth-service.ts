@@ -381,4 +381,29 @@ export const AuthService = {
       return { success: false, message: extractErrorMessage(error) };
     }
   },
+
+  /**
+   * Update the patient's health profile fields.
+   * PUT /auth/health-profile
+   */
+  async updateHealthProfile(data: {
+    blood_type?: string | null;
+    allergies?: string | null;
+    medical_history?: string | null;
+    current_medications?: string | null;
+    emergency_contact?: string | null;
+  }): Promise<{ success: boolean; message: string; user?: import('../types/auth-types').User }> {
+    try {
+      const response = await api.put<{ success: boolean; message: string; data?: { user: import('../types/auth-types').User } }>(
+        '/auth/health-profile',
+        data
+      );
+      if (!response.data.success) {
+        return { success: false, message: response.data.message || 'Failed to update health profile' };
+      }
+      return { success: true, message: response.data.message, user: response.data.data?.user };
+    } catch (error: unknown) {
+      return { success: false, message: extractErrorMessage(error) };
+    }
+  },
 };

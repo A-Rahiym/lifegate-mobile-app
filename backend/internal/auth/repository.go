@@ -176,6 +176,33 @@ return nil, err
 return pr, nil
 }
 
+// UpdateHealthProfile updates the patient-editable health fields for a given user.
+type HealthProfileInput struct {
+	BloodType          *string `json:"blood_type"`
+	Allergies          *string `json:"allergies"`
+	MedicalHistory     *string `json:"medical_history"`
+	CurrentMedications *string `json:"current_medications"`
+	EmergencyContact   *string `json:"emergency_contact"`
+}
+
+func (r *Repository) UpdateHealthProfile(userID string, in HealthProfileInput) (*User, error) {
+	_, err := r.db.Exec(`
+		UPDATE users
+		SET blood_type          = COALESCE($2, blood_type),
+		    allergies           = COALESCE($3, allergies),
+		    medical_history     = COALESCE($4, medical_history),
+		    current_medications = COALESCE($5, current_medications),
+		    emergency_contact   = COALESCE($6, emergency_contact),
+		    updated_at          = NOW()
+		WHERE id = $1::uuid`,
+		userID, in.BloodType, in.Allergies, in.MedicalHistory, in.CurrentMedications, in.EmergencyContact,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return r.FindUserByID(userID)
+}
+
 func (r *Repository) DeletePendingRegistration(email string) error {
 _, err := r.db.Exec(`DELETE FROM pending_registrations WHERE email = $1`, email)
 return err
