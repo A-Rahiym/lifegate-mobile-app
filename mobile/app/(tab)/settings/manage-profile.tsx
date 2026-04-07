@@ -225,29 +225,6 @@ export default function ManageProfileScreen() {
             emergency={emergencyContact}
           />
 
-          {/* ── Identity (read-only) ── */}
-          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-            <SectionHeader icon="person-outline" title="Identity" />
-            <View className="flex-row gap-3 mb-3">
-              <View className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
-                <Text className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Name</Text>
-                <Text className="text-sm font-semibold text-gray-800 mt-0.5">{user?.name ?? '—'}</Text>
-              </View>
-              <View className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
-                <Text className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Sex</Text>
-                <Text className="text-sm font-semibold text-gray-800 mt-0.5">{user?.gender ?? '—'}</Text>
-              </View>
-            </View>
-            <View className="bg-gray-50 rounded-xl px-3 py-2">
-              <Text className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Date of Birth</Text>
-              <Text className="text-sm font-semibold text-gray-800 mt-0.5">{user?.dob ?? '—'}</Text>
-            </View>
-            <View className="flex-row items-center gap-1.5 mt-3">
-              <Ionicons name="lock-closed-outline" size={11} color="#9ca3af" />
-              <Text className="text-xs text-gray-400">Set during registration · cannot be changed here</Text>
-            </View>
-          </View>
-
           {/* ── Blood Type ── */}
           <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
             <SectionHeader icon="water-outline" title="Blood Type" />
