@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,42 +17,46 @@ import { router } from 'expo-router';
 import { useAuthStore } from 'stores/auth/auth-store';
 import { useProfileStore } from 'stores/auth/profile-store';
 
+const TEAL = '#0EA5A4';
+
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionHeader({ icon, title }: { icon: keyof typeof Ionicons.glyphMap; title: string }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 4 }}>
-      <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#ccfbf1', alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name={icon} size={16} color="#0f766e" />
-      </View>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f766e', textTransform: 'uppercase', letterSpacing: 0.6 }}>
-        {title}
-      </Text>
+    <View className="flex-row items-center gap-2 mb-3">
+      <Ionicons name={icon} size={18} color={TEAL} />
+      <Text className="text-base font-bold text-gray-900">{title}</Text>
     </View>
   );
 }
 
-function FieldLabel({ label, required }: { label: string; required?: boolean }) {
+function FieldLabel({ label, hint }: { label: string; hint?: string }) {
   return (
-    <Text style={{ fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 5 }}>
-      {label}{required ? <Text style={{ color: '#dc2626' }}> *</Text> : null}
-    </Text>
+    <View className="mb-1">
+      <Text className="text-sm font-semibold text-gray-700">{label}</Text>
+      {hint ? <Text className="text-xs text-gray-400 mt-0.5">{hint}</Text> : null}
+    </View>
   );
 }
 
-function StyledInput({
+function FocusableInput({
   value,
   onChangeText,
   placeholder,
   multiline,
   numberOfLines,
+  accessibilityLabel,
 }: {
   value: string;
   onChangeText: (t: string) => void;
   placeholder?: string;
   multiline?: boolean;
   numberOfLines?: number;
+  accessibilityLabel?: string;
 }) {
+  const [focused, setFocused] = useState(false);
   return (
     <TextInput
       value={value}
@@ -61,31 +66,114 @@ function StyledInput({
       multiline={multiline}
       numberOfLines={numberOfLines}
       textAlignVertical={multiline ? 'top' : 'center'}
+      accessibilityLabel={accessibilityLabel}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       style={{
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderWidth: focused ? 1.5 : 1,
+        borderColor: focused ? TEAL : '#e5e7eb',
         borderRadius: 10,
         paddingHorizontal: 13,
         paddingVertical: 11,
         fontSize: 14,
         color: '#111827',
-        backgroundColor: '#f9fafb',
-        marginBottom: 14,
+        backgroundColor: focused ? '#f0fffe' : '#f9fafb',
+        marginTop: 6,
+        marginBottom: 16,
         minHeight: multiline ? (numberOfLines ?? 3) * 24 + 22 : undefined,
       }}
     />
   );
 }
 
+// ─── Progress bar showing how complete the health profile is ─────────────────
+
+function ProfileCompleteness({
+  bloodType,
+  allergies,
+  medicalHistory,
+  medications,
+  emergency,
+}: {
+  bloodType: string;
+  allergies: string;
+  medicalHistory: string;
+  medications: string;
+  emergency: string;
+}) {
+  const fields = [bloodType, allergies, medicalHistory, medications, emergency];
+  const filled = fields.filter((f) => f.trim().length > 0).length;
+  const pct = Math.round((filled / fields.length) * 100);
+
+  const color = pct === 100 ? '#16a34a' : pct >= 60 ? TEAL : '#f59e0b';
+  const label = pct === 100 ? 'Complete' : pct >= 60 ? 'Good' : 'Incomplete';
+
+  return (
+    <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+      <View className="flex-row items-center justify-between mb-2">
+        <View className="flex-row items-center gap-2">
+          <Ionicons name="pulse-outline" size={16} color={color} />
+          <Text className="text-sm font-bold text-gray-900">Profile Completeness</Text>
+        </View>
+        <View style={{ backgroundColor: color + '20', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 }}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color }}>{label} · {pct}%</Text>
+        </View>
+      </View>
+      <View className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <View style={{ width: `${pct}%`, height: '100%', backgroundColor: color, borderRadius: 99 }} />
+      </View>
+      {pct < 100 ? (
+        <Text className="text-xs text-gray-400 mt-2">
+          A complete profile helps the AI give you safer, more personalised care.
+        </Text>
+      ) : (
+        <Text className="text-xs text-green-600 mt-2 font-medium">
+          Your health profile is complete. The AI is fully context-aware.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
+
 export default function ManageProfileScreen() {
   const user = useAuthStore((s) => s.user);
-  const { loading, error, updateHealthProfile, clearError } = useProfileStore();
+  const { loading, error, updateHealthProfile, getProfile, clearError } = useProfileStore();
 
   const [bloodType, setBloodType] = useState(user?.blood_type ?? '');
   const [allergies, setAllergies] = useState(user?.allergies ?? '');
   const [medicalHistory, setMedicalHistory] = useState(user?.medical_history ?? '');
   const [currentMedications, setCurrentMedications] = useState(user?.current_medications ?? '');
   const [emergencyContact, setEmergencyContact] = useState(user?.emergency_contact ?? '');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Track whether the user has made any changes
+  const isDirty =
+    (bloodType ?? '') !== (user?.blood_type ?? '') ||
+    (allergies ?? '') !== (user?.allergies ?? '') ||
+    (medicalHistory ?? '') !== (user?.medical_history ?? '') ||
+    (currentMedications ?? '') !== (user?.current_medications ?? '') ||
+    (emergencyContact ?? '') !== (user?.emergency_contact ?? '');
+
+  // Sync form whenever the auth store user updates (e.g. after save)
+  useEffect(() => {
+    setBloodType(user?.blood_type ?? '');
+    setAllergies(user?.allergies ?? '');
+    setMedicalHistory(user?.medical_history ?? '');
+    setCurrentMedications(user?.current_medications ?? '');
+    setEmergencyContact(user?.emergency_contact ?? '');
+  }, [user]);
+
+  useEffect(() => {
+    getProfile();
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await getProfile();
+    setRefreshing(false);
+  }, [getProfile]);
 
   const handleSave = async () => {
     clearError();
@@ -98,159 +186,185 @@ export default function ManageProfileScreen() {
     });
     if (ok) {
       Alert.alert('Saved', 'Your health profile has been updated.');
-      router.back();
     }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }} edges={['top']}>
-      {/* Header */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: 16,
-          paddingVertical: 14,
-          backgroundColor: '#fff',
-          borderBottomWidth: 1,
-          borderBottomColor: '#f3f4f6',
-        }}
-      >
-        <Pressable onPress={() => router.back()} hitSlop={8} style={{ marginRight: 12 }}>
-          <Ionicons name="chevron-back" size={24} color="#111827" />
+    <SafeAreaView className="flex-1 bg-[#F0F8F8]">
+      {/* ── Header ── */}
+      <View className="flex-row items-center justify-between px-4 pt-3 pb-3 bg-[#F0F8F8]">
+        <Pressable onPress={() => router.back()} className="p-1" accessibilityLabel="Go back">
+          <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
         </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827' }}>Health Profile</Text>
-          <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 1 }}>
-            This information helps the AI give you better, personalised advice
-          </Text>
-        </View>
+        <Text className="flex-1 text-center text-xl font-bold text-gray-900">Health Profile</Text>
+        <View style={{ width: 30 }} />
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
-
-          {/* Read-only identity info */}
-          <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#f3f4f6', marginBottom: 16 }}>
-            <SectionHeader icon="person-outline" title="Identity" />
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ flex: 1, backgroundColor: '#f3f4f6', borderRadius: 8, padding: 10 }}>
-                <Text style={{ fontSize: 10, color: '#6b7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>Name</Text>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginTop: 2 }}>{user?.name ?? '—'}</Text>
-              </View>
-              <View style={{ flex: 1, backgroundColor: '#f3f4f6', borderRadius: 8, padding: 10 }}>
-                <Text style={{ fontSize: 10, color: '#6b7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>Gender</Text>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginTop: 2 }}>{user?.gender ?? '—'}</Text>
-              </View>
-            </View>
-            <View style={{ backgroundColor: '#f3f4f6', borderRadius: 8, padding: 10, marginTop: 8 }}>
-              <Text style={{ fontSize: 10, color: '#6b7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>Date of Birth</Text>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginTop: 2 }}>{user?.dob ?? '—'}</Text>
-            </View>
-            <Text style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>
-              Name, gender and date of birth are set during registration and cannot be changed here.
+      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          className="flex-1 px-4 pt-2"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 48 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={TEAL} />}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* AI context banner */}
+          <View className="rounded-2xl mb-4 px-4 py-3 flex-row items-center gap-3" style={{ backgroundColor: '#f0fffe', borderWidth: 1, borderColor: '#99f6e4' }}>
+            <Ionicons name="sparkles" size={18} color={TEAL} />
+            <Text className="flex-1 text-xs text-gray-600 leading-5">
+              This information is securely passed to the AI before every consultation — enabling safer prescriptions and more accurate diagnoses.
             </Text>
           </View>
 
-          {/* Blood Type */}
-          <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#f3f4f6', marginBottom: 16 }}>
-            <SectionHeader icon="water-outline" title="Blood Type" />
-            <FieldLabel label="Select your blood type" />
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
-              {BLOOD_TYPES.map((bt) => (
-                <Pressable
-                  key={bt}
-                  onPress={() => setBloodType(bt === bloodType ? '' : bt)}
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 8,
-                    borderRadius: 20,
-                    borderWidth: 1.5,
-                    borderColor: bloodType === bt ? '#0f766e' : '#e5e7eb',
-                    backgroundColor: bloodType === bt ? '#ccfbf1' : '#f9fafb',
-                  }}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: bloodType === bt ? '#0f766e' : '#374151' }}>
-                    {bt}
-                  </Text>
-                </Pressable>
-              ))}
+          {/* Completeness indicator */}
+          <ProfileCompleteness
+            bloodType={bloodType}
+            allergies={allergies}
+            medicalHistory={medicalHistory}
+            medications={currentMedications}
+            emergency={emergencyContact}
+          />
+
+          {/* ── Identity (read-only) ── */}
+          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+            <SectionHeader icon="person-outline" title="Identity" />
+            <View className="flex-row gap-3 mb-3">
+              <View className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
+                <Text className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Name</Text>
+                <Text className="text-sm font-semibold text-gray-800 mt-0.5">{user?.name ?? '—'}</Text>
+              </View>
+              <View className="flex-1 bg-gray-50 rounded-xl px-3 py-2">
+                <Text className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Sex</Text>
+                <Text className="text-sm font-semibold text-gray-800 mt-0.5">{user?.gender ?? '—'}</Text>
+              </View>
+            </View>
+            <View className="bg-gray-50 rounded-xl px-3 py-2">
+              <Text className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Date of Birth</Text>
+              <Text className="text-sm font-semibold text-gray-800 mt-0.5">{user?.dob ?? '—'}</Text>
+            </View>
+            <View className="flex-row items-center gap-1.5 mt-3">
+              <Ionicons name="lock-closed-outline" size={11} color="#9ca3af" />
+              <Text className="text-xs text-gray-400">Set during registration · cannot be changed here</Text>
             </View>
           </View>
 
-          {/* Health Details */}
-          <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#f3f4f6', marginBottom: 16 }}>
-            <SectionHeader icon="medical-outline" title="Health Details" />
+          {/* ── Blood Type ── */}
+          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+            <SectionHeader icon="water-outline" title="Blood Type" />
+            <FieldLabel label="Select your blood type" hint="Used by the AI for transfusion flags and drug risk assessments." />
+            <View className="flex-row flex-wrap gap-2 mt-2">
+              {BLOOD_TYPES.map((bt) => {
+                const active = bloodType === bt;
+                return (
+                  <Pressable
+                    key={bt}
+                    onPress={() => setBloodType(active ? '' : bt)}
+                    accessibilityLabel={`Blood type ${bt}${active ? ', selected' : ''}`}
+                    accessibilityRole="radio"
+                    style={{
+                      paddingHorizontal: 18,
+                      paddingVertical: 9,
+                      borderRadius: 99,
+                      borderWidth: active ? 2 : 1,
+                      borderColor: active ? TEAL : '#e5e7eb',
+                      backgroundColor: active ? '#f0fffe' : '#f9fafb',
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: active ? TEAL : '#374151' }}>{bt}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {bloodType === '' && (
+              <Text className="text-xs text-amber-500 mt-3 font-medium">⚠ No blood type selected</Text>
+            )}
+          </View>
 
-            <FieldLabel label="Allergies" />
-            <StyledInput
+          {/* ── Health Details ── */}
+          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+            <SectionHeader icon="medkit-outline" title="Health Details" />
+
+            <FieldLabel
+              label="Known Allergies"
+              hint="The AI will never prescribe anything you are allergic to."
+            />
+            <FocusableInput
               value={allergies}
               onChangeText={setAllergies}
-              placeholder="e.g. Penicillin, peanuts, latex…"
+              placeholder="e.g. Penicillin, sulfa drugs, peanuts…"
               multiline
               numberOfLines={2}
+              accessibilityLabel="Known allergies"
             />
 
-            <FieldLabel label="Medical History" />
-            <StyledInput
+            <FieldLabel
+              label="Medical History"
+              hint="Past & current conditions — helps sharpen diagnosis accuracy."
+            />
+            <FocusableInput
               value={medicalHistory}
               onChangeText={setMedicalHistory}
-              placeholder="e.g. Asthma, Hypertension, Sickle Cell (AS)…"
+              placeholder="e.g. Hypertension, Type 2 Diabetes, Asthma…"
               multiline
               numberOfLines={3}
+              accessibilityLabel="Medical history"
             />
 
-            <FieldLabel label="Current Medications" />
-            <StyledInput
+            <FieldLabel
+              label="Current Medications"
+              hint="The AI checks for drug interactions before making any suggestions."
+            />
+            <FocusableInput
               value={currentMedications}
               onChangeText={setCurrentMedications}
-              placeholder="e.g. Metformin 500mg, Lisinopril 10mg…"
+              placeholder="e.g. Metformin 500mg BD, Lisinopril 10mg OD…"
               multiline
               numberOfLines={2}
+              accessibilityLabel="Current medications"
             />
           </View>
 
-          {/* Emergency Contact */}
-          <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#f3f4f6', marginBottom: 20 }}>
+          {/* ── Emergency Contact ── */}
+          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
             <SectionHeader icon="call-outline" title="Emergency Contact" />
-            <FieldLabel label="Name & Phone Number" />
-            <StyledInput
+            <FieldLabel label="Name & Phone Number" hint="Surfaced to the physician if your case is escalated to CRITICAL." />
+            <FocusableInput
               value={emergencyContact}
               onChangeText={setEmergencyContact}
-              placeholder="e.g. Jane Doe — 08012345678"
+              placeholder="e.g. Jane Doe · 08012345678"
+              accessibilityLabel="Emergency contact"
             />
           </View>
 
-          {/* Error */}
+          {/* ── Error banner ── */}
           {error ? (
-            <View style={{ backgroundColor: '#fef2f2', borderRadius: 10, padding: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="alert-circle" size={18} color="#dc2626" />
-              <Text style={{ flex: 1, fontSize: 13, color: '#dc2626' }}>{error}</Text>
+            <View className="mx-0 mb-3 rounded-xl border border-red-300 bg-red-50 px-3 py-2 flex-row items-center gap-2">
+              <Ionicons name="warning-outline" size={16} color="#dc2626" />
+              <Text className="text-sm text-red-700 flex-1">{error}</Text>
+              <Pressable onPress={clearError}>
+                <Ionicons name="close" size={16} color="#dc2626" />
+              </Pressable>
             </View>
           ) : null}
 
-          {/* Save button */}
+          {/* ── Save button ── */}
           <Pressable
             onPress={handleSave}
-            disabled={loading}
-            style={({ pressed }) => ({
-              backgroundColor: '#0f766e',
-              borderRadius: 14,
-              paddingVertical: 15,
-              alignItems: 'center',
-              opacity: pressed || loading ? 0.75 : 1,
-              flexDirection: 'row',
-              justifyContent: 'center',
-              gap: 8,
-            })}
+            disabled={loading || !isDirty}
+            accessibilityLabel="Save health profile"
+            accessibilityRole="button"
+            className={`rounded-2xl py-4 flex-row items-center justify-center gap-2 ${
+              loading || !isDirty ? 'opacity-50' : ''
+            }`}
+            style={{ backgroundColor: TEAL }}
           >
             {loading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
             )}
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>
-              {loading ? 'Saving…' : 'Save Health Profile'}
+            <Text className="text-base font-bold text-white">
+              {loading ? 'Saving…' : isDirty ? 'Save Changes' : 'No Changes'}
             </Text>
           </Pressable>
         </ScrollView>
