@@ -16,6 +16,62 @@ import (
 	"github.com/lib/pq"
 )
 
+// ─── Patient context helpers ──────────────────────────────────────────────────
+
+// fetchPatientContext queries the DB for the patient's health profile and
+// returns a PatientContext ready for injection into the EDIS system prompt.
+// On any error the returned context is a zero value — the AI call still proceeds.
+func (s *Service) fetchPatientContext(userID string) edis.PatientContext {
+	if userID == "" {
+		return edis.PatientContext{}
+	}
+
+	var (
+		name, dob, gender string
+		bloodType, allergies, medicalHistory, currentMedications sql.NullString
+	)
+	err := s.db.QueryRow(
+		`SELECT COALESCE(name,''), COALESCE(dob,''), COALESCE(gender,''),
+		        blood_type, allergies, medical_history, current_medications
+		   FROM users WHERE id = $1`, userID,
+	).Scan(&name, &dob, &gender, &bloodType, &allergies, &medicalHistory, &currentMedications)
+	if err != nil {
+		log.Printf("[EDIS] fetchPatientContext: %v", err)
+		return edis.PatientContext{}
+	}
+
+	return edis.PatientContext{
+		Name:               name,
+		Age:                ageFromDOB(dob),
+		Gender:             gender,
+		BloodType:          bloodType.String,
+		Allergies:          allergies.String,
+		MedicalHistory:     medicalHistory.String,
+		CurrentMedications: currentMedications.String,
+	}
+}
+
+// ageFromDOB parses a "YYYY-MM-DD" date of birth and returns the patient's age
+// in whole years. Returns 0 if the value is empty or cannot be parsed.
+func ageFromDOB(dob string) int {
+	if dob == "" {
+		return 0
+	}
+	t, err := time.Parse("2006-01-02", dob)
+	if err != nil {
+		return 0
+	}
+	now := time.Now()
+	years := now.Year() - t.Year()
+	if now.Month() < t.Month() || (now.Month() == t.Month() && now.Day() < t.Day()) {
+		years--
+	}
+	if years < 0 {
+		return 0
+	}
+	return years
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 type Service struct {
@@ -104,8 +160,10 @@ func (s *Service) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 
 	messages := append(history, ai.ChatMessage{Role: "USER", Text: req.Message})
 
+	patient := s.fetchPatientContext(req.UserID)
+
 	// Process never returns an error — graceful fallback is applied on failure.
-	resp, _ := s.engine.Process(ctx, messages, req.Category)
+	resp, _ := s.engine.Process(ctx, messages, req.Category, patient)
 
 	return s.buildAndPublish(ctx, req.UserID, req.Message, resp, start)
 }
@@ -137,7 +195,9 @@ func (s *Service) ChatInSession(ctx context.Context, sessionID, userID, message,
 
 	messages := append(history, ai.ChatMessage{Role: "USER", Text: message})
 
-	resp, _ := s.engine.Process(ctx, messages, category)
+	patient := s.fetchPatientContext(userID)
+
+	resp, _ := s.engine.Process(ctx, messages, category, patient)
 
 	// Persist the full conversation (user + AI turn) back to the session.
 	messages = append(messages, ai.ChatMessage{Role: "ASSISTANT", Text: resp.Text})
@@ -186,7 +246,9 @@ func (s *Service) FinalizeSession(ctx context.Context, sessionID, userID string)
 			"and recommendations for follow-up care.",
 	})
 
-	resp, _ := s.engine.Process(ctx, history, session.Category)
+	patient := s.fetchPatientContext(userID)
+
+	resp, _ := s.engine.Process(ctx, history, session.Category, patient)
 
 	// Final reports always enter the physician review queue.
 	diagnosisID, _ := s.saveDiagnosis(userID, "Session Summary: "+session.Title, resp.AIResponse, resp.Escalated)

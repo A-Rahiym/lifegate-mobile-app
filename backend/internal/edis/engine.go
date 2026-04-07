@@ -70,6 +70,21 @@ type EDISResponse struct {
 	Escalated bool `json:"escalated,omitempty"`
 }
 
+// ─── PatientContext ──────────────────────────────────────────────────────────
+
+// PatientContext holds the patient's clinical profile retrieved from the
+// LifeGate EMR. All fields are optional — zero/empty values are omitted from
+// the system prompt so they do not mislead the AI.
+type PatientContext struct {
+	Name               string
+	Age                int    // 0 = unknown
+	Gender             string
+	BloodType          string
+	Allergies          string
+	MedicalHistory     string
+	CurrentMedications string
+}
+
 // ─── Engine ───────────────────────────────────────────────────────────────────
 
 // Engine is the EDIS runtime that wraps an ai.AIProvider.
@@ -105,15 +120,17 @@ func (e *Engine) Ping(ctx context.Context) error {
 // Process runs the full EDIS pipeline for a conversation history.
 //
 //  1. Applies a hard 30-second context timeout.
-//  2. Builds the EDIS system prompt for the given category.
+//  2. Builds the EDIS system prompt for the given category, injecting the
+//     patient's clinical record so the AI can avoid allergenic prescriptions,
+//     detect drug interactions, and contextualise differentials.
 //  3. Calls the AI provider.
 //  4. On any error or timeout, returns a graceful fallback — never propagates the error.
 //  5. Analyses the raw response to compute escalation, low-confidence, and physician-review flags.
-func (e *Engine) Process(ctx context.Context, messages []ai.ChatMessage, category string) (*EDISResponse, error) {
+func (e *Engine) Process(ctx context.Context, messages []ai.ChatMessage, category string, patient PatientContext) (*EDISResponse, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, TimeoutDuration)
 	defer cancel()
 
-	prompt := buildEDISPrompt(category)
+	prompt := buildEDISPrompt(category, patient)
 
 	raw, err := e.provider.Chat(timeoutCtx, prompt, messages)
 	if err != nil {
@@ -201,14 +218,67 @@ func gracefulFallback() *EDISResponse {
 	}
 }
 
-// buildEDISPrompt constructs the full system prompt for a given category by
-// appending the category-specific snippet to the base EDIS prompt.
-func buildEDISPrompt(category string) string {
+// buildEDISPrompt constructs the full system prompt by combining:
+//   1. The base EDIS/health system prompt
+//   2. The patient's clinical record (if available)
+//   3. The category-specific snippet
+func buildEDISPrompt(category string, patient PatientContext) string {
 	base := ai.HealthSystemPrompt
+	patientBlock := buildPatientContextBlock(patient)
+	if patientBlock != "" {
+		base = base + "\n\n" + patientBlock
+	}
 	if snippet, ok := ai.CategoryPromptSnippets[category]; ok {
 		return base + "\n\n" + snippet
 	}
 	return base
+}
+
+// buildPatientContextBlock formats the patient's clinical profile into a
+// structured block that is injected into the system prompt. Fields that are
+// empty or unknown are omitted so the AI does not fabricate data.
+func buildPatientContextBlock(p PatientContext) string {
+	if p.Name == "" && p.Age == 0 && p.Gender == "" && p.BloodType == "" &&
+		p.Allergies == "" && p.MedicalHistory == "" && p.CurrentMedications == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	b.WriteString("PATIENT CLINICAL RECORD (LifeGate EMR — verified)\n")
+	b.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	if p.Name != "" {
+		fmt.Fprintf(&b, "Name          : %s\n", p.Name)
+	}
+	if p.Age > 0 {
+		fmt.Fprintf(&b, "Age           : %d years old\n", p.Age)
+	}
+	if p.Gender != "" {
+		fmt.Fprintf(&b, "Sex           : %s\n", p.Gender)
+	}
+	if p.BloodType != "" {
+		fmt.Fprintf(&b, "Blood Type    : %s\n", p.BloodType)
+	}
+	if p.Allergies != "" {
+		fmt.Fprintf(&b, "Allergies     : %s\n", p.Allergies)
+	}
+	if p.MedicalHistory != "" {
+		fmt.Fprintf(&b, "Medical Hx    : %s\n", p.MedicalHistory)
+	}
+	if p.CurrentMedications != "" {
+		fmt.Fprintf(&b, "Current Meds  : %s\n", p.CurrentMedications)
+	}
+
+	b.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	b.WriteString("SAFETY RULES — YOU MUST FOLLOW THESE:\n")
+	b.WriteString("• NEVER prescribe or suggest any medication the patient is documented as allergic to.\n")
+	b.WriteString("• CHECK for drug interactions between your suggestions and the patient's current medications.\n")
+	b.WriteString("• USE the patient's existing conditions to sharpen your differential diagnoses.\n")
+	b.WriteString("• RAISE urgency appropriately when comorbidities increase vulnerability (e.g. diabetes, immunosuppression).\n")
+	b.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	return b.String()
 }
 
 // synthesisUrgency maps a top-condition confidence score (and presence of investigations)
