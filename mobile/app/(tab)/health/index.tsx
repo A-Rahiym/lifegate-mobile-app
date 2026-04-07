@@ -46,7 +46,7 @@ const STATUS_CFG: Record<
     label: 'Monitor',
     icon: 'eye',
     color: '#b45309',
-    bg: '#fffbeb',
+    bg: '#f59e0b',
     border: '#fde68a',
     gradientFrom: '#fef3c7',
     gradientTo: '#fffbeb',
@@ -405,10 +405,6 @@ function AIInsightCard({
         flexDirection: 'row',
         alignItems: 'flex-start',
         gap: 12,
-        shadowColor: '#000',
-        shadowOpacity: 0.04,
-        shadowRadius: 6,
-        elevation: 2,
       }}
     >
       <View
@@ -604,7 +600,9 @@ export default function HealthDashboardScreen() {
   const firstName = user?.name?.split(' ')[0] ?? 'there';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }} edges={['top']}
+    className='mb-14'
+    >
       {/* ── Header ── */}
       <View
         style={{
@@ -738,10 +736,6 @@ export default function HealthDashboardScreen() {
               borderWidth: 1,
               borderColor: '#f3f4f6',
               overflow: 'hidden',
-              shadowColor: '#000',
-              shadowOpacity: 0.04,
-              shadowRadius: 6,
-              elevation: 2,
             }}
           >
             <View
@@ -820,10 +814,6 @@ export default function HealthDashboardScreen() {
                 padding: 16,
                 borderWidth: 1,
                 borderColor: '#f3f4f6',
-                shadowColor: '#000',
-                shadowOpacity: 0.04,
-                shadowRadius: 4,
-                elevation: 2,
               }}
             >
               {[

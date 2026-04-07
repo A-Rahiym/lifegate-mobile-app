@@ -17,7 +17,7 @@ const URGENCY_CONFIG: Record<
   { color: string; bg: string; border: string; label: string; icon: keyof typeof Ionicons.glyphMap }
 > = {
   LOW:      { color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', label: 'Low Risk',  icon: 'checkmark-circle'  },
-  MEDIUM:   { color: '#d97706', bg: '#fffbeb', border: '#fde68a', label: 'Moderate',   icon: 'warning'           },
+  MEDIUM:   { color: '#d97706', bg: '#ffb968', border: '#fde68a', label: 'Moderate',   icon: 'warning'           },
   HIGH:     { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', label: 'High Risk',  icon: 'alert-circle'      },
   CRITICAL: { color: '#7c3aed', bg: '#faf5ff', border: '#ddd6fe', label: 'Critical',   icon: 'pulse'             },
 };
