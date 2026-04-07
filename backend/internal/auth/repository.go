@@ -23,6 +23,7 @@ Allergies            *string    `json:"allergies,omitempty" db:"allergies"`
 MedicalHistory       *string    `json:"medical_history,omitempty" db:"medical_history"`
 CurrentMedications   *string    `json:"current_medications,omitempty" db:"current_medications"`
 EmergencyContact     *string    `json:"emergency_contact,omitempty" db:"emergency_contact"`
+Genotype             *string    `json:"genotype,omitempty" db:"genotype"`
 Specialization       string     `json:"specialization,omitempty" db:"specialization"`
 CertificateName      string     `json:"certificateName,omitempty" db:"certificate_name"`
 CertificateID        string     `json:"certificateId,omitempty" db:"certificate_id"`
@@ -64,7 +65,7 @@ row := r.db.QueryRow(
 `SELECT id, COALESCE(user_id,''), COALESCE(patient_id,''), name, email, role,
         COALESCE(phone,''), COALESCE(dob,''), COALESCE(gender,''), COALESCE(language,''),
         COALESCE(health_history,''), blood_type, allergies, medical_history,
-        current_medications, emergency_contact, COALESCE(specialization,''),
+        current_medications, emergency_contact, genotype, COALESCE(specialization,''),
         COALESCE(certificate_name,''), COALESCE(certificate_id,''),
         COALESCE(certificate_issue_date,''), COALESCE(years_of_experience,''),
         mdcn_verified, mdcn_verified_at, created_at, updated_at
@@ -77,7 +78,7 @@ row := r.db.QueryRow(
 `SELECT id, COALESCE(user_id,''), COALESCE(patient_id,''), name, email, role,
         COALESCE(phone,''), COALESCE(dob,''), COALESCE(gender,''), COALESCE(language,''),
         COALESCE(health_history,''), blood_type, allergies, medical_history,
-        current_medications, emergency_contact, COALESCE(specialization,''),
+        current_medications, emergency_contact, genotype, COALESCE(specialization,''),
         COALESCE(certificate_name,''), COALESCE(certificate_id,''),
         COALESCE(certificate_issue_date,''), COALESCE(years_of_experience,''),
         mdcn_verified, mdcn_verified_at, created_at, updated_at
@@ -91,7 +92,7 @@ err := row.Scan(
 &u.ID, &u.UserID, &u.PatientID, &u.Name, &u.Email, &u.Role,
 &u.Phone, &u.DOB, &u.Gender, &u.Language,
 &u.HealthHistory, &u.BloodType, &u.Allergies, &u.MedicalHistory,
-&u.CurrentMedications, &u.EmergencyContact, &u.Specialization,
+&u.CurrentMedications, &u.EmergencyContact, &u.Genotype, &u.Specialization,
 &u.CertificateName, &u.CertificateID, &u.CertificateIssueDate,
 &u.YearsOfExperience, &u.MdcnVerified, &u.MdcnVerifiedAt,
 &u.CreatedAt, &u.UpdatedAt,
@@ -111,7 +112,7 @@ row := r.db.QueryRow(
  RETURNING id, COALESCE(user_id,''), COALESCE(patient_id,''), name, email, role,
            COALESCE(phone,''), COALESCE(dob,''), COALESCE(gender,''), COALESCE(language,''),
            COALESCE(health_history,''), blood_type, allergies, medical_history,
-           current_medications, emergency_contact, COALESCE(specialization,''),
+           current_medications, emergency_contact, genotype, COALESCE(specialization,''),
            COALESCE(certificate_name,''), COALESCE(certificate_id,''),
            COALESCE(certificate_issue_date,''), COALESCE(years_of_experience,''),
            mdcn_verified, mdcn_verified_at, created_at, updated_at`,
@@ -183,6 +184,7 @@ type HealthProfileInput struct {
 	MedicalHistory     *string `json:"medical_history"`
 	CurrentMedications *string `json:"current_medications"`
 	EmergencyContact   *string `json:"emergency_contact"`
+	Genotype           *string `json:"genotype"`
 }
 
 func (r *Repository) UpdateHealthProfile(userID string, in HealthProfileInput) (*User, error) {
@@ -193,9 +195,10 @@ func (r *Repository) UpdateHealthProfile(userID string, in HealthProfileInput) (
 		    medical_history     = COALESCE($4, medical_history),
 		    current_medications = COALESCE($5, current_medications),
 		    emergency_contact   = COALESCE($6, emergency_contact),
+		    genotype            = COALESCE($7, genotype),
 		    updated_at          = NOW()
 		WHERE id = $1::uuid`,
-		userID, in.BloodType, in.Allergies, in.MedicalHistory, in.CurrentMedications, in.EmergencyContact,
+		userID, in.BloodType, in.Allergies, in.MedicalHistory, in.CurrentMedications, in.EmergencyContact, in.Genotype,
 	)
 	if err != nil {
 		return nil, err

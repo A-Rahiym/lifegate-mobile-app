@@ -88,6 +88,7 @@ type PatientContext struct {
 	Age                int    // 0 = unknown
 	Gender             string
 	BloodType          string
+	Genotype           string
 	Allergies          string
 	MedicalHistory     string
 	CurrentMedications string
@@ -285,7 +286,7 @@ func buildEDISPrompt(category string, patient PatientContext) string {
 // structured block that is injected into the system prompt. Fields that are
 // empty or unknown are omitted so the AI does not fabricate data.
 func buildPatientContextBlock(p PatientContext) string {
-	if p.Name == "" && p.Age == 0 && p.Gender == "" && p.BloodType == "" &&
+	if p.Name == "" && p.Age == 0 && p.Gender == "" && p.BloodType == "" && p.Genotype == "" &&
 		p.Allergies == "" && p.MedicalHistory == "" && p.CurrentMedications == "" {
 		return ""
 	}
@@ -306,6 +307,9 @@ func buildPatientContextBlock(p PatientContext) string {
 	}
 	if p.BloodType != "" {
 		fmt.Fprintf(&b, "Blood Type    : %s\n", p.BloodType)
+	}
+	if p.Genotype != "" {
+		fmt.Fprintf(&b, "Genotype      : %s\n", p.Genotype)
 	}
 	if p.Allergies != "" {
 		fmt.Fprintf(&b, "Allergies     : %s\n", p.Allergies)

@@ -20,6 +20,7 @@ import { useProfileStore } from 'stores/auth/profile-store';
 const TEAL = '#0EA5A4';
 
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const GENOTYPES = ['AA', 'AS', 'SS', 'SC', 'AC', 'CC'];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -90,18 +91,20 @@ function FocusableInput({
 
 function ProfileCompleteness({
   bloodType,
+  genotype,
   allergies,
   medicalHistory,
   medications,
   emergency,
 }: {
   bloodType: string;
+  genotype: string;
   allergies: string;
   medicalHistory: string;
   medications: string;
   emergency: string;
 }) {
-  const fields = [bloodType, allergies, medicalHistory, medications, emergency];
+  const fields = [bloodType, genotype, allergies, medicalHistory, medications, emergency];
   const filled = fields.filter((f) => f.trim().length > 0).length;
   const pct = Math.round((filled / fields.length) * 100);
 
@@ -142,6 +145,7 @@ export default function ManageProfileScreen() {
   const { loading, error, updateHealthProfile, getProfile, clearError } = useProfileStore();
 
   const [bloodType, setBloodType] = useState(user?.blood_type ?? '');
+  const [genotype, setGenotype] = useState(user?.genotype ?? '');
   const [allergies, setAllergies] = useState(user?.allergies ?? '');
   const [medicalHistory, setMedicalHistory] = useState(user?.medical_history ?? '');
   const [currentMedications, setCurrentMedications] = useState(user?.current_medications ?? '');
@@ -151,6 +155,7 @@ export default function ManageProfileScreen() {
   // Track whether the user has made any changes
   const isDirty =
     (bloodType ?? '') !== (user?.blood_type ?? '') ||
+    (genotype ?? '') !== (user?.genotype ?? '') ||
     (allergies ?? '') !== (user?.allergies ?? '') ||
     (medicalHistory ?? '') !== (user?.medical_history ?? '') ||
     (currentMedications ?? '') !== (user?.current_medications ?? '') ||
@@ -159,6 +164,7 @@ export default function ManageProfileScreen() {
   // Sync form whenever the auth store user updates (e.g. after save)
   useEffect(() => {
     setBloodType(user?.blood_type ?? '');
+    setGenotype(user?.genotype ?? '');
     setAllergies(user?.allergies ?? '');
     setMedicalHistory(user?.medical_history ?? '');
     setCurrentMedications(user?.current_medications ?? '');
@@ -179,6 +185,7 @@ export default function ManageProfileScreen() {
     clearError();
     const ok = await updateHealthProfile({
       blood_type: bloodType.trim() || null,
+      genotype: genotype.trim() || null,
       allergies: allergies.trim() || null,
       medical_history: medicalHistory.trim() || null,
       current_medications: currentMedications.trim() || null,
@@ -219,17 +226,19 @@ export default function ManageProfileScreen() {
           {/* Completeness indicator */}
           <ProfileCompleteness
             bloodType={bloodType}
+            genotype={genotype}
             allergies={allergies}
             medicalHistory={medicalHistory}
             medications={currentMedications}
             emergency={emergencyContact}
           />
 
-          {/* ── Blood Type ── */}
+          {/* ── Blood Type & Genotype ── */}
           <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-            <SectionHeader icon="water-outline" title="Blood Type" />
-            <FieldLabel label="Select your blood type" hint="Used by the AI for transfusion flags and drug risk assessments." />
-            <View className="flex-row flex-wrap gap-2 mt-2">
+            <SectionHeader icon="water-outline" title="Blood Type & Genotype" />
+
+            <FieldLabel label="Blood Type" hint="Used by the AI for transfusion flags and drug risk assessments." />
+            <View className="flex-row flex-wrap gap-2 mt-2 mb-4">
               {BLOOD_TYPES.map((bt) => {
                 const active = bloodType === bt;
                 return (
@@ -253,7 +262,45 @@ export default function ManageProfileScreen() {
               })}
             </View>
             {bloodType === '' && (
-              <Text className="text-xs text-amber-500 mt-3 font-medium">⚠ No blood type selected</Text>
+              <Text className="text-xs text-amber-500 mb-3 font-medium">⚠ No blood type selected</Text>
+            )}
+
+            <FieldLabel label="Genotype" hint="Critical for sickle-cell risk assessment and compatibility checks." />
+            <View className="flex-row flex-wrap gap-2 mt-2">
+              {GENOTYPES.map((gt) => {
+                const active = genotype === gt;
+                const isSickle = gt === 'SS' || gt === 'SC' || gt === 'CC';
+                const activeColor = isSickle ? '#dc2626' : TEAL;
+                return (
+                  <Pressable
+                    key={gt}
+                    onPress={() => setGenotype(active ? '' : gt)}
+                    accessibilityLabel={`Genotype ${gt}${active ? ', selected' : ''}`}
+                    accessibilityRole="radio"
+                    style={{
+                      paddingHorizontal: 18,
+                      paddingVertical: 9,
+                      borderRadius: 99,
+                      borderWidth: active ? 2 : 1,
+                      borderColor: active ? activeColor : '#e5e7eb',
+                      backgroundColor: active ? (isSickle ? '#fef2f2' : '#f0fffe') : '#f9fafb',
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: active ? activeColor : '#374151' }}>{gt}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {(genotype === 'SS' || genotype === 'SC' || genotype === 'CC') && (
+              <View className="flex-row items-center gap-1.5 mt-3 bg-red-50 rounded-xl px-3 py-2">
+                <Ionicons name="warning-outline" size={14} color="#dc2626" />
+                <Text className="text-xs text-red-600 font-medium flex-1">
+                  Sickle-cell genotype detected — the AI will always factor this into risk assessments and urgency.
+                </Text>
+              </View>
+            )}
+            {genotype === '' && (
+              <Text className="text-xs text-amber-500 mt-3 font-medium">⚠ No genotype selected</Text>
             )}
           </View>
 

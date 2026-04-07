@@ -28,13 +28,13 @@ func (s *Service) fetchPatientContext(userID string) edis.PatientContext {
 
 	var (
 		name, dob, gender string
-		bloodType, allergies, medicalHistory, currentMedications sql.NullString
+		bloodType, allergies, medicalHistory, currentMedications, genotype sql.NullString
 	)
 	err := s.db.QueryRow(
 		`SELECT COALESCE(name,''), COALESCE(dob,''), COALESCE(gender,''),
-		        blood_type, allergies, medical_history, current_medications
+		        blood_type, allergies, medical_history, current_medications, genotype
 		   FROM users WHERE id = $1`, userID,
-	).Scan(&name, &dob, &gender, &bloodType, &allergies, &medicalHistory, &currentMedications)
+	).Scan(&name, &dob, &gender, &bloodType, &allergies, &medicalHistory, &currentMedications, &genotype)
 	if err != nil {
 		log.Printf("[EDIS] fetchPatientContext: %v", err)
 		return edis.PatientContext{}
@@ -45,6 +45,7 @@ func (s *Service) fetchPatientContext(userID string) edis.PatientContext {
 		Age:                ageFromDOB(dob),
 		Gender:             gender,
 		BloodType:          bloodType.String,
+		Genotype:           genotype.String,
 		Allergies:          allergies.String,
 		MedicalHistory:     medicalHistory.String,
 		CurrentMedications: currentMedications.String,

@@ -388,6 +388,7 @@ export const AuthService = {
    */
   async updateHealthProfile(data: {
     blood_type?: string | null;
+    genotype?: string | null;
     allergies?: string | null;
     medical_history?: string | null;
     current_medications?: string | null;
