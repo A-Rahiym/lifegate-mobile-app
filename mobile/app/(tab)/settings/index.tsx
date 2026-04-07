@@ -133,13 +133,6 @@ export default function SettingsScreen() {
             flexDirection: 'row',
             alignItems: 'center',
             padding: 16,
-            shadowColor: '#000',
-            shadowOpacity: 0.06,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 3,
-            borderWidth: 1,
-            borderColor: '#f3f4f6',
           }}
         >
           {/* Avatar */}
@@ -204,12 +197,6 @@ export default function SettingsScreen() {
                 borderRadius: 16,
                 borderWidth: 1,
                 borderColor: '#f3f4f6',
-                shadowColor: '#000',
-                shadowOpacity: 0.04,
-                shadowRadius: 6,
-                shadowOffset: { width: 0, height: 1 },
-                elevation: 2,
-                overflow: 'hidden',
               }}
             >
               {section.items.map((item, idx) => (
