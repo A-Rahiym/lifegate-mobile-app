@@ -27,9 +27,17 @@ const (
 	// the response is flagged for mandatory physician review, even in General mode.
 	LowConfidenceThreshold = 60
 
-	// TimeoutDuration is the hard wall-clock limit for every AI provider call.
-	// When exceeded, Engine.Process returns a graceful fallback — never a raw error.
-	TimeoutDuration = 30 * time.Second
+	// TimeoutDuration is the hard wall-clock limit for the entire Process call
+	// including all retries. When exceeded, Process returns a graceful fallback.
+	TimeoutDuration = 45 * time.Second
+
+	// maxRetries is the number of additional attempts after the first failure.
+	// Total attempts = 1 + maxRetries.
+	maxRetries = 2
+
+	// retryBaseDelay is the initial back-off delay between retries.
+	// Each subsequent retry doubles the delay (1 s → 2 s).
+	retryBaseDelay = 1 * time.Second
 )
 
 // ─── Risk flag codes ─────────────────────────────────────────────────────────
@@ -119,22 +127,61 @@ func (e *Engine) Ping(ctx context.Context) error {
 
 // Process runs the full EDIS pipeline for a conversation history.
 //
-//  1. Applies a hard 30-second context timeout.
+//  1. Applies a hard 45-second context timeout (covers all retries).
 //  2. Builds the EDIS system prompt for the given category, injecting the
 //     patient's clinical record so the AI can avoid allergenic prescriptions,
 //     detect drug interactions, and contextualise differentials.
-//  3. Calls the AI provider.
-//  4. On any error or timeout, returns a graceful fallback — never propagates the error.
-//  5. Analyses the raw response to compute escalation, low-confidence, and physician-review flags.
+//  3. Calls the AI provider with up to maxRetries retries on transient errors,
+//     using exponential back-off. Retries are skipped when the context is
+//     already cancelled (e.g. the hard timeout was hit).
+//  4. On persistent failure or timeout, returns a graceful fallback — never
+//     propagates the error to the caller.
+//  5. Analyses the raw response to compute escalation, low-confidence, and
+//     physician-review flags.
 func (e *Engine) Process(ctx context.Context, messages []ai.ChatMessage, category string, patient PatientContext) (*EDISResponse, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, TimeoutDuration)
 	defer cancel()
 
 	prompt := buildEDISPrompt(category, patient)
 
-	raw, err := e.provider.Chat(timeoutCtx, prompt, messages)
-	if err != nil {
-		log.Printf("[EDIS] provider error (category=%s provider=%s): %v", category, e.provider.Name(), err)
+	var (
+		raw     *ai.AIResponse
+		lastErr error
+	)
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// If the overall deadline has already passed, stop retrying.
+		if timeoutCtx.Err() != nil {
+			log.Printf("[EDIS] context cancelled before attempt %d (category=%s): %v", attempt+1, category, timeoutCtx.Err())
+			break
+		}
+
+		// Back-off before each retry (not before the first attempt).
+		if attempt > 0 {
+			delay := retryBaseDelay * time.Duration(1<<uint(attempt-1)) // 1s, 2s, …
+			log.Printf("[EDIS] retry %d/%d after %v (category=%s provider=%s): %v",
+				attempt, maxRetries, delay, category, e.provider.Name(), lastErr)
+			select {
+			case <-time.After(delay):
+			case <-timeoutCtx.Done():
+				log.Printf("[EDIS] context cancelled during back-off (category=%s): %v", category, timeoutCtx.Err())
+				break
+			}
+			if timeoutCtx.Err() != nil {
+				break
+			}
+		}
+
+		raw, lastErr = e.provider.Chat(timeoutCtx, prompt, messages)
+		if lastErr == nil {
+			// Success — stop retrying.
+			break
+		}
+	}
+
+	if lastErr != nil {
+		log.Printf("[EDIS] all attempts failed (category=%s provider=%s attempts=%d): %v",
+			category, e.provider.Name(), maxRetries+1, lastErr)
 		return gracefulFallback(), nil
 	}
 
