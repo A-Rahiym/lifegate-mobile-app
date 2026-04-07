@@ -74,12 +74,6 @@ export default function SettingsScreen() {
           sublabel: 'Blood type, allergies & medications',
           onPress: () => router.push('/(tab)/settings/manage-profile'),
         },
-        {
-          icon: 'heart-outline',
-          label: 'Health Dashboard',
-          sublabel: 'Timeline & reports',
-          onPress: () => router.push('/(tab)/health'),
-        },
       ],
     },
     {
