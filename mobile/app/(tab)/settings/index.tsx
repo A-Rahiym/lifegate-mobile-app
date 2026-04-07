@@ -69,6 +69,12 @@ export default function SettingsScreen() {
       color: '#0AADA2',
       items: [
         {
+          icon: 'fitness-outline',
+          label: 'Health Profile',
+          sublabel: 'Blood type, allergies & medications',
+          onPress: () => router.push('/(tab)/settings/manage-profile'),
+        },
+        {
           icon: 'heart-outline',
           label: 'Health Dashboard',
           sublabel: 'Timeline & reports',
