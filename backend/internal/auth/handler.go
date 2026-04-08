@@ -92,7 +92,7 @@ func (h *Handler) Login(c *gin.Context) {
 		}
 		return
 	}
-	respond(c, http.StatusOK, true, "Login successful", gin.H{"token": pair.Token, "user": pair.User})
+	respond(c, http.StatusOK, true, "Login successful", gin.H{"token": pair.Token, "refresh_token": pair.RefreshToken, "user": pair.User})
 }
 
 // VerifyPhysician2FA verifies a physician 2FA OTP and returns a JWT.
@@ -126,7 +126,7 @@ func (h *Handler) VerifyPhysician2FA(c *gin.Context) {
 		}
 		return
 	}
-	respond(c, http.StatusOK, true, "Login successful", gin.H{"token": pair.Token, "user": pair.User})
+	respond(c, http.StatusOK, true, "Login successful", gin.H{"token": pair.Token, "refresh_token": pair.RefreshToken, "user": pair.User})
 }
 
 // ResendPhysician2FA resends the 2FA OTP to a physician.
@@ -206,7 +206,7 @@ if err != nil {
 respond(c, http.StatusBadRequest, false, err.Error(), nil)
 return
 }
-respond(c, http.StatusCreated, true, "Registration successful", gin.H{"token": pair.Token, "user": pair.User})
+respond(c, http.StatusCreated, true, "Registration successful", gin.H{"token": pair.Token, "refresh_token": pair.RefreshToken, "user": pair.User})
 }
 
 // RegisterStart initiates OTP-verified registration (patient or physician).
@@ -347,7 +347,7 @@ if err != nil {
 	}
 	return
 }
-respond(c, http.StatusOK, true, "Registration complete", gin.H{"token": pair.Token, "user": pair.User})
+respond(c, http.StatusOK, true, "Registration complete", gin.H{"token": pair.Token, "refresh_token": pair.RefreshToken, "user": pair.User})
 }
 
 // RegisterResend resends the registration OTP.
@@ -600,3 +600,58 @@ func (h *Handler) MarkMDCNVerified(c *gin.Context) {
 	respond(c, http.StatusOK, true, "MDCN verification confirmed", gin.H{"user": user})
 }
 
+// Refresh exchanges a valid refresh token for a new access + refresh token pair.
+//
+// @Summary      Refresh access token
+// @Description  Provide a valid refresh token to receive a new short-lived access token and a rotated refresh token.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      object{refresh_token=string}  true  "Refresh token"
+// @Success      200   {object}  object{success=bool,message=string,data=object{token=string,refresh_token=string,user=object}}
+// @Failure      400   {object}  object{success=bool,message=string}
+// @Failure      401   {object}  object{success=bool,message=string}
+// @Router       /auth/refresh [post]
+func (h *Handler) Refresh(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond(c, http.StatusBadRequest, false, "refresh_token is required", nil)
+		return
+	}
+	pair, err := h.svc.RefreshAccessToken(c.Request.Context(), req.RefreshToken)
+	if err != nil {
+		respond(c, http.StatusUnauthorized, false, err.Error(), nil)
+		return
+	}
+	respond(c, http.StatusOK, true, "Token refreshed", gin.H{
+		"token":         pair.Token,
+		"refresh_token": pair.RefreshToken,
+		"user":          pair.User,
+	})
+}
+
+// Logout revokes the provided refresh token server-side.
+//
+// @Summary      Logout
+// @Description  Revoke the refresh token to invalidate the session. The client should discard both tokens.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      object{refresh_token=string}  true  "Refresh token to revoke"
+// @Success      200   {object}  object{success=bool,message=string}
+// @Failure      400   {object}  object{success=bool,message=string}
+// @Router       /auth/logout [post]
+func (h *Handler) Logout(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respond(c, http.StatusBadRequest, false, "refresh_token is required", nil)
+		return
+	}
+	// Best-effort revocation — ignore Redis errors so the client can always clear local state.
+	_ = h.svc.RevokeRefreshToken(c.Request.Context(), req.RefreshToken)
+	respond(c, http.StatusOK, true, "Logged out", nil)
+}

@@ -98,6 +98,7 @@ export type BackendLoginResponse = {
   message: string;
   data?: {
     token?: string;
+    refresh_token?: string;
     user?: User;
     // Set when physician login requires a second factor
     requires2FA?: boolean;
@@ -110,6 +111,7 @@ export type AuthResponse = {
   success: boolean;
   user?: User;
   token?: string;
+  refreshToken?: string;
   message?: string;
   // Set when the backend requires physician 2FA before issuing a JWT
   requires2FA?: boolean;

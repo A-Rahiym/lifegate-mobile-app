@@ -42,7 +42,7 @@ export const AuthService = {
         return { success: false, message: response.data.message || 'Login failed' };
       }
 
-      return { success: true, user: data.user, token: data.token };
+      return { success: true, user: data.user, token: data.token, refreshToken: data.refresh_token };
     } catch (error: unknown) {
       return { success: false, message: extractErrorMessage(error) };
     }
@@ -66,6 +66,7 @@ export const AuthService = {
       return {
         success: true,
         token: response.data.data.token,
+        refreshToken: response.data.data.refresh_token,
         user: response.data.data.user,
       };
     } catch (error: unknown) {
@@ -405,6 +406,43 @@ export const AuthService = {
       return { success: true, message: response.data.message, user: response.data.data?.user };
     } catch (error: unknown) {
       return { success: false, message: extractErrorMessage(error) };
+    }
+  },
+
+  /**
+   * Exchange a refresh token for a new access + refresh token pair.
+   * POST /auth/refresh
+   */
+  async refresh(refreshToken: string): Promise<AuthResponse> {
+    try {
+      const response = await api.post<BackendLoginResponse>('/auth/refresh', {
+        refresh_token: refreshToken,
+      });
+      if (!response.data.success || !response.data.data?.token) {
+        return { success: false, message: response.data.message || 'Token refresh failed' };
+      }
+      return {
+        success: true,
+        token: response.data.data.token,
+        refreshToken: response.data.data.refresh_token,
+        user: response.data.data.user,
+      };
+    } catch (error: unknown) {
+      return { success: false, message: extractErrorMessage(error) };
+    }
+  },
+
+  /**
+   * Revoke the refresh token server-side (logout).
+   * POST /auth/logout
+   */
+  async logout(refreshToken: string): Promise<{ success: boolean }> {
+    try {
+      await api.post('/auth/logout', { refresh_token: refreshToken });
+      return { success: true };
+    } catch {
+      // Best-effort — always succeed on the client side
+      return { success: true };
     }
   },
 };

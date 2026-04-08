@@ -14,8 +14,9 @@ type Config struct {
 	RedisURL    string
 	NatsURL     string
 
-	JWTSecret string
-	JWTExpiry string
+	JWTSecret            string
+	JWTExpiry            string
+	RefreshTokenExpiry   string
 
 	AIProvider string
 
@@ -65,8 +66,9 @@ func Load() *Config {
 		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379"),
 		NatsURL:     getEnv("NATS_URL", "nats://localhost:4222"),
 
-		JWTSecret: getEnv("JWT_SECRET", "changeme-secret"),
-		JWTExpiry: getEnv("JWT_EXPIRY", "24h"),
+		JWTSecret:          getEnv("JWT_SECRET", "changeme-secret"),
+		JWTExpiry:          getEnv("JWT_EXPIRY", "15m"),
+		RefreshTokenExpiry: getEnv("REFRESH_TOKEN_EXPIRY", "168h"),
 
 		AIProvider: provider,
 

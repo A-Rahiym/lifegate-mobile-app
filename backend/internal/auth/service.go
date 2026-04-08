@@ -59,8 +59,54 @@ func (s *Service) SetTrialCreditGranter(g TrialCreditGranter) {
 }
 
 type TokenPair struct {
-Token string `json:"token"`
-User  *User  `json:"user"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+	User         *User  `json:"user"`
+}
+
+// IssueRefreshToken generates a cryptographically random refresh token,
+// stores it in Redis keyed as "refresh:<token>" → userID with the configured TTL,
+// and returns the raw token value.
+func (s *Service) IssueRefreshToken(ctx context.Context, userID string) (string, error) {
+	token := randomHex(32)
+	ttl := 7 * 24 * time.Hour
+	if s.cfg.RefreshTokenExpiry != "" {
+		if d, err := time.ParseDuration(s.cfg.RefreshTokenExpiry); err == nil {
+			ttl = d
+		}
+	}
+	if err := s.redis.SetEx(ctx, "refresh:"+token, userID, int(ttl.Seconds())); err != nil {
+		return "", fmt.Errorf("failed to issue refresh token: %w", err)
+	}
+	return token, nil
+}
+
+// RefreshAccessToken validates a refresh token, rotates it, and returns a new TokenPair.
+func (s *Service) RefreshAccessToken(ctx context.Context, refreshToken string) (*TokenPair, error) {
+	userID, err := s.redis.Get(ctx, "refresh:"+refreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("invalid or expired refresh token")
+	}
+	user, err := s.repo.FindUserByID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	// Rotate refresh token — delete old, issue new (prevents replay).
+	_ = s.redis.Del(ctx, "refresh:"+refreshToken)
+	newRefreshToken, err := s.IssueRefreshToken(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	accessToken, err := s.generateJWT(user)
+	if err != nil {
+		return nil, err
+	}
+	return &TokenPair{Token: accessToken, RefreshToken: newRefreshToken, User: user}, nil
+}
+
+// RevokeRefreshToken removes a refresh token from Redis, invalidating it immediately.
+func (s *Service) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	return s.redis.Del(ctx, "refresh:"+refreshToken)
 }
 
 func (s *Service) Login(ctx context.Context, email, password, clientIP string) (*TokenPair, error) {
@@ -147,22 +193,30 @@ func (s *Service) Login(ctx context.Context, email, password, clientIP string) (
 	if err != nil {
 		return nil, err
 	}
-	return &TokenPair{Token: token, User: user}, nil
+	refreshToken, err := s.IssueRefreshToken(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &TokenPair{Token: token, RefreshToken: refreshToken, User: user}, nil
 }
 
 func (s *Service) Register(u *User, password string) (*TokenPair, error) {
-hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-if err != nil {
-return nil, err
-}
-if err := s.repo.CreateUser(u, string(hash)); err != nil {
-return nil, err
-}
-token, err := s.generateJWT(u)
-if err != nil {
-return nil, err
-}
-return &TokenPair{Token: token, User: u}, nil
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.CreateUser(u, string(hash)); err != nil {
+		return nil, err
+	}
+	token, err := s.generateJWT(u)
+	if err != nil {
+		return nil, err
+	}
+	refreshToken, err := s.IssueRefreshToken(context.Background(), u.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &TokenPair{Token: token, RefreshToken: refreshToken, User: u}, nil
 }
 
 type RegisterStartPayload struct {
@@ -356,9 +410,13 @@ if u.Role != "professional" && s.trialGranter != nil {
 
 token, err := s.generateJWT(u)
 if err != nil {
-return nil, err
+	return nil, err
 }
-return &TokenPair{Token: token, User: u}, nil
+refreshToken, err := s.IssueRefreshToken(context.Background(), u.ID)
+if err != nil {
+	return nil, err
+}
+return &TokenPair{Token: token, RefreshToken: refreshToken, User: u}, nil
 }
 
 func (s *Service) ResendOTP(ctx context.Context, email string) (string, int, error) {
@@ -434,7 +492,11 @@ func (s *Service) VerifyPhysician2FA(ctx context.Context, email, otp string) (*T
 	if err != nil {
 		return nil, err
 	}
-	return &TokenPair{Token: token, User: user}, nil
+	refreshToken, err := s.IssueRefreshToken(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &TokenPair{Token: token, RefreshToken: refreshToken, User: user}, nil
 }
 
 func (s *Service) ResendPhysician2FA(ctx context.Context, email string) error {

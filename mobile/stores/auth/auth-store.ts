@@ -6,7 +6,8 @@
 import { create } from 'zustand';
 import { AuthService } from 'services/auth-service';
 import { User } from 'types/auth-types';
-import { getToken, removeToken, saveToken } from 'utils/tokenStorage';
+import { getRefreshToken, removeRefreshToken, removeToken, saveRefreshToken } from 'utils/tokenStorage';
+import { setAccessToken } from 'services/api';
 import { extractErrorMessage } from 'utils/error-utils';
 
 type AuthState = {
@@ -70,25 +71,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // Restore session from secure storage and token
   restoreSession: async () => {
     try {
-      const token = await getToken();
-      if (token) {
-        // Fetch user profile to restore user data
-        const response = await AuthService.getProfile();
-        if (response.success && response.user) {
-          set({
-            user: response.user,
-            isAuthenticated: true,
-          });
+      const refreshToken = await getRefreshToken();
+      if (refreshToken) {
+        // Exchange refresh token for a fresh access token.
+        const result = await AuthService.refresh(refreshToken);
+        if (result.success && result.token && result.user) {
+          setAccessToken(result.token);
+          if (result.refreshToken) {
+            await saveRefreshToken(result.refreshToken);
+          }
+          set({ user: result.user, isAuthenticated: true });
         } else {
-          // Token exists but profile fetch failed (expired / revoked) — purge it
-          await removeToken();
+          // Refresh token is invalid or revoked — clear everything.
+          await removeRefreshToken();
+          setAccessToken(null);
           set({ isAuthenticated: false, user: null });
         }
       } else {
         set({ isAuthenticated: false });
       }
     } catch {
-      await removeToken();
+      await removeRefreshToken();
+      setAccessToken(null);
       set({ isAuthenticated: false, user: null });
     }
   },
@@ -115,11 +119,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
 
-      // Always persist the token so the session survives refresh.
-      // rememberMe controls UI affordances only — storage is always needed
-      // because Zustand state is in-memory and is wiped on reload.
+      // Access token lives only in memory; refresh token is persisted securely.
       if (response.token) {
-        await saveToken(response.token);
+        setAccessToken(response.token);
+      }
+      if (response.refreshToken) {
+        await saveRefreshToken(response.refreshToken);
       }
 
       set({
@@ -149,7 +154,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
       if (response.token) {
-        await saveToken(response.token);
+        setAccessToken(response.token);
+      }
+      if (response.refreshToken) {
+        await saveRefreshToken(response.refreshToken);
       }
       set({
         user: response.user,
@@ -167,7 +175,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // -------- LOGOUT --------
   logout: async () => {
-    await removeToken();
+    // Revoke refresh token server-side (best-effort).
+    try {
+      const refreshToken = await getRefreshToken();
+      if (refreshToken) {
+        await AuthService.logout(refreshToken);
+      }
+    } catch { /* best-effort */ }
+
+    // Clear in-memory access token and persisted refresh token.
+    setAccessToken(null);
+    await removeToken().catch(() => {});
+    await removeRefreshToken().catch(() => {});
+
     // Clear auth state
     set({
       user: null,

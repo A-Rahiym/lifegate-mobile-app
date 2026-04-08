@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TOKEN_KEY = 'lifegate_token';
+const REFRESH_TOKEN_KEY = 'lifegate_refresh_token';
 
 /**
  * Cache the result after the first probe so we don't pay the try/catch cost
@@ -27,30 +28,75 @@ async function probeSecureStore(): Promise<boolean> {
   return secureStoreWorks;
 }
 
-export async function saveToken(token: string): Promise<void> {
+async function storeSet(key: string, value: string): Promise<void> {
   if (await probeSecureStore()) {
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
+    await SecureStore.setItemAsync(key, value);
   } else {
-    await AsyncStorage.setItem(TOKEN_KEY, token);
+    await AsyncStorage.setItem(key, value);
   }
+}
+
+async function storeGet(key: string): Promise<string | null> {
+  if (await probeSecureStore()) {
+    return SecureStore.getItemAsync(key);
+  }
+  return AsyncStorage.getItem(key);
+}
+
+async function storeRemove(key: string): Promise<void> {
+  if (await probeSecureStore()) {
+    await SecureStore.deleteItemAsync(key);
+  } else {
+    await AsyncStorage.removeItem(key);
+  }
+}
+
+// ─── Access token ─────────────────────────────────────────────────────────────
+// NOTE: The access token is intentionally kept in-memory only (Zustand state +
+// api.ts module variable). These functions are kept for legacy session restore
+// but should not be used for new write paths.
+
+export async function saveToken(token: string): Promise<void> {
+  await storeSet(TOKEN_KEY, token);
 }
 
 export async function getToken(): Promise<string | null> {
-  if (await probeSecureStore()) {
-    return SecureStore.getItemAsync(TOKEN_KEY);
-  }
-  return AsyncStorage.getItem(TOKEN_KEY);
+  return storeGet(TOKEN_KEY);
 }
 
 export async function removeToken(): Promise<void> {
-  if (await probeSecureStore()) {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-  } else {
-    await AsyncStorage.removeItem(TOKEN_KEY);
+  await storeRemove(TOKEN_KEY);
+}
+
+/**
+ * Returns true only when a token exists AND its exp claim is
+ * more than 10 seconds in the future. A missing or malformed
+ * JWT is treated as invalid.
+ */
+export async function isTokenValid(): Promise<boolean> {
+  const token = await getToken();
+  if (!token) return false;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (typeof payload.exp !== 'number') return false;
+    return payload.exp * 1000 > Date.now() + 10_000;
+  } catch {
+    return false;
   }
 }
 
-export async function isTokenValid(): Promise<boolean> {
-  const token = await getToken();
-  return !!token;
+// ─── Refresh token ────────────────────────────────────────────────────────────
+
+export async function saveRefreshToken(token: string): Promise<void> {
+  await storeSet(REFRESH_TOKEN_KEY, token);
+}
+
+export async function getRefreshToken(): Promise<string | null> {
+  return storeGet(REFRESH_TOKEN_KEY);
+}
+
+export async function removeRefreshToken(): Promise<void> {
+  await storeRemove(REFRESH_TOKEN_KEY);
 }

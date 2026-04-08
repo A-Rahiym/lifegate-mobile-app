@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import NetInfo from '@react-native-community/netinfo';
-import { getToken, removeToken } from '../utils/tokenStorage';
+import { getRefreshToken, removeRefreshToken, removeToken } from '../utils/tokenStorage';
 
 /**
  * Resolve the correct API base URL at runtime.
@@ -54,6 +54,44 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
+// ─── In-memory access token ────────────────────────────────────────────────
+// The access token lives only in memory to limit XSS exposure.
+// The refresh token is persisted to SecureStore via tokenStorage.ts.
+let _accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  _accessToken = token;
+}
+
+export function getAccessToken(): string | null {
+  return _accessToken;
+}
+
+/**
+ * Decode the exp claim from a JWT (base64url-encoded payload) without
+ * verifying the signature. Returns -1 on any parse failure.
+ */
+function jwtExp(token: string): number {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return -1;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp === 'number' ? payload.exp : -1;
+  } catch {
+    return -1;
+  }
+}
+
+// ─── Silent refresh state ──────────────────────────────────────────────────
+// Ensures concurrent 401 responses only trigger one refresh attempt.
+let isRefreshing = false;
+let pendingResolvers: Array<(token: string | null) => void> = [];
+
+function onRefreshComplete(token: string | null) {
+  pendingResolvers.forEach((resolve) => resolve(token));
+  pendingResolvers = [];
+}
+
 /**
  * Create and configure axios instance with interceptors
  */
@@ -63,14 +101,42 @@ const api: AxiosInstance = axios.create({
 });
 
 /**
- * Request interceptor: Attach JWT token to every request & handle FormData.
- * Also gates network requests — throws an explicit offline error so callers
- * can distinguish network unavailability from server errors.
+ * Request interceptor:
+ *  1. Attach access token from memory (proactively refreshing if near expiry).
+ *  2. Handle FormData content-type.
+ *  3. Offline guard.
  */
 api.interceptors.request.use(
   async (config) => {
     try {
-      const token = await getToken().catch(() => null);
+      let token = _accessToken;
+
+      // Proactive refresh: if the token expires within 60 s, renew it now
+      // so the request goes out with a fresh token rather than getting a 401.
+      if (token) {
+        const exp = jwtExp(token);
+        const secsToExpiry = exp - Math.floor(Date.now() / 1000);
+        if (exp !== -1 && secsToExpiry < 60) {
+          const refreshToken = await getRefreshToken().catch(() => null);
+          if (refreshToken) {
+            try {
+              // Import lazily to avoid circular dependency.
+              const { AuthService } = await import('./auth-service');
+              const result = await AuthService.refresh(refreshToken);
+              if (result.success && result.token) {
+                setAccessToken(result.token);
+                token = result.token;
+                if (result.refreshToken) {
+                  const { saveRefreshToken } = await import('../utils/tokenStorage');
+                  await saveRefreshToken(result.refreshToken);
+                }
+              }
+            } catch {
+              // Proactive refresh failed — let the request proceed and handle 401 reactively.
+            }
+          }
+        }
+      }
 
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -83,8 +149,6 @@ api.interceptors.request.use(
     }
 
     // Offline guard — fail-fast for mutations so callers can queue offline.
-    // On web, isInternetReachable is null (unknown) so we only block when it
-    // is explicitly false; null is treated as "assumed online".
     const netState = await NetInfo.fetch();
     const isDefinitelyOffline =
       netState.isConnected === false || netState.isInternetReachable === false;
@@ -101,24 +165,66 @@ api.interceptors.request.use(
 
 /**
  * Response interceptor:
- *  1. Handle 401 → clear token & reset auth store.
- *  2. Retry GET requests on network error (up to MAX_RETRIES times).
+ *  1. On 401 → attempt one silent token refresh, then retry the original request.
+ *     If refresh fails, log the user out.
+ *  2. Serialize concurrent 401 responses — only one refresh round-trip happens.
+ *  3. Retry GET requests on network error (up to MAX_RETRIES times).
  */
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const config = error.config as any;
 
-    // 401 → log the user out
-    if (error.response?.status === 401) {
-      try {
-        await removeToken();
-        const { useAuthStore } = await import('../stores/auth/auth-store');
-        useAuthStore.setState({ user: null, isAuthenticated: false });
-      } catch {
-        // best-effort cleanup
+    if (error.response?.status === 401 && !config?._refreshed) {
+      // Prevent retry loops — mark this request as already-retried.
+      config._refreshed = true;
+
+      if (!isRefreshing) {
+        isRefreshing = true;
+        try {
+          const refreshToken = await getRefreshToken().catch(() => null);
+          if (!refreshToken) throw new Error('no refresh token');
+
+          const { AuthService } = await import('./auth-service');
+          const result = await AuthService.refresh(refreshToken);
+
+          if (!result.success || !result.token) throw new Error('refresh failed');
+
+          setAccessToken(result.token);
+          if (result.refreshToken) {
+            const { saveRefreshToken } = await import('../utils/tokenStorage');
+            await saveRefreshToken(result.refreshToken);
+          }
+          onRefreshComplete(result.token);
+        } catch {
+          // Refresh failed — clear everything and force logout.
+          onRefreshComplete(null);
+          setAccessToken(null);
+          await removeToken().catch(() => {});
+          await removeRefreshToken().catch(() => {});
+          try {
+            const { useAuthStore } = await import('../stores/auth/auth-store');
+            useAuthStore.setState({ user: null, isAuthenticated: false });
+          } catch {
+            // best-effort
+          }
+          return Promise.reject(error);
+        } finally {
+          isRefreshing = false;
+        }
+      } else {
+        // Another request is already refreshing — queue this one.
+        const newToken = await new Promise<string | null>((resolve) => {
+          pendingResolvers.push(resolve);
+        });
+        if (!newToken) return Promise.reject(error);
+        config.headers.Authorization = `Bearer ${newToken}`;
+        return api(config);
       }
-      return Promise.reject(error);
+
+      // Retry with the new access token.
+      config.headers.Authorization = `Bearer ${_accessToken}`;
+      return api(config);
     }
 
     // Retry GET requests on network / timeout errors (not on 4xx/5xx)
