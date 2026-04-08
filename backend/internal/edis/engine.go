@@ -29,7 +29,12 @@ const (
 
 	// TimeoutDuration is the hard wall-clock limit for the entire Process call
 	// including all retries. When exceeded, Process returns a graceful fallback.
-	TimeoutDuration = 45 * time.Second
+	TimeoutDuration = 120 * time.Second
+
+	// attemptTimeout is the per-attempt deadline passed to the AI provider.
+	// Each attempt gets its own fresh child context so a slow first response
+	// does not eat into the budget for subsequent retries.
+	attemptTimeout = 50 * time.Second
 
 	// maxRetries is the number of additional attempts after the first failure.
 	// Total attempts = 1 + maxRetries.
@@ -173,7 +178,11 @@ func (e *Engine) Process(ctx context.Context, messages []ai.ChatMessage, categor
 			}
 		}
 
-		raw, lastErr = e.provider.Chat(timeoutCtx, prompt, messages)
+		// Each attempt gets its own child context so a slow response on
+		// attempt N does not shrink the deadline available for attempt N+1.
+		attemptCtx, attemptCancel := context.WithTimeout(timeoutCtx, attemptTimeout)
+		raw, lastErr = e.provider.Chat(attemptCtx, prompt, messages)
+		attemptCancel()
 		if lastErr == nil {
 			// Success — stop retrying.
 			break
