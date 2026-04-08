@@ -8,6 +8,8 @@ import (
 	"log"
 	"math"
 	"time"
+
+	ai "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
 )
 
 // ErrCaseNotPending is returned when a TakeCase call targets a case that is no
@@ -199,12 +201,24 @@ type PatientProfile struct {
 	CreatedAt          time.Time `json:"createdAt"`
 }
 
+// PhysicianAIOutput holds the physician-edited subset of the AI response.
+// Only non-zero fields are merged into the stored JSONB — the patient-facing
+// API prefers this over the raw ai_response when it is present.
+type PhysicianAIOutput struct {
+	Prescription   *ai.Prescription   `json:"prescription,omitempty"`
+	Investigations []ai.Investigation `json:"investigations,omitempty"`
+	Conditions     []ai.ConditionScore `json:"conditions,omitempty"`
+}
+
 // ReviewInput carries the physician's decision when reviewing a case.
 type ReviewInput struct {
-	Action            string // "Active" | "Completed"
-	Notes             string
-	PhysicianDecision string // "Approved" | "Rejected"  (required when Action="Completed")
-	RejectionReason   string // required when PhysicianDecision="Rejected"
+	Action                string // "Active" | "Completed"
+	Notes                 string
+	PhysicianDecision     string // "Approved" | "Rejected"  (required when Action="Completed")
+	RejectionReason       string // required when PhysicianDecision="Rejected"
+	UpdatedPrescription   *ai.Prescription    // optional physician override
+	UpdatedInvestigations []ai.Investigation  // optional physician override
+	UpdatedConditions     []ai.ConditionScore // optional physician override
 }
 
 // ReviewReport enforces the state machine and returns the patient's user_id for
@@ -221,25 +235,45 @@ func (r *Repository) ReviewReport(reportID, physicianID string, input ReviewInpu
 		return "", fmt.Errorf("invalid action %q: must be Active or Completed", input.Action)
 	}
 
+	// Build physician_ai_output JSON when any overrides are provided.
+	var physicianAIOutputJSON []byte
+	if input.UpdatedPrescription != nil || len(input.UpdatedInvestigations) > 0 || len(input.UpdatedConditions) > 0 {
+		out := PhysicianAIOutput{
+			Prescription:   input.UpdatedPrescription,
+			Investigations: input.UpdatedInvestigations,
+			Conditions:     input.UpdatedConditions,
+		}
+		physicianAIOutputJSON, _ = json.Marshal(out)
+	}
+
 	var q string
 	if input.Action == "Completed" {
 		// Gate: case must be Active AND owned by this physician.
 		q = `UPDATE diagnoses
 		     SET physician_id=$1, physician_notes=$2, status=$3,
-		         physician_decision=$5, rejection_reason=$6, updated_at=NOW()
+		         physician_decision=$5, rejection_reason=$6,
+		         physician_ai_output=CASE WHEN $7::jsonb IS NOT NULL THEN $7::jsonb ELSE physician_ai_output END,
+		         updated_at=NOW()
 		     WHERE id=$4 AND physician_id=$1 AND status='Active'
 		     RETURNING user_id::text`
 	} else {
 		// Gate: case must be Pending AND unowned (or already owned by this physician).
 		q = `UPDATE diagnoses
 		     SET physician_id=$1, physician_notes=$2, status=$3,
-		         physician_decision=$5, rejection_reason=$6, updated_at=NOW()
+		         physician_decision=$5, rejection_reason=$6,
+		         physician_ai_output=CASE WHEN $7::jsonb IS NOT NULL THEN $7::jsonb ELSE physician_ai_output END,
+		         updated_at=NOW()
 		     WHERE id=$4 AND (physician_id IS NULL OR physician_id=$1) AND status='Pending'
 		     RETURNING user_id::text`
 	}
 
+	// Pass NULL when no overrides were provided so the CASE expression leaves the column untouched.
+	var aiOutArg interface{}
+	if physicianAIOutputJSON != nil {
+		aiOutArg = string(physicianAIOutputJSON)
+	}
 	err = r.db.QueryRow(q, physicianID, input.Notes, input.Action, reportID,
-		input.PhysicianDecision, input.RejectionReason).Scan(&patientID)
+		input.PhysicianDecision, input.RejectionReason, aiOutArg).Scan(&patientID)
 	if errors.Is(err, sql.ErrNoRows) {
 		if input.Action == "Completed" {
 			return "", ErrCaseNotActive

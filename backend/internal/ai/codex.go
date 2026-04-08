@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/config"
 )
@@ -31,7 +32,7 @@ func (c *codexProvider) Chat(ctx context.Context, systemPrompt string, messages 
 	var msgs []codexMessage
 	for _, m := range messages {
 		role := "assistant"
-		if m.Role == "USER" {
+		if strings.EqualFold(m.Role, "USER") || strings.EqualFold(m.Role, "SYSTEM") {
 			role = "user"
 		}
 		msgs = append(msgs, codexMessage{Role: role, Content: m.Text})

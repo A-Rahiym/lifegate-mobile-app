@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	auditpkg "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/audit"
+	ai "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/ai"
 	"github.com/gin-gonic/gin"
 )
 
@@ -100,10 +101,13 @@ func (h *Handler) ReviewReport(c *gin.Context) {
 	pid, _ := physicianID.(string)
 
 	var req struct {
-		Action            string `json:"action"             binding:"required"`
-		Notes             string `json:"notes"`
-		PhysicianDecision string `json:"physician_decision"`
-		RejectionReason   string `json:"rejection_reason"`
+		Action                string              `json:"action"              binding:"required"`
+		Notes                 string              `json:"notes"`
+		PhysicianDecision     string              `json:"physician_decision"`
+		RejectionReason       string              `json:"rejection_reason"`
+		UpdatedPrescription   *ai.Prescription    `json:"updated_prescription"`
+		UpdatedInvestigations []ai.Investigation  `json:"updated_investigations"`
+		UpdatedConditions     []ai.ConditionScore `json:"updated_conditions"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
@@ -120,10 +124,13 @@ func (h *Handler) ReviewReport(c *gin.Context) {
 	}
 
 	input := ReviewInput{
-		Action:            req.Action,
-		Notes:             req.Notes,
-		PhysicianDecision: req.PhysicianDecision,
-		RejectionReason:   req.RejectionReason,
+		Action:                req.Action,
+		Notes:                 req.Notes,
+		PhysicianDecision:     req.PhysicianDecision,
+		RejectionReason:       req.RejectionReason,
+		UpdatedPrescription:   req.UpdatedPrescription,
+		UpdatedInvestigations: req.UpdatedInvestigations,
+		UpdatedConditions:     req.UpdatedConditions,
 	}
 
 	if err := h.svc.ReviewReport(reportID, pid, input); err != nil {

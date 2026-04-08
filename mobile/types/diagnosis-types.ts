@@ -9,6 +9,18 @@ export interface DiagnosisPrescription {
   instructions?: string;
 }
 
+export interface DiagnosisInvestigation {
+  test: string;
+  reason: string;
+  urgency: 'ROUTINE' | 'URGENT' | 'STAT';
+}
+
+export interface DiagnosisConditionScore {
+  condition: string;
+  confidence: number; // 0–100
+  description: string;
+}
+
 export interface FollowUpPlan {
   daysUntil: number;
   triggerSymptoms: string[];
@@ -36,6 +48,16 @@ export interface DiagnosisDetail {
   /** True once the patient has submitted an outcome for this follow-up */
   outcomeChecked: boolean;
   prescription?: DiagnosisPrescription;
+  /**
+   * Recommended investigations — sourced from physician_ai_output when the
+   * physician has edited them, otherwise from ai_response.
+   */
+  investigations?: DiagnosisInvestigation[];
+  /**
+   * Ranked differential conditions — sourced from physician_ai_output when the
+   * physician has edited them, otherwise from ai_response.
+   */
+  conditions?: DiagnosisConditionScore[];
   createdAt: string;
   updatedAt: string;
 }

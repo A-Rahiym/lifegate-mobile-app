@@ -9,23 +9,25 @@ import (
 
 // DiagnosisDetail is the full patient-facing diagnosis record returned from the API.
 type DiagnosisDetail struct {
-	ID                    string  `json:"id"`
-	Title                 string  `json:"title"`
-	Description           string  `json:"description"`
-	Condition             string  `json:"condition"`
-	Urgency               string  `json:"urgency"`
-	Confidence            int     `json:"confidence"`
-	Status                string  `json:"status"`
-	Escalated             bool    `json:"escalated"`
-	HasPrescription       bool    `json:"hasPrescription"`
-	PhysicianDecision     string  `json:"physicianDecision,omitempty"`
-	PhysicianNotes        string  `json:"physicianNotes,omitempty"`
-	FollowUpDate          string  `json:"followUpDate,omitempty"`
-	FollowUpInstructions  string  `json:"followUpInstructions,omitempty"`
-	OutcomeChecked        bool    `json:"outcomeChecked"`
-	Prescription          *PrescriptionDetail `json:"prescription,omitempty"`
-	CreatedAt             string  `json:"createdAt"`
-	UpdatedAt             string  `json:"updatedAt"`
+	ID                   string               `json:"id"`
+	Title                string               `json:"title"`
+	Description          string               `json:"description"`
+	Condition            string               `json:"condition"`
+	Urgency              string               `json:"urgency"`
+	Confidence           int                  `json:"confidence"`
+	Status               string               `json:"status"`
+	Escalated            bool                 `json:"escalated"`
+	HasPrescription      bool                 `json:"hasPrescription"`
+	PhysicianDecision    string               `json:"physicianDecision,omitempty"`
+	PhysicianNotes       string               `json:"physicianNotes,omitempty"`
+	FollowUpDate         string               `json:"followUpDate,omitempty"`
+	FollowUpInstructions string               `json:"followUpInstructions,omitempty"`
+	OutcomeChecked       bool                 `json:"outcomeChecked"`
+	Prescription         *PrescriptionDetail  `json:"prescription,omitempty"`
+	Investigations       []InvestigationDetail `json:"investigations,omitempty"`
+	Conditions           []ConditionScoreDetail `json:"conditions,omitempty"`
+	CreatedAt            string               `json:"createdAt"`
+	UpdatedAt            string               `json:"updatedAt"`
 }
 
 // PrescriptionDetail is the prescription extracted from the AI response JSON.
@@ -37,12 +39,28 @@ type PrescriptionDetail struct {
 	Instructions string `json:"instructions,omitempty"`
 }
 
-// rawAIResponse mirrors the JSON stored in the ai_response JSONB column.
+// InvestigationDetail is a recommended test returned to the patient.
+type InvestigationDetail struct {
+	Test    string `json:"test"`
+	Reason  string `json:"reason"`
+	Urgency string `json:"urgency"`
+}
+
+// ConditionScoreDetail is a ranked probable condition returned to the patient.
+type ConditionScoreDetail struct {
+	Condition   string `json:"condition"`
+	Confidence  int    `json:"confidence"`
+	Description string `json:"description"`
+}
+
+// rawAIResponse mirrors the JSON stored in ai_response and physician_ai_output.
 type rawAIResponse struct {
 	Diagnosis *struct {
 		Confidence int `json:"confidence"`
 	} `json:"diagnosis"`
-	Prescription *PrescriptionDetail `json:"prescription"`
+	Prescription   *PrescriptionDetail    `json:"prescription"`
+	Investigations []InvestigationDetail  `json:"investigations"`
+	Conditions     []ConditionScoreDetail `json:"conditions"`
 }
 
 type Service struct {
@@ -66,6 +84,7 @@ func (s *Service) GetDiagnoses(userID string, page, pageSize int) ([]DiagnosisDe
 		       COALESCE(follow_up_instructions,''),
 		       outcome_checked,
 		       COALESCE(ai_response::text,'{}'),
+		       COALESCE(physician_ai_output::text,''),
 		       created_at::text, updated_at::text
 		FROM diagnoses
 		WHERE user_id = $1::uuid
@@ -79,16 +98,16 @@ func (s *Service) GetDiagnoses(userID string, page, pageSize int) ([]DiagnosisDe
 	var records []DiagnosisDetail
 	for rows.Next() {
 		var d DiagnosisDetail
-		var aiJSON string
+		var aiJSON, physicianAIJSON string
 		if err := rows.Scan(&d.ID, &d.Title, &d.Description, &d.Condition,
 			&d.Urgency, &d.Status, &d.Escalated, &d.HasPrescription,
 			&d.PhysicianDecision, &d.PhysicianNotes,
 			&d.FollowUpDate, &d.FollowUpInstructions, &d.OutcomeChecked,
-			&aiJSON, &d.CreatedAt, &d.UpdatedAt); err != nil {
+			&aiJSON, &physicianAIJSON, &d.CreatedAt, &d.UpdatedAt); err != nil {
 			log.Printf("diagnosis: scan row: %v", err)
 			continue
 		}
-		enrichFromAI(&d, aiJSON)
+		enrichFromAI(&d, aiJSON, physicianAIJSON)
 		records = append(records, d)
 	}
 
@@ -101,7 +120,7 @@ func (s *Service) GetDiagnoses(userID string, page, pageSize int) ([]DiagnosisDe
 // GetDiagnosisDetail returns a single diagnosis owned by the authenticated patient.
 func (s *Service) GetDiagnosisDetail(userID, diagnosisID string) (*DiagnosisDetail, error) {
 	var d DiagnosisDetail
-	var aiJSON string
+	var aiJSON, physicianAIJSON string
 	err := s.db.QueryRow(`
 		SELECT id, COALESCE(title,''), COALESCE(description,''),
 		       COALESCE(condition,''), COALESCE(urgency,''),
@@ -111,6 +130,7 @@ func (s *Service) GetDiagnosisDetail(userID, diagnosisID string) (*DiagnosisDeta
 		       COALESCE(follow_up_instructions,''),
 		       outcome_checked,
 		       COALESCE(ai_response::text,'{}'),
+		       COALESCE(physician_ai_output::text,''),
 		       created_at::text, updated_at::text
 		FROM diagnoses
 		WHERE id = $1 AND user_id = $2::uuid`,
@@ -119,7 +139,7 @@ func (s *Service) GetDiagnosisDetail(userID, diagnosisID string) (*DiagnosisDeta
 		&d.Urgency, &d.Status, &d.Escalated, &d.HasPrescription,
 		&d.PhysicianDecision, &d.PhysicianNotes,
 		&d.FollowUpDate, &d.FollowUpInstructions, &d.OutcomeChecked,
-		&aiJSON, &d.CreatedAt, &d.UpdatedAt)
+		&aiJSON, &physicianAIJSON, &d.CreatedAt, &d.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -127,21 +147,39 @@ func (s *Service) GetDiagnosisDetail(userID, diagnosisID string) (*DiagnosisDeta
 	if err != nil {
 		return nil, err
 	}
-	enrichFromAI(&d, aiJSON)
+	enrichFromAI(&d, aiJSON, physicianAIJSON)
 	return &d, nil
 }
 
-// enrichFromAI populates confidence and prescription from the stored ai_response JSON.
-func enrichFromAI(d *DiagnosisDetail, aiJSON string) {
-	var raw rawAIResponse
-	if err := json.Unmarshal([]byte(aiJSON), &raw); err != nil {
-		return
+// enrichFromAI populates confidence, prescription, investigations and conditions
+// from the stored JSONB columns. physician_ai_output takes precedence field-by-field
+// over ai_response when it is non-empty.
+func enrichFromAI(d *DiagnosisDetail, aiJSON, physicianAIJSON string) {
+	// 1. Parse the base AI response.
+	var base rawAIResponse
+	if err := json.Unmarshal([]byte(aiJSON), &base); err == nil {
+		if base.Diagnosis != nil {
+			d.Confidence = base.Diagnosis.Confidence
+		}
+		d.Prescription = base.Prescription
+		d.Investigations = base.Investigations
+		d.Conditions = base.Conditions
 	}
-	if raw.Diagnosis != nil {
-		d.Confidence = raw.Diagnosis.Confidence
-	}
-	if raw.Prescription != nil {
-		d.Prescription = raw.Prescription
+
+	// 2. Override with physician edits when present.
+	if physicianAIJSON != "" {
+		var override rawAIResponse
+		if err := json.Unmarshal([]byte(physicianAIJSON), &override); err == nil {
+			if override.Prescription != nil {
+				d.Prescription = override.Prescription
+			}
+			if len(override.Investigations) > 0 {
+				d.Investigations = override.Investigations
+			}
+			if len(override.Conditions) > 0 {
+				d.Conditions = override.Conditions
+			}
+		}
 	}
 }
 

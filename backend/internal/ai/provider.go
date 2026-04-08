@@ -198,6 +198,16 @@ type AIResponse struct {
 
 // ─── Provider interface & factory ─────────────────────────────────────────────
 
+// ClinicalSummary is the structured output produced by the EDIS history
+// condensation step (see edis.Engine.Summarize).  It is converted to a SYSTEM
+// role ChatMessage and injected into the conversation in place of the oldest
+// messages to preserve clinical context within LLM token limits.
+type ClinicalSummary struct {
+	SummaryText      string          `json:"summary_text"`
+	ActiveConditions []ConditionScore `json:"active_conditions"`
+	Flags            []RiskFlag       `json:"flags"`
+}
+
 type AIProvider interface {
 	Name() string
 	Chat(ctx context.Context, systemPrompt string, messages []ChatMessage) (*AIResponse, error)

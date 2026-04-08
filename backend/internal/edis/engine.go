@@ -295,6 +295,54 @@ func gracefulFallback() *EDISResponse {
 	}
 }
 
+// summarizationSystemPrompt instructs the AI to produce a compact clinical
+// summary from a conversation segment. The schema is intentionally a subset of
+// the full AIResponse so that the result can be parsed by the existing provider
+// JSON decoder (Text → "text", Conditions → "conditions", RiskFlags → "riskFlags").
+const summarizationSystemPrompt = `You are a clinical records condensation assistant for EDIS (Early Detection Intelligence System).
+You will be given a segment of a patient-AI conversation. Your task is to produce a concise, structured clinical summary.
+
+Respond ONLY with valid JSON matching EXACTLY this schema:
+{
+  "text": "2–3 sentence clinical narrative covering the patient's reported symptoms, key findings, and current working assessment.",
+  "conditions": [
+    {"condition": "condition name", "confidence": 70, "description": "brief clinical reasoning"}
+  ],
+  "riskFlags": [
+    {"flag": "RISK_CODE", "severity": "LOW|MEDIUM|HIGH|CRITICAL", "description": "brief risk description"}
+  ]
+}
+
+Rules:
+- "text" is ALWAYS required. Keep it factual, clinical, and under 80 words.
+- Include "conditions" only if conditions/diagnoses were discussed. Omit the key entirely otherwise.
+- Include "riskFlags" only if risk signals were detected. Omit the key entirely otherwise.
+- Do NOT fabricate data. Summarise only what is present in the provided conversation.
+- Do NOT include any key not listed in the schema above.`
+
+// Summarize calls the underlying AI provider with a focused summarisation
+// prompt for the given message slice and returns a structured ClinicalSummary.
+// It uses a hard 30-second timeout independent of the main Process timeout.
+// On error the caller should degrade gracefully (e.g. fall back to truncation).
+func (e *Engine) Summarize(ctx context.Context, messages []ai.ChatMessage) (*ai.ClinicalSummary, error) {
+	sumCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	raw, err := e.provider.Chat(sumCtx, summarizationSystemPrompt, messages)
+	if err != nil {
+		return nil, fmt.Errorf("clinical summarisation: %w", err)
+	}
+	if raw == nil || raw.Text == "" {
+		return nil, fmt.Errorf("clinical summarisation: empty response from provider")
+	}
+
+	return &ai.ClinicalSummary{
+		SummaryText:      raw.Text,
+		ActiveConditions: raw.Conditions,
+		Flags:            raw.RiskFlags,
+	}, nil
+}
+
 // buildEDISPrompt constructs the full system prompt by combining:
 //  1. The base EDIS/health system prompt
 //  2. The patient's clinical record (if available)

@@ -197,11 +197,7 @@ func (s *Service) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 	})
 	_ = s.nats.Publish("patient.symptom.submitted", eventData)
 
-	const maxHistory = 20
-	history := req.PreviousMessages
-	if len(history) > maxHistory {
-		history = history[len(history)-maxHistory:]
-	}
+	history := s.condensHistory(ctx, req.PreviousMessages)
 
 	messages := append(history, ai.ChatMessage{Role: "USER", Text: req.Message})
 
@@ -237,10 +233,7 @@ func (s *Service) ChatInSession(ctx context.Context, sessionID, userID, message,
 		}
 	}
 
-	const maxHistory = 20
-	if len(history) > maxHistory {
-		history = history[len(history)-maxHistory:]
-	}
+	history = s.condensHistory(ctx, history)
 
 	messages := append(history, ai.ChatMessage{Role: "USER", Text: message})
 
@@ -465,6 +458,76 @@ func (s *Service) buildAndPublish(ctx context.Context, userID, message string, r
 	}
 
 	return cr, nil
+}
+
+// ─── Clinical history condensation ───────────────────────────────────────────
+
+const (
+	// summariseThreshold is the number of messages that triggers condensation.
+	// When history length exceeds this value, the oldest summariseBatchSize
+	// messages are summarised into a single SYSTEM message.
+	summariseThreshold = 20
+
+	// summariseBatchSize is the number of oldest messages passed to the
+	// summarisation call.  Must be < summariseThreshold.
+	summariseBatchSize = 10
+)
+
+// condensHistory replaces the oldest summariseBatchSize messages with a single
+// SYSTEM-role clinical summary message when len(history) > summariseThreshold.
+//
+// If the summarisation call fails (provider error, timeout), the function
+// degrades gracefully by returning the most recent summariseThreshold messages
+// — identical to the old hard-cap behaviour — so EDIS still receives valid input.
+//
+// When the threshold has not been reached the original slice is returned unchanged.
+func (s *Service) condensHistory(ctx context.Context, history []ai.ChatMessage) []ai.ChatMessage {
+	if len(history) <= summariseThreshold {
+		return history
+	}
+
+	batch := history[:summariseBatchSize]
+	remaining := history[summariseBatchSize:]
+
+	summary, err := s.engine.Summarize(ctx, batch)
+	if err != nil {
+		log.Printf("[EDIS] condense: summarisation failed, falling back to truncation: %v", err)
+		// Graceful fallback: keep only the most recent summariseThreshold messages.
+		return history[len(history)-summariseThreshold:]
+	}
+
+	condensed := make([]ai.ChatMessage, 0, 1+len(remaining))
+	condensed = append(condensed, ai.ChatMessage{
+		Role: "SYSTEM",
+		Text: formatClinicalSummaryMessage(summary),
+	})
+	condensed = append(condensed, remaining...)
+	return condensed
+}
+
+// formatClinicalSummaryMessage renders a ClinicalSummary as a clearly-labelled
+// SYSTEM message body that all EDIS prompts and LLM providers can understand.
+func formatClinicalSummaryMessage(s *ai.ClinicalSummary) string {
+	var b strings.Builder
+	b.WriteString("[CLINICAL CONTEXT SUMMARY — earlier conversation turns condensed by EDIS]\n")
+	b.WriteString(s.SummaryText)
+
+	if len(s.ActiveConditions) > 0 {
+		b.WriteString("\nActive conditions identified:")
+		for _, c := range s.ActiveConditions {
+			fmt.Fprintf(&b, "\n  • %s (confidence: %d%%) — %s", c.Condition, c.Confidence, c.Description)
+		}
+	}
+
+	if len(s.Flags) > 0 {
+		b.WriteString("\nRisk flags:")
+		for _, f := range s.Flags {
+			fmt.Fprintf(&b, "\n  • [%s/%s] %s", f.Flag, f.Severity, f.Description)
+		}
+	}
+
+	b.WriteString("\n[END SUMMARY — conversation continues below]")
+	return b.String()
 }
 
 // ─── Persistence helpers ──────────────────────────────────────────────────────
