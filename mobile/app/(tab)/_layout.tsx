@@ -5,17 +5,32 @@
  * - ConversationDrawer as side drawer for conversation history
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, BackHandler } from 'react-native';
 import { Drawer } from 'expo-router/drawer';
 import { router } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ConversationDrawer } from 'components/ConversationDrawer';
 import { ResumeSessionModal } from 'components/ResumeSessionModal';
+import { ProfileReminderBanner } from 'components/ProfileReminderBanner';
 import { Ionicons } from '@expo/vector-icons';
 import { useDiagnosisWebSocket } from 'utils/useWebSocket';
 import { useChatStore } from 'stores/chat-store';
 import { useSessionStore } from 'stores/session-store';
+import { useAuthStore } from 'stores/auth/auth-store';
+import { User } from 'types/auth-types';
+
+function isHealthProfileIncomplete(user: User | null): boolean {
+  if (!user || user.role !== 'user') return false;
+  return (
+    !user.blood_type ||
+    !user.genotype ||
+    !user.allergies ||
+    !user.medical_history ||
+    !user.current_medications ||
+    !user.emergency_contact
+  );
+}
 
 /**
  * Custom drawer content showing conversation history
@@ -27,6 +42,11 @@ const CustomDrawerContent = (props: any) => {
 export default function TabLayout() {
   // Maintain a live WebSocket connection for real-time diagnosis status updates.
   useDiagnosisWebSocket();
+
+  // ── Health profile reminder ────────────────────────────────────────────────
+  const user = useAuthStore((s) => s.user);
+  const [profileReminderDismissed, setProfileReminderDismissed] = useState(false);
+  const showProfileReminder = !profileReminderDismissed && isHealthProfileIncomplete(user);
 
   // ── Abandoned-session detection (save state when app goes to background) ──
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -107,6 +127,11 @@ export default function TabLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       {/* Resume prompt modal — rendered at the drawer level so it floats above all screens */}
       <ResumeSessionModal />
+      {/* Profile completion reminder for patients with incomplete health profiles */}
+      <ProfileReminderBanner
+        visible={showProfileReminder}
+        onDismiss={() => setProfileReminderDismissed(true)}
+      />
       <Drawer
         screenOptions={{
           headerShown: false,

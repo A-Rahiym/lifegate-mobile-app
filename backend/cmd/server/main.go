@@ -334,6 +334,27 @@ physicianGroup.POST("/push-token", func(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "failed to store token"})
 			return
 		}
+
+		// Send a push reminder if the patient's health profile is incomplete.
+		go func() {
+			user, err := authRepo.FindUserByID(uidStr)
+			if err != nil || user == nil {
+				return
+			}
+			incomplete := user.BloodType == nil || user.Genotype == nil ||
+				user.Allergies == nil || user.MedicalHistory == nil ||
+				user.CurrentMedications == nil || user.EmergencyContact == nil
+			if incomplete {
+				pushSvc.SendToUser(
+					context.Background(),
+					uidStr,
+					"Complete Your Health Profile",
+					"A complete profile helps our AI give you safer, more personalised care. Tap to fill in the missing details.",
+					map[string]string{"action": "complete_profile"},
+				)
+			}
+		}()
+
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Push token registered"})
 	})
 
