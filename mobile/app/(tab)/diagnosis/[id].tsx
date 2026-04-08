@@ -100,8 +100,14 @@ export default function DiagnosisReportScreen() {
   const [submittingOutcome, setSubmittingOutcome] = useState(false);
 
   useEffect(() => {
-    if (id) fetchDiagnosisDetail(id);
-    return () => clearSelectedDiagnosis();
+    if (id) {
+      // Clear stale data first so the screen doesn't briefly flash a previous
+      // diagnosis, then fetch the requested one.
+      clearSelectedDiagnosis();
+      fetchDiagnosisDetail(id);
+    }
+    // No cleanup — clearing selectedDiagnosis on unmount triggers a re-render
+    // that blanks the screen during the back-navigation exit animation.
   }, [id]);
 
   const d = selectedDiagnosis?.id === id ? selectedDiagnosis : null;
