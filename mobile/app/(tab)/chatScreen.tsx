@@ -103,7 +103,8 @@ const ChatScreen: React.FC = () => {
   }, [showWelcome, isInitializing, activeConversation?.id, activeConversation?.mode]);
 
   useEffect(() => {
-    if (error) {
+    // INSUFFICIENT_CREDITS is not auto-dismissed — user must act (top up or dismiss).
+    if (error && error !== 'INSUFFICIENT_CREDITS') {
       const timer = setTimeout(() => clearError(), 4000);
       return () => clearTimeout(timer);
     }
@@ -433,23 +434,45 @@ const ChatScreen: React.FC = () => {
               </View>
             )}
             {error === 'INSUFFICIENT_CREDITS' && (
-              <View className="mx-4 mb-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 flex-row items-center gap-2">
-                <Ionicons name="flash-outline" size={16} color="#b45309" />
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-amber-800">
-                    You're out of credits
-                  </Text>
-                  <Text className="text-xs text-amber-700">
-                    Clinical Diagnosis requires credits. Top up to continue.
-                  </Text>
+              <View
+                style={{
+                  marginHorizontal: 16,
+                  marginBottom: 8,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#fcd34d',
+                  backgroundColor: '#fffbeb',
+                  padding: 12,
+                  gap: 8,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="flash-outline" size={16} color="#b45309" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400e' }}>
+                      Out of credits — switched to General Mode
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#b45309', marginTop: 2 }}>
+                      You can continue chatting in General Mode or top up to resume Clinical Diagnosis.
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={clearError} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close" size={16} color="#b45309" />
+                  </TouchableOpacity>
                 </View>
                 <TouchableOpacity
                   onPress={() => {
                     clearError();
                     router.push('/(tab)/settings/subscription');
                   }}
-                  className="rounded-lg bg-[#0EA5A4] px-3 py-1.5">
-                  <Text className="text-xs font-bold text-white">Top Up</Text>
+                  style={{
+                    backgroundColor: '#0EA5A4',
+                    borderRadius: 8,
+                    paddingVertical: 8,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#ffffff' }}>Top Up to Resume Clinical Diagnosis</Text>
                 </TouchableOpacity>
               </View>
             )}

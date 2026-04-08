@@ -393,8 +393,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
         });
 
         const isInsufficientCredits = (error as Error)?.message === 'INSUFFICIENT_CREDITS';
+
+        // Auto-downgrade from clinical_diagnosis → general_health when credits run out.
+        // The user still sees the top-up prompt; the mode switch lets them continue
+        // chatting without being blocked while they decide whether to top up.
+        const finalConversations = isInsufficientCredits
+          ? conversations.map((conv) =>
+              conv.id === conversationId && conv.mode === 'clinical_diagnosis'
+                ? { ...conv, mode: 'general_health' as SessionMode, category: 'general_health' as ConversationCategory }
+                : conv
+            )
+          : conversations;
+
         return {
-          conversations,
+          conversations: finalConversations,
           isThinking: false,
           processingPhase: null,
           error: isInsufficientCredits

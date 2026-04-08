@@ -296,6 +296,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               {displayMessage}
             </MarkdownText>
 
+            {/* HPI intake progress — visible when the AI is gathering the structured symptom
+                profile (OLDCARTS) but hasn't issued a diagnosis yet. Reassures the patient
+                that clinical data collection is underway. */}
+            {!diagnosis && followUpQuestions && followUpQuestions.length > 0 && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                  backgroundColor: '#f0fdf4',
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#86efac',
+                }}
+              >
+                <Ionicons name="clipboard-outline" size={13} color="#15803d" />
+                <Text style={{ fontSize: 11, color: '#15803d', fontWeight: '600', flex: 1 }}>
+                  Gathering your symptom profile — answer a few more questions for a full assessment
+                </Text>
+              </View>
+            )}
+
             {/* Risk flags */}
             {riskFlags && riskFlags.length > 0 && (
               <RiskFlagList riskFlags={riskFlags} />

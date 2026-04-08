@@ -16,6 +16,48 @@ import (
 	"github.com/lib/pq"
 )
 
+// fetchLatestHPI retrieves the most recently persisted HPI for the given user
+// from the diagnoses table (Fix 5). This allows each EDIS call to carry forward
+// the structured symptom profile collected in previous turns rather than
+// relying on the AI to reconstruct it from conversational prose.
+// Returns nil when no completed HPI record exists for this user.
+func (s *Service) fetchLatestHPI(userID string) *ai.SymptomProfile {
+	if userID == "" {
+		return nil
+	}
+	var hpiRaw []byte
+	err := s.db.QueryRow(`
+		SELECT hpi
+		FROM diagnoses
+		WHERE user_id = $1::uuid
+		  AND hpi IS NOT NULL
+		  AND status = 'Pending'
+		ORDER BY updated_at DESC
+		LIMIT 1`, userID,
+	).Scan(&hpiRaw)
+	if err != nil || len(hpiRaw) == 0 {
+		return nil
+	}
+	var hpi ai.SymptomProfile
+	if err := json.Unmarshal(hpiRaw, &hpi); err != nil {
+		return nil
+	}
+	// Only return if at least onset is populated (not a stub object).
+	if hpi.Onset == "" {
+		return nil
+	}
+	return &hpi
+}
+
+// hpiIsComplete returns true when the minimum three OLDCARTS fields required
+// for diagnosis are all present: onset, duration, and severityScore.
+func hpiIsComplete(hpi *ai.SymptomProfile) bool {
+	if hpi == nil {
+		return false
+	}
+	return hpi.Onset != "" && hpi.Duration != "" && hpi.SeverityScore > 0
+}
+
 // ─── Patient context helpers ──────────────────────────────────────────────────
 
 // fetchPatientContext queries the DB for the patient's health profile and
@@ -163,8 +205,12 @@ func (s *Service) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, err
 
 	patient := s.fetchPatientContext(req.UserID)
 
+	// Carry forward the accumulated HPI from previous turns (Fix 5).
+	// This prevents the AI from re-asking for already-collected OLDCARTS fields.
+	knownHPI := s.fetchLatestHPI(req.UserID)
+
 	// Process never returns an error — graceful fallback is applied on failure.
-	resp, _ := s.engine.Process(ctx, messages, req.Category, patient)
+	resp, _ := s.engine.Process(ctx, messages, req.Category, patient, knownHPI)
 
 	return s.buildAndPublish(ctx, req.UserID, req.Message, resp, start)
 }
@@ -198,7 +244,10 @@ func (s *Service) ChatInSession(ctx context.Context, sessionID, userID, message,
 
 	patient := s.fetchPatientContext(userID)
 
-	resp, _ := s.engine.Process(ctx, messages, category, patient)
+	// Carry forward any previously collected HPI (Fix 5).
+	knownHPI := s.fetchLatestHPI(userID)
+
+	resp, _ := s.engine.Process(ctx, messages, category, patient, knownHPI)
 
 	// Persist the full conversation (user + AI turn) back to the session.
 	messages = append(messages, ai.ChatMessage{Role: "ASSISTANT", Text: resp.Text})
@@ -358,6 +407,15 @@ func (s *Service) buildAndPublish(ctx context.Context, userID, message string, r
 		time.Since(start).Milliseconds(), resp.Escalated, resp.LowConfidence, resp.NeedsPhysicianReview, userID)
 
 	if userID == "" || resp.Diagnosis == nil {
+		return cr, nil
+	}
+
+	// Fix 2 + 4: For clinical and escalated cases, require a minimum viable HPI
+	// (onset + duration + severityScore) before persisting a case record or
+	// notifying the physician queue. This prevents half-formed cases from appearing
+	// in the physician dashboard mid-intake.
+	if (resp.Escalated || strings.Contains(strings.ToUpper(resp.Mode), "CLINICAL")) && !hpiIsComplete(resp.HPI) {
+		log.Printf("[EDIS] skipping case persistence — HPI incomplete (user=%s mode=%s)", userID, resp.Mode)
 		return cr, nil
 	}
 

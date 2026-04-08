@@ -133,22 +133,28 @@ func (e *Engine) Ping(ctx context.Context) error {
 
 // Process runs the full EDIS pipeline for a conversation history.
 //
-//  1. Applies a hard 45-second context timeout (covers all retries).
+//  1. Applies a hard 120-second context timeout (covers all retries).
 //  2. Builds the EDIS system prompt for the given category, injecting the
 //     patient's clinical record so the AI can avoid allergenic prescriptions,
 //     detect drug interactions, and contextualise differentials.
-//  3. Calls the AI provider with up to maxRetries retries on transient errors,
+//  3. If a knownHPI is supplied (collected from a previous turn), injects it
+//     into the system prompt so the AI never re-asks for already-known fields.
+//  4. Calls the AI provider with up to maxRetries retries on transient errors,
 //     using exponential back-off. Retries are skipped when the context is
 //     already cancelled (e.g. the hard timeout was hit).
-//  4. On persistent failure or timeout, returns a graceful fallback — never
+//  5. On persistent failure or timeout, returns a graceful fallback — never
 //     propagates the error to the caller.
-//  5. Analyses the raw response to compute escalation, low-confidence, and
+//  6. Analyses the raw response to compute escalation, low-confidence, and
 //     physician-review flags.
-func (e *Engine) Process(ctx context.Context, messages []ai.ChatMessage, category string, patient PatientContext) (*EDISResponse, error) {
+func (e *Engine) Process(ctx context.Context, messages []ai.ChatMessage, category string, patient PatientContext, knownHPI ...*ai.SymptomProfile) (*EDISResponse, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, TimeoutDuration)
 	defer cancel()
 
-	prompt := buildEDISPrompt(category, patient)
+	var hpi *ai.SymptomProfile
+	if len(knownHPI) > 0 {
+		hpi = knownHPI[0]
+	}
+	prompt := buildEDISPrompt(category, patient, hpi)
 
 	var (
 		raw     *ai.AIResponse
@@ -210,10 +216,16 @@ func analyze(raw *ai.AIResponse) *EDISResponse {
 	}
 
 	// ── Diagnosis synthesis fallback ───────────────────────────────────────────
-	// If the AI returned conditions and/or investigations but omitted a primary
-	// diagnosis, promote the top-ranked condition so the patient always sees a
-	// diagnosis card after triage — not just a bare list of possibilities.
-	if raw.Diagnosis == nil && len(raw.Conditions) > 0 && raw.Conditions[0].Confidence >= 50 {
+	// Only synthesise a diagnosis from the top condition when:
+	//   a) The AI deliberately omitted 'diagnosis' despite high-confidence conditions
+	//   b) HPI intake is sufficiently complete (onset + duration + severityScore known)
+	// Without this gate, the fallback would bypass the HPI INTAKE MANDATE in the
+	// system prompt and issue premature diagnoses from mid-intake condition lists.
+	hpiComplete := raw.HPI != nil &&
+		raw.HPI.Onset != "" &&
+		raw.HPI.Duration != "" &&
+		raw.HPI.SeverityScore > 0
+	if raw.Diagnosis == nil && len(raw.Conditions) > 0 && raw.Conditions[0].Confidence >= 50 && hpiComplete {
 		top := raw.Conditions[0]
 		raw.Diagnosis = &ai.Diagnosis{
 			Condition:   top.Condition,
@@ -276,19 +288,73 @@ func gracefulFallback() *EDISResponse {
 }
 
 // buildEDISPrompt constructs the full system prompt by combining:
-//   1. The base EDIS/health system prompt
-//   2. The patient's clinical record (if available)
-//   3. The category-specific snippet
-func buildEDISPrompt(category string, patient PatientContext) string {
+//  1. The base EDIS/health system prompt
+//  2. The patient's clinical record (if available)
+//  3. The known HPI state from previous turns (if available) — fixes Issue 5:
+//     without this, the AI must infer already-collected OLDCARTS fields from
+//     conversational prose and often re-asks or forgets them.
+//  4. The category-specific snippet
+func buildEDISPrompt(category string, patient PatientContext, knownHPI *ai.SymptomProfile) string {
 	base := ai.HealthSystemPrompt
 	patientBlock := buildPatientContextBlock(patient)
 	if patientBlock != "" {
 		base = base + "\n\n" + patientBlock
 	}
+	if knownHPI != nil {
+		base = base + "\n\n" + buildHPIStateBlock(knownHPI)
+	}
 	if snippet, ok := ai.CategoryPromptSnippets[category]; ok {
 		return base + "\n\n" + snippet
 	}
 	return base
+}
+
+// buildHPIStateBlock formats the already-collected HPI fields into a structured
+// block injected into the system prompt. Only populated fields are shown so the
+// AI is not misled by empty values.
+func buildHPIStateBlock(h *ai.SymptomProfile) string {
+	var b strings.Builder
+	b.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	b.WriteString("CURRENT SESSION HPI STATE (already collected — DO NOT re-ask for these)\n")
+	b.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	if h.Onset != "" {
+		fmt.Fprintf(&b, "Onset         : %s\n", h.Onset)
+	}
+	if h.Duration != "" {
+		fmt.Fprintf(&b, "Duration      : %s\n", h.Duration)
+	}
+	if h.SeverityScore > 0 {
+		fmt.Fprintf(&b, "Severity      : %d/10\n", h.SeverityScore)
+	}
+	if h.Location != "" {
+		fmt.Fprintf(&b, "Location      : %s\n", h.Location)
+	}
+	if h.Character != "" {
+		fmt.Fprintf(&b, "Character     : %s\n", h.Character)
+	}
+	missing := []string{}
+	if h.Onset == "" {
+		missing = append(missing, "onset")
+	}
+	if h.Duration == "" {
+		missing = append(missing, "duration")
+	}
+	if h.SeverityScore == 0 {
+		missing = append(missing, "severityScore")
+	}
+	if h.Location == "" {
+		missing = append(missing, "location")
+	}
+	if h.Character == "" {
+		missing = append(missing, "character")
+	}
+	if len(missing) > 0 {
+		fmt.Fprintf(&b, "Still needed  : %s\n", strings.Join(missing, ", "))
+	} else {
+		b.WriteString("Status        : HPI COMPLETE — include 'hpi' object and 'diagnosis' in response\n")
+	}
+	b.WriteString("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	return b.String()
 }
 
 // buildPatientContextBlock formats the patient's clinical profile into a

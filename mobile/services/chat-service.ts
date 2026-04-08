@@ -33,10 +33,16 @@ export class ChatService {
     const LATENCY_TARGET_MS = 500;
 
     try {
-      // Build request payload with message, category, and conversation history
+      // Build request payload with message, category, and conversation history.
+      // When in clinical_diagnosis mode, override category to 'clinical_diagnosis'
+      // so the server applies the full EDIS Clinical Diagnosis prompt snippet
+      // instead of the generic 'doctor_consultation' snippet.
+      const effectiveCategory =
+        mode === 'clinical_diagnosis' ? 'clinical_diagnosis' : category || '';
+
       const requestPayload = {
         message: userMessage,
-        category: category || '',
+        category: effectiveCategory,
         previousMessages: previousMessages.map((msg) => ({
           role: msg.role,
           text: msg.text,
@@ -59,26 +65,18 @@ export class ChatService {
       if (clientLatencyMs > LATENCY_TARGET_MS) {
         console.warn(
           `[LATENCY] AI response exceeded ${LATENCY_TARGET_MS}ms target — ` +
-          `client: ${clientLatencyMs}ms, server: ${serverLatencyMs}ms, category: ${category}`
+          `client: ${clientLatencyMs}ms, server: ${serverLatencyMs}ms, category: ${effectiveCategory}`
         );
       }
 
-      // Extract AIResponse from backend response
-      const response2 = response.data as { data: AIResponse; escalated?: boolean; diagnosisId?: string; latency_ms?: number };
-      const result = response2.data;
+      // Extract AIResponse from backend response.
+      // The backend wraps as: { success, data: ChatResponse, latency_ms }.
+      // All fields (diagnosisId, escalated, isExistingCase, conditions, etc.) are
+      // already present directly on `result` — no need to hoist from the outer wrapper.
+      const result = (response.data as unknown as { data: AIResponse }).data;
 
       if (!result || !result.text) {
         throw new Error('No content returned from AI');
-      }
-
-      // Attach the authoritative escalation flag from the backend
-      if (response2.escalated) {
-        result.escalated = true;
-      }
-
-      // Attach the diagnosis DB record ID so the frontend can navigate to the report
-      if (response2.diagnosisId) {
-        result.diagnosisId = response2.diagnosisId;
       }
 
       // Validate urgency if diagnosis exists
