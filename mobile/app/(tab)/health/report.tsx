@@ -434,10 +434,12 @@ function ExportButton({
 export default function HealthReportScreen() {
   const { patientTimeline } = useHealthStore();
   const { diagnoses, fetchDiagnoses } = useDiagnosisStore();
-  const { user } = useAuthStore();
+  const { user, sessionLoading } = useAuthStore();
 
-  // Load diagnoses (which carry prescription data) if not yet fetched
-  React.useEffect(() => { if (diagnoses.length === 0) fetchDiagnoses(); }, []);
+  // Load diagnoses only after session is restored to avoid 401 race on web refresh
+  React.useEffect(() => {
+    if (!sessionLoading && user?.id && diagnoses.length === 0) fetchDiagnoses();
+  }, [sessionLoading, user?.id]);
 
   // Build id → prescription lookup — only for physician-approved prescriptions
   const prescriptionMap = useMemo(() => {

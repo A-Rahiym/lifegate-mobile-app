@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Svg, { Path, Circle, Line, Text as SvgText } from 'react-native-svg';
 import { useHealthStore } from 'stores/health-store';
+import { useAuthStore } from 'stores/auth/auth-store';
 import type { HealthTimelineEntry } from 'types/health-types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -359,12 +360,15 @@ function MonthGroup({
 
 export default function HealthTimelineScreen() {
   const { patientTimeline, timelineLoading, timelineError, fetchPatientTimeline, unreadAlertCount } = useHealthStore();
+  const { user, sessionLoading } = useAuthStore();
 
   const [dateFilter, setDateFilter] = useState<DateFilter>('30d');
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('ALL');
   const [abnormalOnly, setAbnormalOnly] = useState(false);
 
-  useEffect(() => { fetchPatientTimeline(); }, []);
+  useEffect(() => {
+    if (!sessionLoading && user?.id) fetchPatientTimeline();
+  }, [sessionLoading, user?.id]);
 
   const onRefresh = useCallback(async () => { await fetchPatientTimeline(); }, [fetchPatientTimeline]);
 

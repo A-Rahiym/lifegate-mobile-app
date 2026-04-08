@@ -577,12 +577,18 @@ export default function HealthDashboardScreen() {
     fetchPatientAlerts,
   } = useHealthStore();
 
-  const { user } = useAuthStore();
+  const { user, sessionLoading } = useAuthStore();
 
+  // Wait for the session to be fully restored before making authenticated API
+  // calls. On a web refresh, _layout.tsx triggers restoreSession() which is
+  // async. Without this guard, the API calls fire before the access token is
+  // set in memory, causing a 401 / stuck loading state.
   useEffect(() => {
-    fetchPatientTimeline();
-    fetchPatientAlerts();
-  }, []);
+    if (!sessionLoading && user?.id) {
+      fetchPatientTimeline();
+      fetchPatientAlerts();
+    }
+  }, [sessionLoading, user?.id]);
 
   const onRefresh = useCallback(async () => {
     await Promise.all([fetchPatientTimeline(), fetchPatientAlerts()]);
