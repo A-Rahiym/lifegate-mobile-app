@@ -17,7 +17,17 @@
     "plugins": [
       "expo-router",
       "@react-native-community/datetimepicker",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0AADA2",
+          "sounds": [],
+          "androidMode": "default",
+          "androidCollapsedTitle": "LifeGate"
+        }
+      ]
     ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",

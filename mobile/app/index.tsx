@@ -13,9 +13,18 @@ export default function SplashScreen() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Restore session from async storage
-        const { restoreSession } = useAuthStore.getState();
-        await restoreSession();
+        // _layout.tsx already triggered restoreSession(); wait for it to settle.
+        const store = useAuthStore.getState();
+        if (store.sessionLoading) {
+          await new Promise<void>((resolve) => {
+            const unsub = useAuthStore.subscribe((s) => {
+              if (!s.sessionLoading) {
+                unsub();
+                resolve();
+              }
+            });
+          });
+        }
 
         // Check if user is authenticated after restoring session
         const { isAuthenticated } = useAuthStore.getState();

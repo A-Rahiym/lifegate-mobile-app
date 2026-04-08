@@ -215,16 +215,28 @@ func analyze(raw *ai.AIResponse) *EDISResponse {
 		raw.Mode = "general"
 	}
 
-	// ── Diagnosis synthesis fallback ───────────────────────────────────────────
-	// Only synthesise a diagnosis from the top condition when:
-	//   a) The AI deliberately omitted 'diagnosis' despite high-confidence conditions
-	//   b) HPI intake is sufficiently complete (onset + duration + severityScore known)
-	// Without this gate, the fallback would bypass the HPI INTAKE MANDATE in the
-	// system prompt and issue premature diagnoses from mid-intake condition lists.
+	// ── HPI gate — enforce triage-before-diagnosis server-side ────────────────
+	// The system prompt instructs the LLM not to return 'diagnosis' until onset,
+	// duration, and severityScore are all known, but LLMs can slip. This hard
+	// server-side check strips any premature diagnosis the LLM returns so that
+	// the HPI INTAKE MANDATE is enforced unconditionally, regardless of model
+	// compliance. followUpPlan is also stripped because it is only meaningful
+	// alongside a confirmed diagnosis.
 	hpiComplete := raw.HPI != nil &&
 		raw.HPI.Onset != "" &&
 		raw.HPI.Duration != "" &&
 		raw.HPI.SeverityScore > 0
+	if !hpiComplete && raw.Diagnosis != nil {
+		log.Printf("[EDIS] premature diagnosis stripped (hpi incomplete): condition=%q", raw.Diagnosis.Condition)
+		raw.Diagnosis = nil
+		raw.Prescription = nil
+		raw.FollowUpPlan = nil
+	}
+
+	// ── Diagnosis synthesis fallback ───────────────────────────────────────────
+	// Only synthesise a diagnosis from the top condition when:
+	//   a) The AI deliberately omitted 'diagnosis' despite high-confidence conditions
+	//   b) HPI intake is sufficiently complete (onset + duration + severityScore known)
 	if raw.Diagnosis == nil && len(raw.Conditions) > 0 && raw.Conditions[0].Confidence >= 50 && hpiComplete {
 		top := raw.Conditions[0]
 		raw.Diagnosis = &ai.Diagnosis{

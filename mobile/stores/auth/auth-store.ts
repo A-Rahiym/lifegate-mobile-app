@@ -28,6 +28,11 @@ type AuthState = {
   loading: boolean;
   error: string | null;
 
+  // Session restore state — true while restoreSession is in-flight,
+  // false once it has settled (success or failure). Used to prevent
+  // protected screens from flashing unauthenticated content on web refresh.
+  sessionLoading: boolean;
+
   // Actions
   setLoginField: (field: 'email' | 'password', value: string) => void;
   clearLoginDraft: () => void;
@@ -50,6 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   loading: false,
   error: null,
+  sessionLoading: false,
 
   // -------- Actions --------
 
@@ -70,6 +76,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Restore session from secure storage and token
   restoreSession: async () => {
+    // Prevent concurrent or duplicate calls.
+    if (get().sessionLoading) return;
+    set({ sessionLoading: true });
     try {
       const refreshToken = await getRefreshToken();
       if (refreshToken) {
@@ -80,20 +89,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (result.refreshToken) {
             await saveRefreshToken(result.refreshToken);
           }
-          set({ user: result.user, isAuthenticated: true });
+          set({ user: result.user, isAuthenticated: true, sessionLoading: false });
         } else {
           // Refresh token is invalid or revoked — clear everything.
           await removeRefreshToken();
           setAccessToken(null);
-          set({ isAuthenticated: false, user: null });
+          set({ isAuthenticated: false, user: null, sessionLoading: false });
         }
       } else {
-        set({ isAuthenticated: false });
+        set({ isAuthenticated: false, sessionLoading: false });
       }
     } catch {
       await removeRefreshToken();
       setAccessToken(null);
-      set({ isAuthenticated: false, user: null });
+      set({ isAuthenticated: false, user: null, sessionLoading: false });
     }
   },
 
