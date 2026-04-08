@@ -83,7 +83,7 @@ FIELD RULES:
 - hpi: Structured symptom profile. Populate once all five OLDCARTS fields (onset, duration, severityScore, location, character) are known. severityScore must be an integer 0–10.
 - conditions: Ranked list of probable diagnoses (most likely first). 1–5 conditions. Each has: condition name, confidence 0–100, brief clinical reasoning. Always include when clinically relevant.
 - diagnosis: The primary (highest-confidence) condition + urgency. Include only when clinically appropriate, not for pure wellness queries.
-- prescription: Only alongside a diagnosis. Never prescribe controlled or psychoactive substances.
+- prescription: MANDATORY alongside every diagnosis. Always include a prescription with medicine, dosage, frequency, duration, and instructions. The only exceptions are: (1) the diagnosis requires emergency referral only (CRITICAL urgency with no safe home treatment), or (2) the condition is purely investigational (only investigations ordered, no confirmed diagnosis yet). Never prescribe controlled or psychoactive substances.
 - investigations: Recommended lab tests or diagnostic procedures when specific tests would meaningfully confirm or rule out a condition. Each entry has: test name, brief reason, and urgency (ROUTINE = within a week, URGENT = within 24 h, STAT = immediately). Common Nigerian examples: FBC, Malaria RDT, Widal test, Blood glucose, Urinalysis, Chest X-ray, ECG, LFT, RFT, HIV screening, HbA1c. Omit entirely when no tests are indicated.
 - riskFlags: Use these exact codes when early-stage risk signals are detected:
     EARLY_INFECTION_RISK, CARDIAC_RISK, NEUROLOGICAL_RISK, RESPIRATORY_RISK,
