@@ -1,4 +1,4 @@
-import api from './api';
+import api, { getAccessToken } from './api';
 import { saveToken, getToken } from '../utils/tokenStorage';
 import { extractErrorMessage } from '../utils/error-utils';
 import {
@@ -326,7 +326,10 @@ export const AuthService = {
    */
   async getProfile(): Promise<AuthResponse> {
     try {
-      const token = await getToken();
+      // The access token lives in memory (api.ts _accessToken) — never in storage.
+      // Fall back to the legacy stored token only for old sessions that pre-date
+      // the in-memory-only design (e.g. tokens saved during registration).
+      const token = getAccessToken() ?? await getToken();
       if (!token) {
         return { success: false, message: 'No token found. User may not be logged in.' };
       }
