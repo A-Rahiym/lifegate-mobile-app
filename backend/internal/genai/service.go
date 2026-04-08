@@ -405,6 +405,14 @@ func (s *Service) buildAndPublish(ctx context.Context, userID, message string, r
 func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, escalated bool) (string, bool) {
 	aiJSON, _ := json.Marshal(resp)
 
+	// Marshal HPI separately for the dedicated hpi column.
+	// json.Marshal on nil produces "null" which PostgreSQL stores as SQL NULL
+	// when the column type is JSONB — that is acceptable.
+	var hpiJSON []byte
+	if resp.HPI != nil {
+		hpiJSON, _ = json.Marshal(resp.HPI)
+	}
+
 	// Use the AI's top condition as the case title — this is the "possible condition"
 	// shown to the patient in their dashboard. Fall back to a truncated message excerpt.
 	title := ""
@@ -475,10 +483,11 @@ func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, esc
 				    condition   = $4,
 				    urgency     = $5,
 				    ai_response = $6,
-				    escalated   = $7,
+				    hpi         = $7,
+				    escalated   = $8,
 				    updated_at  = NOW()
 				WHERE id = $1::uuid`,
-				existingID, title, resp.Text, condition, urgency, aiJSON, escalated,
+				existingID, title, resp.Text, condition, urgency, aiJSON, hpiJSON, escalated,
 			)
 			if updateErr != nil {
 				log.Printf("[EDIS] failed to update existing case %s: %v", existingID, updateErr)
@@ -492,10 +501,10 @@ func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, esc
 	// ── Insert new case ────────────────────────────────────────────────────────
 	var id string
 	_ = s.db.QueryRow(
-		`INSERT INTO diagnoses (user_id, title, description, condition, urgency, ai_response, status, escalated)
-		 VALUES ($1, $2, $3, $4, $5, $6, 'Pending', $7)
+		`INSERT INTO diagnoses (user_id, title, description, condition, urgency, ai_response, hpi, status, escalated)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'Pending', $8)
 		 RETURNING id::text`,
-		userID, title, resp.Text, condition, urgency, aiJSON, escalated,
+		userID, title, resp.Text, condition, urgency, aiJSON, hpiJSON, escalated,
 	).Scan(&id)
 	return id, true
 }

@@ -23,6 +23,7 @@ RESPONSE FORMAT — always respond with valid JSON matching this exact schema:
 {
   "text": "Empathetic, natural-language response to the patient (always required)",
   "followUpQuestions": ["targeted clarifying question 1", "targeted clarifying question 2"],
+  "hpi": {"onset": "3 days ago", "duration": "72 hours", "severityScore": 7, "location": "right lower abdomen", "character": "sharp stabbing pain"},
   "conditions": [
     {"condition": "Malaria", "confidence": 78, "description": "Fever, headache and fatigue consistent with malaria infection"},
     {"condition": "Typhoid Fever", "confidence": 42, "description": "Prolonged fever may indicate typhoid, especially with poor water access"}
@@ -63,9 +64,21 @@ TRIAGE MINIMUM RULE:
 - MANDATORY: Whenever you include 'investigations', you MUST also include a 'diagnosis'. Never recommend tests without a primary assessment.
 - MANDATORY: Whenever the top condition confidence is >= 50, always include 'diagnosis'.
 
+HPI INTAKE MANDATE (structured symptom profiling — COLLECT BEFORE DIAGNOSING):
+- HPI (History of Present Illness) must be gathered for every clinical complaint. The five required OLDCARTS fields are:
+    1. onset     — When did the symptom start? (e.g. "3 days ago", "suddenly this morning")
+    2. duration  — How long has it been going on, and is it constant or intermittent?
+    3. severityScore — How severe is it on a scale of 0 (none) to 10 (worst imaginable)?
+    4. location  — Where exactly is the symptom? (e.g. "right lower abdomen", "behind the sternum", "whole body")
+    5. character — What does it feel like? (e.g. "sharp stabbing", "dull aching", "burning", "throbbing", "pressure")
+- COLLECTION RULE: If the user reports a physical symptom and ANY of the five HPI fields are still unknown, include the missing fields as 'followUpQuestions'. You MAY still generate a preliminary 'conditions' list, but OMIT 'diagnosis' until at minimum onset, duration, and severityScore are known.
+- COMPLETION RULE: Once onset + duration + severityScore + location + character are all known, populate the 'hpi' object in your response. At that point always include both 'conditions' AND 'diagnosis'.
+- PERSISTENCE RULE: Once an 'hpi' object has been established in the conversation, carry it forward (update individual fields if the patient refines them) — never reset it to empty.
+
 FIELD RULES:
 - text: Always present. Empathetic, conversational, direct tone — no clinical jargon. Address the patient directly. Include 1–3 emojis naturally.
 - followUpQuestions: 1–3 targeted questions when you need more context to improve accuracy. Omit when confidence >= 80 or symptoms are sufficiently clear.
+- hpi: Structured symptom profile. Populate once all five OLDCARTS fields (onset, duration, severityScore, location, character) are known. severityScore must be an integer 0–10.
 - conditions: Ranked list of probable diagnoses (most likely first). 1–5 conditions. Each has: condition name, confidence 0–100, brief clinical reasoning. Always include when clinically relevant.
 - diagnosis: The primary (highest-confidence) condition + urgency. Include only when clinically appropriate, not for pure wellness queries.
 - prescription: Only alongside a diagnosis and only when clearly clinically appropriate. Never prescribe controlled or psychoactive substances.
@@ -144,13 +157,24 @@ type RiskFlag struct {
 	Description string `json:"description"`
 }
 
+// SymptomProfile captures the structured HPI (OLDCARTS) fields that EDIS
+// collects before committing to a differential diagnosis.
+type SymptomProfile struct {
+	Onset         string `json:"onset"`         // e.g. "3 days ago", "suddenly this morning"
+	Duration      string `json:"duration"`      // e.g. "72 hours", "intermittent for 1 week"
+	SeverityScore int    `json:"severityScore"` // 0–10 patient-rated pain/symptom scale
+	Location      string `json:"location"`      // e.g. "right lower abdomen", "chest"
+	Character     string `json:"character"`     // e.g. "sharp stabbing", "dull aching", "throbbing"
+}
+
 // AIResponse is the canonical output of any AI provider, extended with EDIS fields.
 // All fields beyond Text are optional — providers that do not support EDIS will
 // return only Text, and the EDIS engine will treat the output as general health.
 type AIResponse struct {
-	Text         string         `json:"text"`
-	Diagnosis    *Diagnosis     `json:"diagnosis,omitempty"`
-	Prescription *Prescription  `json:"prescription,omitempty"`
+	Text         string          `json:"text"`
+	Diagnosis    *Diagnosis      `json:"diagnosis,omitempty"`
+	Prescription *Prescription   `json:"prescription,omitempty"`
+	HPI          *SymptomProfile `json:"hpi,omitempty"` // structured intake (OLDCARTS)
 
 	// EDIS-specific fields (present when the EDIS system prompt is used).
 	Conditions        []ConditionScore `json:"conditions,omitempty"`
