@@ -47,6 +47,7 @@ import (
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/review"
 	"github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/sessions"
 	slasvc "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/sla"
+	followupsvc "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/followup"
 	wshub "github.com/DiniMuhd7/lifegate-mobile-app/backend/internal/websocket"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -182,6 +183,12 @@ hub := wshub.NewHub()
 	slaEnforcer := slasvc.NewService(database, natsClient, pushSvc)
 	go slaEnforcer.Start(context.Background())
 
+	// Follow-up worker — scans every 5 minutes for cases whose follow_up_date
+	// has arrived, notifies the patient to check in, and auto-escalates
+	// non-responders to the physician queue after a 24-hour grace period.
+	followUpWorker := followupsvc.NewService(database, natsClient, pushSvc)
+	go followUpWorker.Start(context.Background())
+
 // Router
 r := gin.New()
 r.Use(middleware.Logger())
@@ -305,6 +312,7 @@ physicianGroup.POST("/push-token", func(c *gin.Context) {
 	{
 		diagnosisGroup.GET("", diagnosisHandler.GetDiagnoses)
 		diagnosisGroup.GET("/:id", diagnosisHandler.GetDiagnosisDetail)
+		diagnosisGroup.POST("/:id/outcome", diagnosisHandler.SubmitOutcome)
 	}
 
 	// Patient preventive alerts

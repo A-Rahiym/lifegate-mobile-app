@@ -3,23 +3,29 @@ package diagnosis
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 )
 
 // DiagnosisDetail is the full patient-facing diagnosis record returned from the API.
 type DiagnosisDetail struct {
-	ID             string  `json:"id"`
-	Title          string  `json:"title"`
-	Description    string  `json:"description"`
-	Condition      string  `json:"condition"`
-	Urgency        string  `json:"urgency"`
-	Confidence     int     `json:"confidence"`
-	Status         string  `json:"status"`
-	Escalated      bool    `json:"escalated"`
-	PhysicianNotes string  `json:"physicianNotes,omitempty"`
-	Prescription   *PrescriptionDetail `json:"prescription,omitempty"`
-	CreatedAt      string  `json:"createdAt"`
-	UpdatedAt      string  `json:"updatedAt"`
+	ID                    string  `json:"id"`
+	Title                 string  `json:"title"`
+	Description           string  `json:"description"`
+	Condition             string  `json:"condition"`
+	Urgency               string  `json:"urgency"`
+	Confidence            int     `json:"confidence"`
+	Status                string  `json:"status"`
+	Escalated             bool    `json:"escalated"`
+	HasPrescription       bool    `json:"hasPrescription"`
+	PhysicianDecision     string  `json:"physicianDecision,omitempty"`
+	PhysicianNotes        string  `json:"physicianNotes,omitempty"`
+	FollowUpDate          string  `json:"followUpDate,omitempty"`
+	FollowUpInstructions  string  `json:"followUpInstructions,omitempty"`
+	OutcomeChecked        bool    `json:"outcomeChecked"`
+	Prescription          *PrescriptionDetail `json:"prescription,omitempty"`
+	CreatedAt             string  `json:"createdAt"`
+	UpdatedAt             string  `json:"updatedAt"`
 }
 
 // PrescriptionDetail is the prescription extracted from the AI response JSON.
@@ -54,7 +60,11 @@ func (s *Service) GetDiagnoses(userID string, page, pageSize int) ([]DiagnosisDe
 	rows, err := s.db.Query(`
 		SELECT id, COALESCE(title,''), COALESCE(description,''),
 		       COALESCE(condition,''), COALESCE(urgency,''),
-		       status, escalated, COALESCE(physician_notes,''),
+		       status, escalated, has_prescription,
+		       COALESCE(physician_decision,''), COALESCE(physician_notes,''),
+		       COALESCE(TO_CHAR(follow_up_date AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),''),
+		       COALESCE(follow_up_instructions,''),
+		       outcome_checked,
 		       COALESCE(ai_response::text,'{}'),
 		       created_at::text, updated_at::text
 		FROM diagnoses
@@ -71,7 +81,9 @@ func (s *Service) GetDiagnoses(userID string, page, pageSize int) ([]DiagnosisDe
 		var d DiagnosisDetail
 		var aiJSON string
 		if err := rows.Scan(&d.ID, &d.Title, &d.Description, &d.Condition,
-			&d.Urgency, &d.Status, &d.Escalated, &d.PhysicianNotes,
+			&d.Urgency, &d.Status, &d.Escalated, &d.HasPrescription,
+			&d.PhysicianDecision, &d.PhysicianNotes,
+			&d.FollowUpDate, &d.FollowUpInstructions, &d.OutcomeChecked,
 			&aiJSON, &d.CreatedAt, &d.UpdatedAt); err != nil {
 			log.Printf("diagnosis: scan row: %v", err)
 			continue
@@ -93,14 +105,20 @@ func (s *Service) GetDiagnosisDetail(userID, diagnosisID string) (*DiagnosisDeta
 	err := s.db.QueryRow(`
 		SELECT id, COALESCE(title,''), COALESCE(description,''),
 		       COALESCE(condition,''), COALESCE(urgency,''),
-		       status, escalated, COALESCE(physician_notes,''),
+		       status, escalated, has_prescription,
+		       COALESCE(physician_decision,''), COALESCE(physician_notes,''),
+		       COALESCE(TO_CHAR(follow_up_date AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),''),
+		       COALESCE(follow_up_instructions,''),
+		       outcome_checked,
 		       COALESCE(ai_response::text,'{}'),
 		       created_at::text, updated_at::text
 		FROM diagnoses
 		WHERE id = $1 AND user_id = $2::uuid`,
 		diagnosisID, userID,
 	).Scan(&d.ID, &d.Title, &d.Description, &d.Condition,
-		&d.Urgency, &d.Status, &d.Escalated, &d.PhysicianNotes,
+		&d.Urgency, &d.Status, &d.Escalated, &d.HasPrescription,
+		&d.PhysicianDecision, &d.PhysicianNotes,
+		&d.FollowUpDate, &d.FollowUpInstructions, &d.OutcomeChecked,
 		&aiJSON, &d.CreatedAt, &d.UpdatedAt)
 
 	if err == sql.ErrNoRows {
@@ -125,4 +143,34 @@ func enrichFromAI(d *DiagnosisDetail, aiJSON string) {
 	if raw.Prescription != nil {
 		d.Prescription = raw.Prescription
 	}
+}
+
+// SubmitOutcome records the patient's self-reported follow-up outcome.
+// If the outcome is "worse" or "same" the case is escalated and true is returned.
+// Returns an error with message "not found" when the diagnosis does not belong to userID.
+func (s *Service) SubmitOutcome(userID, diagnosisID, outcome string) (bool, error) {
+	// Verify ownership first.
+	var count int
+	err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM diagnoses WHERE id = $1 AND user_id = $2::uuid`,
+		diagnosisID, userID,
+	).Scan(&count)
+	if err != nil || count == 0 {
+		return false, fmt.Errorf("not found")
+	}
+
+	escalate := outcome == "worse" || outcome == "same"
+
+	_, err = s.db.Exec(`
+		UPDATE diagnoses
+		SET outcome_checked = TRUE,
+		    escalated       = CASE WHEN $2 THEN TRUE ELSE escalated END,
+		    updated_at      = NOW()
+		WHERE id = $1`,
+		diagnosisID, escalate,
+	)
+	if err != nil {
+		return false, err
+	}
+	return escalate, nil
 }

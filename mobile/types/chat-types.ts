@@ -115,6 +115,12 @@ export type AIResponse = {
   conditions?: ConditionScore[];
   riskFlags?: RiskFlag[];
   investigations?: Investigation[];
+  // Follow-up plan from EDIS
+  followUpPlan?: {
+    daysUntil: number;
+    triggerSymptoms: string[];
+  };
+  followUpDate?: string; // ISO-8601 date string
 };
 
 // Result returned from POST /chat/sessions/:id/finalize

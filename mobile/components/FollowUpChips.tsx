@@ -22,7 +22,7 @@ export const FollowUpChips: React.FC<Props> = ({ questions, onSelect }) => {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>
         <Ionicons name="help-circle-outline" size={12} color="#0f766e" />
         <Text style={{ fontSize: 10, fontWeight: '700', color: '#0f766e', letterSpacing: 0.5, textTransform: 'uppercase' }}>
-          Suggested responses
+          Suggested questions
         </Text>
       </View>
       <ScrollView

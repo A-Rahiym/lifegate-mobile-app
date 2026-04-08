@@ -36,6 +36,7 @@ RESPONSE FORMAT — always respond with valid JSON matching this exact schema:
   "riskFlags": [
     {"flag": "EARLY_INFECTION_RISK", "severity": "HIGH", "description": "Signs of possible systemic infection — requires timely assessment"}
   ],
+  "followUpPlan": {"daysUntil": 3, "triggerSymptoms": ["fever returns", "pain worsens", "new rash"]},
   "mode": "general"
 }
 
@@ -90,6 +91,7 @@ FIELD RULES:
     PEDIATRIC_CONCERN, OBSTETRIC_RISK, GASTROINTESTINAL_RISK, RENAL_RISK
 - mode: "general" for pure wellness, nutrition, or informational queries with no active symptoms. Use "clinical" whenever the user reports ANY physical symptom (pain, fever, vomiting, cough, fatigue, dizziness, etc.), a 'conditions' list is present, OR any diagnosis is included — regardless of confidence level.
 - urgency: LOW (home monitoring ok), MEDIUM (see a doctor within a few days), HIGH (see a doctor today), CRITICAL (emergency).
+- followUpPlan: MANDATORY whenever a 'diagnosis' is present. Specify: daysUntil (integer — how many days until the patient should check back in; use 2 for CRITICAL/HIGH, 5 for MEDIUM, 7 for LOW), and triggerSymptoms (array of 2–4 specific symptom strings that should prompt the user to seek care immediately before the follow-up date, e.g. "fever above 39°C", "severe chest pain", "difficulty breathing"). Omit only when no diagnosis is present.
 
 CLINICAL SAFETY RULES:
 1. Always include a disclaimer that this is AI-assisted guidance — not a substitute for professional medical advice.
@@ -158,6 +160,14 @@ type RiskFlag struct {
 	Description string `json:"description"`
 }
 
+// FollowUpPlan is the structured follow-up schedule produced by EDIS alongside
+// every diagnosis. daysUntil drives the notification scheduler; triggerSymptoms
+// are shown to the patient as warning signs to watch for before the follow-up date.
+type FollowUpPlan struct {
+	DaysUntil       int      `json:"daysUntil"`
+	TriggerSymptoms []string `json:"triggerSymptoms"`
+}
+
 // SymptomProfile captures the structured HPI (OLDCARTS) fields that EDIS
 // collects before committing to a differential diagnosis.
 type SymptomProfile struct {
@@ -182,6 +192,7 @@ type AIResponse struct {
 	FollowUpQuestions []string         `json:"followUpQuestions,omitempty"`
 	RiskFlags         []RiskFlag       `json:"riskFlags,omitempty"`
 	Investigations    []Investigation  `json:"investigations,omitempty"`
+	FollowUpPlan      *FollowUpPlan    `json:"followUpPlan,omitempty"`
 	Mode              string           `json:"mode,omitempty"` // "general" | "clinical"
 }
 

@@ -95,7 +95,8 @@ function buildReportHTML(
   patientName: string,
   entries: HealthTimelineEntry[],
   reportDate: string,
-  prescriptionMap: Map<string, DiagnosisPrescription>
+  prescriptionMap: Map<string, DiagnosisPrescription>,
+  pendingRxSet: Set<string>
 ): string {
   const status = deriveOverallStatus(entries);
   const dist = urgencyDistribution(entries);
@@ -109,6 +110,7 @@ function buildReportHTML(
   // Per-entry full detail card
   const entryCard = (e: HealthTimelineEntry) => {
     const rx = prescriptionMap.get(e.id);
+    const hasPendingRx = !rx && pendingRxSet.has(e.id);
     const isRecurring = recurringSet.has((e.condition || e.title).toLowerCase().trim());
     const isAbnormal = e.urgency === 'HIGH' || e.urgency === 'CRITICAL';
     const tags = [
@@ -154,7 +156,7 @@ function buildReportHTML(
       <!-- Prescription -->
       ${rx ? `
       <div style="margin-top:10px;padding:10px;background:#f0fdf4;border-left:3px solid #16a34a;border-radius:0 8px 8px 0;">
-        <div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">💊 Prescription</div>
+        <div style="font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">💊 Prescription <span style="font-weight:500;color:#16a34a;font-size:9px;">(Physician Approved)</span></div>
         <table style="width:100%;border-collapse:collapse;font-size:11px;">
           <tr><td style="color:#6b7280;width:90px;padding:2px 0;">Medicine</td><td style="color:#111827;font-weight:700;">${rx.medicine}</td></tr>
           <tr><td style="color:#6b7280;padding:2px 0;">Dosage</td><td style="color:#111827;font-weight:600;">${rx.dosage}</td></tr>
@@ -162,6 +164,10 @@ function buildReportHTML(
           <tr><td style="color:#6b7280;padding:2px 0;">Duration</td><td style="color:#111827;">${rx.duration}</td></tr>
           ${rx.instructions ? `<tr><td style="color:#6b7280;padding:2px 0;">Instructions</td><td style="color:#374151;font-style:italic;">${rx.instructions}</td></tr>` : ''}
         </table>
+      </div>` : hasPendingRx ? `
+      <div style="margin-top:10px;padding:10px;background:#fffbeb;border-left:3px solid #d97706;border-radius:0 8px 8px 0;">
+        <div style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">💊 Prescription — Pending Physician Approval</div>
+        <p style="font-size:11px;color:#92400e;line-height:1.5;">A prescription was suggested for this case. It will be released once a licensed physician approves it.</p>
       </div>` : ''}
     </div>`;
   };
@@ -302,7 +308,7 @@ function StatCell({ label, value, color }: { label: string; value: number; color
   );
 }
 
-function EntryRow({ entry, isRecurring, prescription }: { entry: HealthTimelineEntry; isRecurring: boolean; prescription?: DiagnosisPrescription }) {
+function EntryRow({ entry, isRecurring, prescription, hasPendingRx }: { entry: HealthTimelineEntry; isRecurring: boolean; prescription?: DiagnosisPrescription; hasPendingRx?: boolean }) {
   const color = URGENCY_COLOR[entry.urgency] ?? '#6b7280';
   const isAbnormal = entry.urgency === 'HIGH' || entry.urgency === 'CRITICAL';
 
@@ -354,6 +360,12 @@ function EntryRow({ entry, isRecurring, prescription }: { entry: HealthTimelineE
         </View>
       )}
       {/* Prescription */}
+      {!prescription && !!hasPendingRx && (
+        <View style={{ marginTop: 8, padding: 10, backgroundColor: '#fffbeb', borderLeftWidth: 3, borderLeftColor: '#d97706', borderRadius: 6 }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: '#d97706', marginBottom: 3 }}>💊 PRESCRIPTION — PENDING APPROVAL</Text>
+          <Text style={{ fontSize: 11, color: '#92400e', lineHeight: 16 }}>Awaiting physician review before release.</Text>
+        </View>
+      )}
       {!!prescription && (
         <View style={{ marginTop: 6, marginLeft: 20, padding: 8, backgroundColor: '#f0fdf4', borderLeftWidth: 2, borderLeftColor: '#16a34a', borderRadius: 4 }}>
           <Text style={{ fontSize: 10, fontWeight: '700', color: '#15803d', marginBottom: 4 }}>PRESCRIPTION</Text>
@@ -427,11 +439,26 @@ export default function HealthReportScreen() {
   // Load diagnoses (which carry prescription data) if not yet fetched
   React.useEffect(() => { if (diagnoses.length === 0) fetchDiagnoses(); }, []);
 
-  // Build id → prescription lookup
+  // Build id → prescription lookup — only for physician-approved prescriptions
   const prescriptionMap = useMemo(() => {
     const map = new Map<string, DiagnosisPrescription>();
-    for (const d of diagnoses) { if (d.prescription) map.set(d.id, d.prescription); }
+    for (const d of diagnoses) {
+      if (d.prescription && d.status === 'Completed' && d.physicianDecision === 'Approved') {
+        map.set(d.id, d.prescription);
+      }
+    }
     return map;
+  }, [diagnoses]);
+
+  // Set of case IDs that have a prescription pending physician approval
+  const pendingRxSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of diagnoses) {
+      if (d.hasPrescription && !(d.status === 'Completed' && d.physicianDecision === 'Approved')) {
+        set.add(d.id);
+      }
+    }
+    return set;
   }, [diagnoses]);
 
   const viewShotRef = useRef<ViewShot>(null);
@@ -452,7 +479,7 @@ export default function HealthReportScreen() {
   const exportPDF = useCallback(async () => {
     try {
       setExporting('pdf');
-      const html = buildReportHTML(patientName, patientTimeline, reportDate, prescriptionMap);
+      const html = buildReportHTML(patientName, patientTimeline, reportDate, prescriptionMap, pendingRxSet);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
@@ -626,6 +653,7 @@ export default function HealthReportScreen() {
                   entry={e}
                   isRecurring={recurringSet.has((e.condition || e.title).toLowerCase().trim())}
                   prescription={prescriptionMap.get(e.id)}
+                  hasPendingRx={pendingRxSet.has(e.id)}
                 />
               ))
             )}

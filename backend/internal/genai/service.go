@@ -160,6 +160,8 @@ type ChatResponse struct {
 	FollowUpQuestions    []string             `json:"followUpQuestions,omitempty"`
 	RiskFlags            []ai.RiskFlag        `json:"riskFlags,omitempty"`
 	Investigations       []ai.Investigation   `json:"investigations,omitempty"`
+	FollowUpPlan         *ai.FollowUpPlan     `json:"followUpPlan,omitempty"`
+	FollowUpDate         string               `json:"followUpDate,omitempty"` // ISO-8601 computed date
 	Mode                 string               `json:"mode"`
 	Escalated            bool                 `json:"escalated,omitempty"`
 	EscalationTrigger    string               `json:"escalationTrigger,omitempty"`
@@ -364,11 +366,18 @@ func (s *Service) buildAndPublish(ctx context.Context, userID, message string, r
 		FollowUpQuestions:    resp.FollowUpQuestions,
 		RiskFlags:            resp.RiskFlags,
 		Investigations:       resp.Investigations,
+		FollowUpPlan:         resp.FollowUpPlan,
 		Mode:                 resp.Mode,
 		Escalated:            resp.Escalated,
 		EscalationTrigger:    resp.EscalationTrigger,
 		LowConfidence:        resp.LowConfidence,
 		NeedsPhysicianReview: resp.NeedsPhysicianReview,
+	}
+
+	// Compute and expose the concrete follow-up date for the client so it can
+	// schedule a device calendar event and local notification without extra math.
+	if resp.FollowUpPlan != nil && resp.FollowUpPlan.DaysUntil > 0 {
+		cr.FollowUpDate = time.Now().UTC().AddDate(0, 0, resp.FollowUpPlan.DaysUntil).Format(time.RFC3339)
 	}
 
 	// ai.question.generated — published whenever EDIS surfaces follow-up questions.
@@ -471,6 +480,20 @@ func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, esc
 		hpiJSON, _ = json.Marshal(resp.HPI)
 	}
 
+	// Compute follow-up date and instructions from the AI's followUpPlan.
+	// follow_up_date is stored as a TIMESTAMPTZ; instructions list the trigger
+	// symptoms the patient should watch for before that date.
+	var followUpDate *time.Time
+	var followUpInstructions string
+	if resp.FollowUpPlan != nil && resp.FollowUpPlan.DaysUntil > 0 {
+		t := time.Now().UTC().AddDate(0, 0, resp.FollowUpPlan.DaysUntil)
+		followUpDate = &t
+		if len(resp.FollowUpPlan.TriggerSymptoms) > 0 {
+			followUpInstructions = "Seek care immediately if you experience: " +
+				strings.Join(resp.FollowUpPlan.TriggerSymptoms, ", ") + "."
+		}
+	}
+
 	// Use the AI's top condition as the case title — this is the "possible condition"
 	// shown to the patient in their dashboard. Fall back to a truncated message excerpt.
 	title := ""
@@ -534,18 +557,23 @@ func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, esc
 		if lookupErr == nil && existingID != "" {
 			// Update the existing case with the latest AI output (new symptoms
 			// may have refined the diagnosis, urgency, or prescription details).
+			hasPrescription := resp.Prescription != nil
 			_, updateErr := s.db.Exec(`
 				UPDATE diagnoses
-				SET title       = $2,
-				    description = $3,
-				    condition   = $4,
-				    urgency     = $5,
-				    ai_response = $6,
-				    hpi         = $7,
-				    escalated   = $8,
-				    updated_at  = NOW()
+				SET title                 = $2,
+				    description           = $3,
+				    condition             = $4,
+				    urgency               = $5,
+				    ai_response           = $6,
+				    hpi                   = $7,
+				    escalated             = $8,
+				    has_prescription      = $9,
+				    follow_up_date        = $10,
+				    follow_up_instructions = $11,
+				    updated_at            = NOW()
 				WHERE id = $1::uuid`,
-				existingID, title, resp.Text, condition, urgency, aiJSON, hpiJSON, escalated,
+				existingID, title, resp.Text, condition, urgency, aiJSON, hpiJSON, escalated, hasPrescription,
+				followUpDate, followUpInstructions,
 			)
 			if updateErr != nil {
 				log.Printf("[EDIS] failed to update existing case %s: %v", existingID, updateErr)
@@ -557,12 +585,16 @@ func (s *Service) saveDiagnosis(userID, message string, resp *ai.AIResponse, esc
 	}
 
 	// ── Insert new case ────────────────────────────────────────────────────────
+	hasPrescription := resp.Prescription != nil
 	var id string
 	_ = s.db.QueryRow(
-		`INSERT INTO diagnoses (user_id, title, description, condition, urgency, ai_response, hpi, status, escalated)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'Pending', $8)
+		`INSERT INTO diagnoses
+		   (user_id, title, description, condition, urgency, ai_response, hpi,
+		    status, escalated, has_prescription, follow_up_date, follow_up_instructions)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'Pending', $8, $9, $10, $11)
 		 RETURNING id::text`,
-		userID, title, resp.Text, condition, urgency, aiJSON, hpiJSON, escalated,
+		userID, title, resp.Text, condition, urgency, aiJSON, hpiJSON, escalated, hasPrescription,
+		followUpDate, followUpInstructions,
 	).Scan(&id)
 	return id, true
 }

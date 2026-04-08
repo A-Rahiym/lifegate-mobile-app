@@ -24,4 +24,18 @@ export const DiagnosisService = {
     if (!response.data.success) throw new Error('Failed to fetch diagnosis');
     return response.data.data;
   },
+
+  /**
+   * Submits a follow-up outcome for a diagnosis.
+   */
+  async submitOutcome(
+    id: string,
+    outcome: 'improved' | 'same' | 'worse'
+  ): Promise<{ success: boolean; message: string; escalated: boolean }> {
+    const response = await api.post<{
+      success: boolean;
+      data: { success: boolean; message: string; escalated: boolean };
+    }>(`/diagnoses/${id}/outcome`, { outcome });
+    return response.data.data;
+  },
 };

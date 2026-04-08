@@ -235,6 +235,14 @@ func analyze(raw *ai.AIResponse) *EDISResponse {
 		}
 	}
 
+	// ── Prescription-based mandatory review ───────────────────────────────────
+	// Any response that includes a prescription must enter the physician review
+	// queue regardless of urgency or confidence level. Prescriptions must be
+	// validated by a licensed physician before they are released to the patient.
+	if raw.Prescription != nil {
+		resp.NeedsPhysicianReview = true
+	}
+
 	// ── Low-confidence detection ───────────────────────────────────────────────
 	// A diagnosis with confidence present but below threshold → mandatory review.
 	if raw.Diagnosis != nil && raw.Diagnosis.Confidence > 0 && raw.Diagnosis.Confidence < LowConfidenceThreshold {

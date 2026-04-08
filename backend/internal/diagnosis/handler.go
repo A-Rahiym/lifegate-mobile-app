@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
-
 type Handler struct {
 	svc *Service
 }
@@ -87,4 +86,49 @@ func (h *Handler) GetDiagnosisDetail(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Diagnosis fetched", "data": record})
+}
+
+// SubmitOutcome records the patient's follow-up outcome ("improved" | "same" | "worse").
+// If the outcome is "worse" or the field is absent, the case is auto-escalated to the
+// physician queue so a doctor can follow up.
+//
+// @Summary      Submit follow-up outcome
+// @Tags         diagnoses
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id    path   string  true  "Diagnosis ID"
+// @Param        body  body   object{outcome=string}  true  "Outcome: improved | same | worse"
+// @Success      200   {object}  object{success=bool,message=string,escalated=bool}
+// @Failure      400   {object}  object{success=bool,message=string}
+// @Failure      404   {object}  object{success=bool,message=string}
+// @Router       /diagnoses/{id}/outcome [post]
+func (h *Handler) SubmitOutcome(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	uid, _ := userID.(string)
+	id := c.Param("id")
+
+	var req struct {
+		Outcome string `json:"outcome" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "outcome is required (improved | same | worse)"})
+		return
+	}
+
+	escalated, err := h.svc.SubmitOutcome(uid, id, req.Outcome)
+	if err != nil {
+		if err.Error() == "not found" {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "Diagnosis not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	msg := "Follow-up outcome recorded."
+	if escalated {
+		msg = "Your case has been escalated to a physician for further review."
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": msg, "escalated": escalated})
 }

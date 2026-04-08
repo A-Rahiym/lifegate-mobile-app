@@ -13,6 +13,7 @@ import { ChatService } from 'services/chat-service';
 import { SessionService } from 'services/session-service';
 import { PersistenceManager } from 'utils/persistenceManager';
 import { validateMessage, sanitizeMessage } from 'utils/messageValidator';
+import { scheduleFollowUp } from 'utils/followUpScheduler';
 
 // Granular feedback phases shown during AI processing
 export type ProcessingPhase = 'sending' | 'analyzing' | 'generating' | null;
@@ -317,6 +318,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
         get().conversations,
         get().userId || ''
       );
+
+      // Schedule a device calendar event + local notification for the follow-up
+      // date whenever EDIS returns a followUpPlan alongside a diagnosis.
+      if (
+        aiResponse.followUpPlan &&
+        aiResponse.diagnosisId &&
+        aiResponse.diagnosis?.condition
+      ) {
+        scheduleFollowUp(
+          aiResponse.diagnosisId,
+          aiResponse.diagnosis.condition,
+          aiResponse.followUpPlan,
+          aiResponse.followUpDate ?? undefined,
+        ).catch(() => {
+          // Non-critical — silently skip if permissions are denied or scheduling fails.
+        });
+      }
 
       // Background-sync: if this conversation is paired with a server session,
       // update its messages and mark it active (in case it was abandoned).

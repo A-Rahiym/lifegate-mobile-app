@@ -1,15 +1,17 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   ActivityIndicator,
   Pressable,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDiagnosisStore } from 'stores/diagnosis-store';
+import { DiagnosisService } from 'services/diagnosis-service';
 
 // ─── Urgency config ──────────────────────────────────────────────────────────
 const URGENCY_CONFIG: Record<
@@ -95,6 +97,7 @@ export default function DiagnosisReportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { selectedDiagnosis, detailLoading, error, fetchDiagnosisDetail, clearSelectedDiagnosis } =
     useDiagnosisStore();
+  const [submittingOutcome, setSubmittingOutcome] = useState(false);
 
   useEffect(() => {
     if (id) fetchDiagnosisDetail(id);
@@ -105,6 +108,23 @@ export default function DiagnosisReportScreen() {
 
   const urgency = URGENCY_CONFIG[d?.urgency ?? ''] ?? URGENCY_CONFIG.MEDIUM;
   const statusCfg = STATUS_CONFIG[d?.status ?? 'Pending'] ?? STATUS_CONFIG.Pending;
+
+  async function handleOutcome(outcome: 'improved' | 'same' | 'worse') {
+    if (!id) return;
+    setSubmittingOutcome(true);
+    try {
+      const result = await DiagnosisService.submitOutcome(id, outcome);
+      const msg = result.escalated
+        ? 'Your response has been recorded and the case has been escalated to a physician.'
+        : 'Your response has been recorded. Thank you!';
+      Alert.alert('Follow-up Recorded', msg);
+      fetchDiagnosisDetail(id); // refresh to show outcomeChecked
+    } catch {
+      Alert.alert('Error', 'Failed to submit your response. Please try again.');
+    } finally {
+      setSubmittingOutcome(false);
+    }
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={['top']}>
@@ -211,18 +231,117 @@ export default function DiagnosisReportScreen() {
           )}
 
           {/* ── Prescription ── */}
-          {d.prescription && (
-            <SectionCard title="Recommended Treatment">
-              <InfoRow label="Medicine"    value={d.prescription.medicine}    />
-              <InfoRow label="Dosage"      value={d.prescription.dosage}      />
-              <InfoRow label="Frequency"   value={d.prescription.frequency}   />
-              <InfoRow label="Duration"    value={d.prescription.duration}    />
-              {d.prescription.instructions ? (
-                <View className="pt-2">
-                  <Text className="text-xs text-gray-400 mb-1">Instructions</Text>
-                  <Text className="text-sm text-gray-700">{d.prescription.instructions}</Text>
+          {(d.hasPrescription || d.prescription) && (() => {
+            const isApproved = d.status === 'Completed' && d.physicianDecision === 'Approved';
+            if (!isApproved) {
+              return (
+                <SectionCard title="Recommended Treatment">
+                  <View className="flex-row items-start gap-3 py-1">
+                    <View className="w-8 h-8 rounded-full bg-amber-100 items-center justify-center mt-0.5 flex-shrink-0">
+                      <Ionicons name="lock-closed-outline" size={15} color="#d97706" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-sm font-semibold text-amber-800">
+                        Pending physician approval
+                      </Text>
+                      <Text className="text-xs text-amber-600 mt-1 leading-5">
+                        The AI has suggested a prescription for this case. It will be visible here
+                        once a licensed physician reviews and approves it.
+                      </Text>
+                    </View>
+                  </View>
+                </SectionCard>
+              );
+            }
+            if (!d.prescription) return null;
+            return (
+              <SectionCard title="Recommended Treatment">
+                <View className="flex-row items-center gap-1.5 mb-3 px-2 py-1.5 bg-green-50 rounded-lg border border-green-200">
+                  <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
+                  <Text className="text-xs font-semibold text-green-700">Approved by physician</Text>
                 </View>
-              ) : null}
+                <InfoRow label="Medicine"    value={d.prescription.medicine}    />
+                <InfoRow label="Dosage"      value={d.prescription.dosage}      />
+                <InfoRow label="Frequency"   value={d.prescription.frequency}   />
+                <InfoRow label="Duration"    value={d.prescription.duration}    />
+                {d.prescription.instructions ? (
+                  <View className="pt-2">
+                    <Text className="text-xs text-gray-400 mb-1">Instructions</Text>
+                    <Text className="text-sm text-gray-700">{d.prescription.instructions}</Text>
+                  </View>
+                ) : null}
+              </SectionCard>
+            );
+          })()}
+
+          {/* ── Follow-Up Plan ── */}
+          {d.followUpDate && (
+            <SectionCard title="Follow-Up Plan">
+              {/* Follow-up date */}
+              <View className="flex-row items-center gap-2 mb-3">
+                <View className="w-8 h-8 rounded-full bg-teal-50 items-center justify-center flex-shrink-0">
+                  <Ionicons name="calendar-outline" size={16} color="#0AADA2" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs text-gray-400 mb-0.5">Scheduled Follow-Up</Text>
+                  <Text className="text-sm font-semibold text-gray-800">
+                    {formatDate(d.followUpDate)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Trigger symptoms */}
+              {d.followUpInstructions && (
+                <View className="mb-3 bg-blue-50 rounded-xl px-3 py-2.5 border border-blue-100">
+                  <Text className="text-xs font-bold text-blue-700 mb-1">Watch for these symptoms</Text>
+                  <Text className="text-xs text-blue-600 leading-5">{d.followUpInstructions}</Text>
+                </View>
+              )}
+
+              {/* Outcome section */}
+              {d.outcomeChecked ? (
+                <View className="flex-row items-center gap-2 bg-green-50 rounded-xl px-3 py-2.5 border border-green-200">
+                  <Ionicons name="checkmark-circle" size={16} color="#16a34a" />
+                  <Text className="text-xs font-semibold text-green-700">
+                    Follow-up outcome recorded
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  <Text className="text-xs font-bold text-gray-600 mb-2">
+                    How are you feeling since your diagnosis?
+                  </Text>
+                  <View className="flex-row gap-2">
+                    <Pressable
+                      onPress={() => handleOutcome('improved')}
+                      disabled={submittingOutcome}
+                      className="flex-1 items-center py-2.5 rounded-xl bg-green-100 border border-green-300"
+                    >
+                      <Ionicons name="trending-down-outline" size={16} color="#16a34a" />
+                      <Text className="text-xs font-semibold text-green-700 mt-1">Improved</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleOutcome('same')}
+                      disabled={submittingOutcome}
+                      className="flex-1 items-center py-2.5 rounded-xl bg-amber-50 border border-amber-200"
+                    >
+                      <Ionicons name="remove-outline" size={16} color="#d97706" />
+                      <Text className="text-xs font-semibold text-amber-700 mt-1">Same</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleOutcome('worse')}
+                      disabled={submittingOutcome}
+                      className="flex-1 items-center py-2.5 rounded-xl bg-red-50 border border-red-200"
+                    >
+                      <Ionicons name="trending-up-outline" size={16} color="#dc2626" />
+                      <Text className="text-xs font-semibold text-red-600 mt-1">Worse</Text>
+                    </Pressable>
+                  </View>
+                  {submittingOutcome && (
+                    <ActivityIndicator size="small" color="#0AADA2" className="mt-2" />
+                  )}
+                </View>
+              )}
             </SectionCard>
           )}
 
