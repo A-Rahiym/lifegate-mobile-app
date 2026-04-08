@@ -216,21 +216,30 @@ func analyze(raw *ai.AIResponse) *EDISResponse {
 	}
 
 	// ── HPI gate — enforce triage-before-diagnosis server-side ────────────────
-	// The system prompt instructs the LLM not to return 'diagnosis' until onset,
-	// duration, and severityScore are all known, but LLMs can slip. This hard
-	// server-side check strips any premature diagnosis the LLM returns so that
-	// the HPI INTAKE MANDATE is enforced unconditionally, regardless of model
-	// compliance. followUpPlan is also stripped because it is only meaningful
-	// alongside a confirmed diagnosis.
+	// Requires ALL five OLDCARTS fields before a diagnosis is released.
+	// The prompt allows onset+duration+severityScore to unlock diagnosis, but
+	// the server enforces the stricter 5-field bar so the AI must collect
+	// location and character too before committing to a diagnosis.
+	// followUpPlan and prescription are also stripped — they are meaningless
+	// without a confirmed diagnosis.
+	// Once HPI is fully complete, followUpQuestions are cleared so triage
+	// chips don't appear alongside the diagnosis card in the UI.
 	hpiComplete := raw.HPI != nil &&
 		raw.HPI.Onset != "" &&
 		raw.HPI.Duration != "" &&
-		raw.HPI.SeverityScore > 0
+		raw.HPI.SeverityScore > 0 &&
+		raw.HPI.Location != "" &&
+		raw.HPI.Character != ""
 	if !hpiComplete && raw.Diagnosis != nil {
 		log.Printf("[EDIS] premature diagnosis stripped (hpi incomplete): condition=%q", raw.Diagnosis.Condition)
 		raw.Diagnosis = nil
 		raw.Prescription = nil
 		raw.FollowUpPlan = nil
+	}
+	if hpiComplete {
+		// Triage is done — suppress follow-up questions so chips don't render
+		// alongside the diagnosis card in the client.
+		raw.FollowUpQuestions = nil
 	}
 
 	// ── Diagnosis synthesis fallback ───────────────────────────────────────────

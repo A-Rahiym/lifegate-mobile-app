@@ -33,10 +33,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
   // Mic button pulse scale while active
   const micPulse = useRef(new Animated.Value(1)).current;
 
-  // Scale applied to the whole mic button on press-and-hold
-  const micPressScale = useRef(new Animated.Value(1)).current;
-
-  // SpeechRecognition instance kept in a ref so pressOut can stop it
+  // SpeechRecognition instance kept in a ref so stop can be called on tap-off
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   // Idle attention animation – gentle shake when user hasn't typed anything
@@ -113,18 +110,23 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
     }
   }, [isMicActive]);
 
-  // Press-and-hold mic handlers (WhatsApp style)
-  const handleMicPressIn = () => {
+  // Tap mic to start/stop recording
+  const handleMicPress = () => {
     if (disabled) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Enlarge mic button while holding
-    Animated.spring(micPressScale, {
-      toValue: 1.6,
-      useNativeDriver: true,
-      tension: 140,
-      friction: 6,
-    }).start();
+    if (isMicActive) {
+      // Stop recording
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (Platform.OS === 'web') {
+        recognitionRef.current?.stop();
+        recognitionRef.current = null;
+      }
+      setIsMicActive(false);
+      return;
+    }
+
+    // Start recording
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (Platform.OS === 'web') {
       const SpeechRecognitionAPI =
@@ -169,25 +171,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
       setIsMicActive(true);
       onMicPress?.();
     }
-  };
-
-  const handleMicPressOut = () => {
-    if (!isMicActive) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    // Spring mic button back to normal size
-    Animated.spring(micPressScale, {
-      toValue: 1,
-      useNativeDriver: true,
-      tension: 180,
-      friction: 8,
-    }).start();
-
-    if (Platform.OS === 'web') {
-      recognitionRef.current?.stop();
-      recognitionRef.current = null;
-    }
-    setIsMicActive(false);
   };
 
   const handleSend = () => {
@@ -251,7 +234,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
         paddingBottom: Platform.OS === 'ios' ? 28 : 14,
       }}
     >
-      {/* Recording label — shown above bar while holding */}
+      {/* Recording label — shown above bar while recording */}
       {isMicActive && (
         <View
           style={{
@@ -278,7 +261,7 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
               letterSpacing: 0.4,
             }}
           >
-            Release to send
+            Tap mic to stop
           </Text>
         </View>
       )}
@@ -357,14 +340,13 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
           />
         </View>
 
-        {/* Mic button with wave rings – press & hold to record */}
+        {/* Mic button with wave rings – tap to record */}
         <Pressable
-          onPressIn={handleMicPressIn}
-          onPressOut={handleMicPressOut}
+          onPress={handleMicPress}
           disabled={disabled}
           style={{ marginRight: 4, padding: 4 }}
         >
-          <Animated.View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', transform: [{ scale: micPressScale }] }}>
+          <Animated.View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
             {/* Ring 1 */}
             <Animated.View
               style={{

@@ -344,8 +344,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <InvestigationList investigations={investigations} />
             )}
 
-            {/* Follow-up chips */}
-            {followUpQuestions && followUpQuestions.length > 0 && onFollowUp && (
+            {/* Follow-up chips — only shown while triage is still in progress (no diagnosis yet) */}
+            {!diagnosis && followUpQuestions && followUpQuestions.length > 0 && onFollowUp && (
               <FollowUpChips questions={followUpQuestions} onSelect={onFollowUp} />
             )}
 
