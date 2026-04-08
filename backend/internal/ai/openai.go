@@ -42,9 +42,10 @@ msgs = append(msgs, openAIMessage{Role: role, Content: m.Text})
 }
 
 body := map[string]interface{}{
-"model":       o.model,
-"messages":    msgs,
-"temperature": 0.7,
+"model":           o.model,
+"messages":        msgs,
+"temperature":     0.7,
+"response_format": map[string]string{"type": "json_object"},
 }
 payload, err := json.Marshal(body)
 if err != nil {

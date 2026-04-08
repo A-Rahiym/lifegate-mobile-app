@@ -41,8 +41,10 @@ function resolveBaseUrl(): string {
 
 const BASE_URL = resolveBaseUrl();
 
-// Render free-tier cold starts can take up to 50 s; use 60 s to be safe.
-const TIMEOUT_MS = 60_000;
+// EDIS hard wall is 120 s (3 retries × 50 s each). Use 150 s here so the
+// server always has time to complete its retry cycle and return a graceful
+// response rather than the client cutting the socket mid-flight.
+const TIMEOUT_MS = 150_000;
 
 // Idempotent GET requests are retried up to this many times on network error.
 const MAX_RETRIES = 2;
