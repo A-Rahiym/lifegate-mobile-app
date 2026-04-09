@@ -74,14 +74,7 @@ export default function UserReviewStep() {
 
         {/* Summary card */}
         <View
-          className="mb-6 overflow-hidden rounded-2xl bg-white"
-          style={{
-            elevation: 2,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.06,
-            shadowRadius: 6,
-          }}>
+          className="mb-6 overflow-hidden rounded-2xl bg-white">
           {/* Card header */}
           <View className="flex-row items-center justify-between border-b border-[#c8f3ef] bg-[#EDF9F9] px-4 py-3">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -93,7 +86,6 @@ export default function UserReviewStep() {
               <Text className="ml-1 text-sm font-medium text-[#0EA5A4]">Edit</Text>
             </Pressable>
           </View>
-
           {/* Data rows */}
           <View className="px-4">
             <InfoRow icon="person-outline" label="Full Name" value={userDraft.name} />
@@ -154,7 +146,6 @@ export default function UserReviewStep() {
           disabled={loading || !agreed}
           loading={loading}
         />
-
         <View className="h-8" />
       </View>
     </ScrollView>

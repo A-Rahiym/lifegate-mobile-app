@@ -37,13 +37,16 @@ const STATUS_CONFIG: Record<
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(iso: string) {
   try {
-    return new Date(iso).toLocaleDateString('en-US', {
+    const date = new Date(iso).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    });
+    })
+    console.log('Formatted date:', date);
+    return date.replace(',', ' at')
+    ;
   } catch {
     return iso;
   }
@@ -111,6 +114,7 @@ export default function DiagnosisReportScreen() {
   }, [id]);
 
   const d = selectedDiagnosis?.id === id ? selectedDiagnosis : null;
+  console.log('Selected diagnosis:', d);
 
   const urgency = URGENCY_CONFIG[d?.urgency ?? ''] ?? URGENCY_CONFIG.MEDIUM;
   const statusCfg = STATUS_CONFIG[d?.status ?? 'Pending'] ?? STATUS_CONFIG.Pending;
@@ -379,6 +383,7 @@ export default function DiagnosisReportScreen() {
                 <View className="flex-1">
                   <Text className="text-sm font-semibold text-gray-800">Case Created</Text>
                   <Text className="text-xs text-gray-400 mt-0.5">{formatDate(d.createdAt)}</Text>
+
                 </View>
               </View>
 
