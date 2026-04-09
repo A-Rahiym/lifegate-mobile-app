@@ -17,14 +17,7 @@ function RoleCard({ icon, title, description, onPress }: RoleCardProps) {
   return (
     <Pressable
       onPress={onPress}
-      className="mb-4 flex-row items-center rounded-2xl bg-white p-5 active:opacity-75"
-      style={{
-        shadowColor: '#0AADA2',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 3,
-      }}>
+      className="mb-4 flex-row items-center rounded-2xl bg-white p-5 active:opacity-75">
       <View className="h-14 w-14 items-center justify-center rounded-2xl bg-[#EDF9F9]">
         <Ionicons name={icon} size={28} color="#0EA5A4" />
       </View>

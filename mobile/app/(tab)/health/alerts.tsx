@@ -30,7 +30,7 @@ const CATEGORY_CFG: Record<AlertCategory, { icon: keyof typeof Ionicons.glyphMap
   preventive: { icon: 'shield-checkmark-outline', label: 'Preventive'     },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string) {
   if (!iso) return '';
@@ -45,7 +45,7 @@ function formatDate(iso: string) {
   }
 }
 
-// ─── AlertCard ────────────────────────────────────────────────────────────────
+// ─── AlertCard ────────────────────────────────────────────────────────────────────────────────────
 
 function AlertCard({
   alert,
@@ -79,11 +79,8 @@ function AlertCard({
           flexDirection: 'row',
           alignItems: 'flex-start',
           gap: 12,
-          shadowColor: '#000',
-          shadowOpacity: 0.03,
-          shadowRadius: 3,
-          elevation: 1,
         }}
+        className='m-2'
       >
         {/* Icon */}
         <View
@@ -175,7 +172,7 @@ function AlertCard({
   );
 }
 
-// ─── Main Screen ─────────────────────────────────────────────────────────────
+// ─── Main Screen ─────────────────────────────────────────────────────────────────────────────
 
 export default function PatientAlertsScreen() {
   const {

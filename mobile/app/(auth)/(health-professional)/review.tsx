@@ -72,8 +72,7 @@ export default function ReviewScreen() {
 
           {/* Account info card */}
           <View
-            className="mb-4 overflow-hidden rounded-2xl bg-white"
-            style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 }}>
+            className="mb-4 overflow-hidden rounded-2xl bg-white">
             <View className="border-b border-gray-100 bg-[#EDF9F9] px-4 py-3 flex-row items-center justify-between">
               <Text className="text-sm font-semibold text-[#0EA5A4]">Personal Information</Text>
               <Pressable onPress={() => router.push('/(auth)/(health-professional)')} className="flex-row items-center">
@@ -93,8 +92,7 @@ export default function ReviewScreen() {
 
           {/* Professional details card */}
           <View
-            className="mb-4 overflow-hidden rounded-2xl bg-white"
-            style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 }}>
+            className="mb-4 overflow-hidden rounded-2xl bg-white">
             <View className="border-b border-gray-100 bg-[#EDF9F9] px-4 py-3 flex-row items-center justify-between">
               <Text className="text-sm font-semibold text-[#0EA5A4]">Professional Details</Text>
               <Pressable onPress={() => router.push('/(auth)/(health-professional)/professional')} className="flex-row items-center">
@@ -110,8 +108,7 @@ export default function ReviewScreen() {
 
           {/* Certification card */}
           <View
-            className="mb-6 overflow-hidden rounded-2xl bg-white"
-            style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 }}>
+            className="mb-6 overflow-hidden rounded-2xl bg-white">
             <View className="border-b border-gray-100 bg-[#EDF9F9] px-4 py-3 flex-row items-center justify-between">
               <Text className="text-sm font-semibold text-[#0EA5A4]">Certification</Text>
               <Pressable onPress={() => router.push('/(auth)/(health-professional)/license')} className="flex-row items-center">

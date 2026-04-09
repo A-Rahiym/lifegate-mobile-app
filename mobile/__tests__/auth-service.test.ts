@@ -217,9 +217,7 @@ describe('AuthService.resendOtp()', () => {
 
   it('routes password-reset type to send-reset-code endpoint', async () => {
     mockPost.mockResolvedValue({ data: { success: true, message: 'Reset code sent' } });
-
     const result = await AuthService.resendOtp('test@example.com', 'password-reset');
-
     expect(result.success).toBe(true);
     expect(mockPost).toHaveBeenCalledWith('/auth/password/send-reset-code', { email: 'test@example.com' });
   });

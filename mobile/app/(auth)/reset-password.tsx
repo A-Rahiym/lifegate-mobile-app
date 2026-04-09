@@ -149,7 +149,6 @@ export default function ResetPasswordScreen() {
             }}
             editable={!loading}
           />
-
           <View className="mt-6">
             <PrimaryButton
               title="Reset Password"

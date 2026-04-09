@@ -521,11 +521,38 @@ function QuickActions() {
   );
 }
 
+function UnreadAlertsBanner({ unreadAlertCount }: { unreadAlertCount: number }) {
+  return (
+    <Pressable
+      onPress={() => router.push('/(tab)/health/alerts' as never)}
+      className="m-4"
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: '#fef3c7',
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: '#fde68a',
+          padding: 12,
+          gap: 10,
+        }}
+      >
+        <Ionicons name="alert-circle" size={20} color="#b45309" />
+        <Text style={{ flex: 1, fontSize: 13, color: '#92400e', fontWeight: '600' }}>
+          {unreadAlertCount} unread alert{unreadAlertCount !== 1 ? 's' : ''} — tap to review
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color="#b45309" />
+      </View>
+    </Pressable>
+  );
+}
+
 function RecentCaseRow({ entry }: { entry: HealthTimelineEntry }) {
   const color = URGENCY_COLOR[entry.urgency] ?? '#6b7280';
   const bg = URGENCY_BG[entry.urgency] ?? '#f9fafb';
   const border = URGENCY_BORDER[entry.urgency] ?? '#e5e7eb';
-
   return (
     <Pressable
       onPress={() => router.push(`/(tab)/diagnosis/${entry.id}` as never)}
@@ -578,7 +605,6 @@ export default function HealthDashboardScreen() {
   } = useHealthStore();
 
   const { user, sessionLoading } = useAuthStore();
-
   // Wait for the session to be fully restored before making authenticated API
   // calls. On a web refresh, _layout.tsx triggers restoreSession() which is
   // async. Without this guard, the API calls fire before the access token is
@@ -700,33 +726,7 @@ export default function HealthDashboardScreen() {
         >
           {/* Unread alerts banner */}
           {unreadAlertCount > 0 && (
-            <Pressable
-              onPress={() => router.push('/(tab)/health/alerts' as never)}
-              style={({ pressed }) => ({
-                opacity: pressed ? 0.85 : 1,
-                marginHorizontal: 16,
-                marginBottom: 12,
-              })}
-            >
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: '#fef3c7',
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: '#fde68a',
-                  padding: 12,
-                  gap: 10,
-                }}
-              >
-                <Ionicons name="alert-circle" size={20} color="#b45309" />
-                <Text style={{ flex: 1, fontSize: 13, color: '#92400e', fontWeight: '600' }}>
-                  {unreadAlertCount} unread alert{unreadAlertCount !== 1 ? 's' : ''} — tap to review
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color="#b45309" />
-              </View>
-            </Pressable>
+            <UnreadAlertsBanner unreadAlertCount={unreadAlertCount} />
           )}
 
           <HealthStatusCard status={status} latest={latest} totalActive={totalActive} />
