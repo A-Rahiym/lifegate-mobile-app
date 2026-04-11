@@ -15,18 +15,21 @@ import (
 )
 
 // allowedCertMIME is the whitelist of accepted certificate file types.
-// Only PDF, JPEG, and PNG are permitted — Word documents are not accepted.
 var allowedCertMIME = map[string]bool{
-	"application/pdf": true,
-	"image/jpeg":      true,
-	"image/png":       true,
+	"application/pdf":    true,
+	"image/jpeg":         true,
+	"image/png":          true,
+	"application/msword": true,
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
 }
 
 // certExtByMIME maps allowed MIME types to safe file extensions.
 var certExtByMIME = map[string]string{
-	"application/pdf": ".pdf",
-	"image/jpeg":      ".jpg",
-	"image/png":       ".png",
+	"application/pdf":    ".pdf",
+	"image/jpeg":         ".jpg",
+	"image/png":          ".png",
+	"application/msword": ".doc",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
 }
 
 // randomHex returns a cryptographically random hex string of n bytes.
@@ -274,7 +277,7 @@ defer file.Close()
 // Validate MIME type against whitelist
 contentType := header.Header.Get("Content-Type")
 if !allowedCertMIME[contentType] {
-respond(c, http.StatusBadRequest, false, "invalid certificate file type; accepted formats are PDF, JPEG, and PNG only", nil)
+respond(c, http.StatusBadRequest, false, "invalid certificate file type; accepted: PDF, JPEG, PNG, DOC, DOCX", nil)
 return
 }
 if mkErr := os.MkdirAll(h.uploadDir, 0750); mkErr != nil {

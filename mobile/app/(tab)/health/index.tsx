@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -631,8 +631,15 @@ export default function HealthDashboardScreen() {
     }
   }, [sessionLoading, user?.id]);
 
+  const [refreshing, setRefreshing] = useState(false);
+
   const onRefresh = useCallback(async () => {
-    await Promise.all([fetchPatientTimeline(), fetchPatientAlerts()]);
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchPatientTimeline(), fetchPatientAlerts()]);
+    } finally {
+      setRefreshing(false);
+    }
   }, [fetchPatientTimeline, fetchPatientAlerts]);
 
   const isLoading = timelineLoading && patientTimeline.length === 0;
@@ -733,9 +740,11 @@ export default function HealthDashboardScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
-              refreshing={timelineLoading || alertsLoading}
+              refreshing={refreshing}
               onRefresh={onRefresh}
               tintColor="#0AADA2"
+              colors={['#0AADA2']}
+              progressBackgroundColor="#ffffff"
             />
           }
         >
