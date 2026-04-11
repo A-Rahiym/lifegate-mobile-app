@@ -6,6 +6,8 @@ import {
   RefreshControl,
   Pressable,
   ActivityIndicator,
+  StatusBar,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +15,7 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useHealthStore } from 'stores/health-store';
 import { useAuthStore } from 'stores/auth/auth-store';
+import { PatientBottomTabBar } from 'components/PatientBottomTabBar';
 import type { HealthTimelineEntry } from 'types/health-types';
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -654,43 +657,70 @@ export default function HealthDashboardScreen() {
   const firstName = user?.name?.split(' ')[0] ?? 'there';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }} edges={['top']}
-    className='mb-14'
-    >
-      {/* ── Header ── */}
+    <>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+      {/* ── Header (chatscreen style) ── */}
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           paddingHorizontal: 16,
-          paddingVertical: 14,
-          backgroundColor: '#fff',
+          paddingTop: 12,
+          paddingBottom: 12,
           borderBottomWidth: 1,
-          borderBottomColor: '#f3f4f6',
+          borderBottomColor: 'rgba(99,210,194,0.25)',
         }}
       >
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827' }}>
-            Dashboard
-          </Text>
-          <Text style={{ fontSize: 12, color: '#9ca3af', marginTop: 1 }}>
-            Good {getTimeOfDay()}, {firstName}
+        {/* Left: Chat button */}
+        <TouchableOpacity
+          onPress={() => router.replace('/(tab)/chatScreen' as never)}
+          activeOpacity={0.7}
+        >
+          <View
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              borderWidth: 2,
+              borderColor: '#0f766e',
+              backgroundColor: 'rgba(255,255,255,0.35)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color="#0f766e" />
+          </View>
+        </TouchableOpacity>
+
+        {/* Center: Brand */}
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: '800',
+              color: '#0f766e',
+              letterSpacing: -0.5,
+            }}
+          >
+            Life<Text style={{ color: '#0AADA2' }}>Gate</Text>
           </Text>
         </View>
 
-        {/* Alerts */}
-        <Pressable
+        {/* Right: Notification icon */}
+        <TouchableOpacity
           onPress={() => router.push('/(tab)/health/alerts' as never)}
-          style={{ padding: 8, borderRadius: 20, backgroundColor: '#f3f4f6', position: 'relative' }}
-          hitSlop={8}
+          activeOpacity={0.7}
+          style={{ padding: 6, position: 'relative' }}
         >
-          <Ionicons name="notifications-outline" size={22} color="#374151" />
+          <Ionicons name="notifications-outline" size={24} color="#0f766e" />
           {unreadAlertCount > 0 && (
             <View
               style={{
                 position: 'absolute',
-                top: 2,
-                right: 2,
+                top: 4,
+                right: 4,
                 minWidth: 16,
                 height: 16,
                 borderRadius: 8,
@@ -705,49 +735,32 @@ export default function HealthDashboardScreen() {
               </Text>
             </View>
           )}
-        </Pressable>
-
-        {/* Full history */}
-        <Pressable
-          onPress={() => router.push('/(tab)/health/timeline' as never)}
-          style={{ padding: 8, borderRadius: 20, backgroundColor: '#f3f4f6', marginLeft: 8 }}
-          hitSlop={8}
-        >
-          <Ionicons name="time-outline" size={22} color="#374151" />
-        </Pressable>
-
-        {/* Settings */}
-        <Pressable
-          onPress={() => router.push('/(tab)/settings' as never)}
-          style={{ padding: 8, borderRadius: 20, backgroundColor: '#f3f4f6', marginLeft: 8 }}
-          hitSlop={8}
-        >
-          <Ionicons name="settings-outline" size={22} color="#374151" />
-        </Pressable>
+        </TouchableOpacity>
       </View>
 
       {/* ── Loading ── */}
-      {isLoading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#0AADA2" />
-          <Text style={{ marginTop: 12, color: '#6b7280', fontSize: 14 }}>
-            Loading your health data…
-          </Text>
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={{ paddingTop: 16, paddingBottom: 48 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#0AADA2"
-              colors={['#0AADA2']}
-              progressBackgroundColor="#ffffff"
-            />
-          }
-        >
+      <ScrollView
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: 48 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#0AADA2"
+            colors={['#0AADA2']}
+            progressBackgroundColor="#ffffff"
+          />
+        }
+      >
+        {isLoading ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
+            <ActivityIndicator size="large" color="#0AADA2" />
+            <Text style={{ marginTop: 12, color: '#6b7280', fontSize: 14 }}>
+              Loading your health data…
+            </Text>
+          </View>
+        ) : (
+          <View>
           {/* Unread alerts banner */}
           {unreadAlertCount > 0 && (
             <UnreadAlertsBanner unreadAlertCount={unreadAlertCount} />
@@ -866,8 +879,12 @@ export default function HealthDashboardScreen() {
               ))}
             </View>
           )}
-        </ScrollView>
-      )}
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
+    <PatientBottomTabBar activeTab="health" />
+    </View>
+    </>
   );
 }
