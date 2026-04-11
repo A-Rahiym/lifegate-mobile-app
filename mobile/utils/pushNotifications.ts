@@ -1,15 +1,15 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { ProfessionalService } from '../services/professional-service';
 
 // Configure how notifications look while the app is in the foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: false, // We use the in-app banner instead
     shouldPlaySound: true,
     shouldSetBadge: true,
-    shouldShowBanner: false,
+    shouldShowBanner: false, // We use the in-app banner instead
     shouldShowList: true,
   }),
 });
@@ -47,7 +47,9 @@ export async function registerPhysicianPushToken(): Promise<void> {
     });
   }
 
-  const tokenData = await Notifications.getExpoPushTokenAsync();
+  const projectId =
+    Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
   await ProfessionalService.registerPushToken(tokenData.data);
 }
 

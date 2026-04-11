@@ -768,10 +768,10 @@ return string(b), nil
 }
 
 func generateID(prefix string) string {
-token, err := generateToken(8)
+token, err := generateToken(6)
 if err != nil {
 // Fallback to a timestamp-based ID if crypto/rand is unavailable
 return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }
-return prefix + "-" + token
+return prefix + "-" + strings.ToUpper(token)
 }

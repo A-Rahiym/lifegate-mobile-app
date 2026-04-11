@@ -79,8 +79,6 @@ const handlePickCertificate = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: [
         'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'image/jpeg',
         'image/png',
       ],
@@ -254,6 +252,14 @@ const handlePickCertificate = async () => {
               <Text className="ml-1 text-xs text-red-500">{certificateError}</Text>
             </View>
           ) : null}
+
+          {/* Fraud deterrence notice */}
+          <View className="mt-3 flex-row items-start rounded-xl bg-amber-50 border border-amber-200 p-3">
+            <Ionicons name="warning-outline" size={16} color="#b45309" style={{ marginTop: 1 }} />
+            <Text className="ml-2 flex-1 text-xs text-amber-800 leading-relaxed">
+              Submitting falsified or fraudulent credentials is a criminal offence. Verified documents only — any misrepresentation will result in immediate account termination and referral for legal prosecution.
+            </Text>
+          </View>
         </View>
 
         <PrimaryButton

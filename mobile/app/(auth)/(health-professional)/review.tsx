@@ -108,7 +108,7 @@ export default function ReviewScreen() {
 
           {/* Certification card */}
           <View
-            className="mb-6 overflow-hidden rounded-2xl bg-white">
+            className="mb-4 overflow-hidden rounded-2xl bg-white">
             <View className="border-b border-gray-100 bg-[#EDF9F9] px-4 py-3 flex-row items-center justify-between">
               <Text className="text-sm font-semibold text-[#0EA5A4]">Certification</Text>
               <Pressable onPress={() => router.push('/(auth)/(health-professional)/license')} className="flex-row items-center">
@@ -126,6 +126,28 @@ export default function ReviewScreen() {
                 value={userDraft.certificate ? userDraft.certificate.name : 'Not uploaded'}
                 isLast
               />
+            </View>
+          </View>
+
+          {/* Admin review notice */}
+          <View className="mb-4 flex-row items-start rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <Ionicons name="time-outline" size={18} color="#1d4ed8" style={{ marginTop: 1 }} />
+            <View className="ml-3 flex-1">
+              <Text className="text-sm font-semibold text-blue-800">Under Admin Review</Text>
+              <Text className="mt-0.5 text-xs text-blue-700 leading-relaxed">
+                Your certificate and credentials will be reviewed by the LifeGate compliance team before your account is activated. You will be notified by email once the review is complete (typically within 1–2 business days).
+              </Text>
+            </View>
+          </View>
+
+          {/* Fraud deterrence notice */}
+          <View className="mb-6 flex-row items-start rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <Ionicons name="warning-outline" size={18} color="#b45309" style={{ marginTop: 1 }} />
+            <View className="ml-3 flex-1">
+              <Text className="text-sm font-semibold text-amber-800">Accuracy Notice</Text>
+              <Text className="mt-0.5 text-xs text-amber-700 leading-relaxed">
+                All submitted credentials are verified against official medical registries. Submitting falsified or fraudulent documents is a criminal offence and will result in immediate account termination and referral for legal prosecution.
+              </Text>
             </View>
           </View>
 

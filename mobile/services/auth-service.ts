@@ -397,6 +397,7 @@ export const AuthService = {
     medical_history?: string | null;
     current_medications?: string | null;
     emergency_contact?: string | null;
+    language?: string | null;
   }): Promise<{ success: boolean; message: string; user?: import('../types/auth-types').User }> {
     try {
       const response = await api.put<{ success: boolean; message: string; data?: { user: import('../types/auth-types').User } }>(

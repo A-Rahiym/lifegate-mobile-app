@@ -201,18 +201,32 @@ func (e *Engine) Process(ctx context.Context, messages []ai.ChatMessage, categor
 		return gracefulFallback(), nil
 	}
 
-	return analyze(raw), nil
+	return analyze(raw, category), nil
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 // analyze derives escalation metadata from a raw AIResponse and returns an EDISResponse.
-func analyze(raw *ai.AIResponse) *EDISResponse {
+// category is used to enforce mode-specific safety rules (e.g. prescription restriction).
+func analyze(raw *ai.AIResponse, category string) *EDISResponse {
 	resp := &EDISResponse{AIResponse: raw}
 
 	// Ensure mode is set.
 	if raw.Mode == "" {
 		raw.Mode = "general"
+	}
+
+	// ── Prescription mode gate ───────────────────────────────────────────────	// Prescriptions are only permitted in clinical_diagnosis mode.
+	// Any prescription the model produces for a non-clinical category is
+	// stripped here as a hard safety rule, regardless of what the AI returned.
+	if category != "clinical_diagnosis" && raw.Prescription != nil {
+		log.Printf("[EDIS] prescription stripped for non-clinical category: category=%q condition=%q", category, func() string {
+			if raw.Diagnosis != nil {
+				return raw.Diagnosis.Condition
+			}
+			return "(no diagnosis)"
+		}())
+		raw.Prescription = nil
 	}
 
 	// ── HPI gate — enforce triage-before-diagnosis server-side ────────────────

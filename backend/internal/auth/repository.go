@@ -185,6 +185,7 @@ type HealthProfileInput struct {
 	CurrentMedications *string `json:"current_medications"`
 	EmergencyContact   *string `json:"emergency_contact"`
 	Genotype           *string `json:"genotype"`
+	Language           *string `json:"language"`
 }
 
 func (r *Repository) UpdateHealthProfile(userID string, in HealthProfileInput) (*User, error) {
@@ -196,9 +197,10 @@ func (r *Repository) UpdateHealthProfile(userID string, in HealthProfileInput) (
 		    current_medications = COALESCE($5, current_medications),
 		    emergency_contact   = COALESCE($6, emergency_contact),
 		    genotype            = COALESCE($7, genotype),
+		    language            = COALESCE($8, language),
 		    updated_at          = NOW()
 		WHERE id = $1::uuid`,
-		userID, in.BloodType, in.Allergies, in.MedicalHistory, in.CurrentMedications, in.EmergencyContact, in.Genotype,
+		userID, in.BloodType, in.Allergies, in.MedicalHistory, in.CurrentMedications, in.EmergencyContact, in.Genotype, in.Language,
 	)
 	if err != nil {
 		return nil, err

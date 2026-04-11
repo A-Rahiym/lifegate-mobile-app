@@ -7,6 +7,7 @@ import {
   Modal,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -15,15 +16,26 @@ import { useProfileStore } from 'stores/auth/profile-store';
 import { ProfileSkeleton } from 'components/ProfileSkeleton';
 import { LabeledInput } from 'components/LabeledInput';
 import { PrimaryButton } from 'components/Button';
+import { Dropdown } from 'components/DropDown';
 import {SafeAreaView} from 'react-native-safe-area-context';
+
+const LANGUAGE_OPTIONS = [
+  { label: 'English', value: 'English' },
+  { label: 'Hausa', value: 'Hausa' },
+  { label: 'Yoruba', value: 'Yoruba' },
+  { label: 'Igbo', value: 'Igbo' },
+  { label: 'Pidgin', value: 'Pidgin' },
+  { label: 'French', value: 'French' },
+];
 
 export default function PatientProfileScreen() {
   const { user } = useAuthStore();
-  const { changePassword, loading, getProfile, error } = useProfileStore();
+  const { changePassword, updateHealthProfile, loading, getProfile, error } = useProfileStore();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [languageSaving, setLanguageSaving] = useState(false);
   const [editForm, setEditForm] = useState({
     firstName: user?.name?.split(' ')[0] || '',
     lastName: user?.name?.split(' ').slice(1).join(' ') || '',
@@ -194,16 +206,36 @@ export default function PatientProfileScreen() {
 
           {/* ── Language ── */}
           <View className="bg-white rounded-2xl p-4 shadow-sm">
-            <View className="flex-row items-center gap-2 mb-3">
-              <Ionicons name="globe-outline" size={24} color="#0EA5A4" />
-              <Text className="text-xl font-bold text-gray-900">Language</Text>
+            <View className="flex-row items-center justify-between mb-3">
+              <View className="flex-row items-center gap-2">
+                <Ionicons name="globe-outline" size={24} color="#0EA5A4" />
+                <Text className="text-xl font-bold text-gray-900">Language</Text>
+              </View>
+              {languageSaving && <ActivityIndicator size="small" color="#0EA5A4" />}
             </View>
-            <TouchableOpacity className="flex-row items-center justify-between bg-[#F2F4F7] rounded-xl px-4 py-3">
-              <Text className="text-sm text-gray-400">
-                {user.language || 'Select Preferred Language'}
-              </Text>
-              <Ionicons name="chevron-down" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
+            <Dropdown
+              label=""
+              options={LANGUAGE_OPTIONS}
+              placeholder="Select Preferred Language"
+              selectedValue={user.language || ''}
+              onChange={async (value) => {
+                // Optimistically update the store so the rest of the app
+                // reflects the change without waiting for the server.
+                useAuthStore.setState((s) => ({
+                  user: s.user ? { ...s.user, language: value } : s.user,
+                }));
+                setLanguageSaving(true);
+                const ok = await updateHealthProfile({ language: value });
+                setLanguageSaving(false);
+                if (!ok) {
+                  // Roll back optimistic update on failure.
+                  useAuthStore.setState((s) => ({
+                    user: s.user ? { ...s.user, language: user.language ?? '' } : s.user,
+                  }));
+                  Alert.alert('Error', 'Could not save language preference. Please try again.');
+                }
+              }}
+            />
           </View>
         </View>
       </ScrollView>

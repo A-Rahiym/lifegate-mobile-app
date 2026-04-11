@@ -299,8 +299,6 @@ const validateCertificateFile = (certificate: File | null | undefined, isHealthP
     'application/pdf',
     'image/jpeg',
     'image/png',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ];
 
   if (isHealthProfessional) {
@@ -314,7 +312,7 @@ const validateCertificateFile = (certificate: File | null | undefined, isHealthP
     }
 
     if (!allowedTypes.includes(certificate.type)) {
-      errors.push({ field: 'certificate', message: 'Certificate must be a PDF, image (JPEG, PNG), or Word document' });
+      errors.push({ field: 'certificate', message: 'Certificate must be a PDF, JPEG, or PNG file' });
     }
   }
 
