@@ -136,6 +136,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await saveRefreshToken(response.refreshToken);
       }
 
+      // Clear any previous user's health data before applying the new user's state.
+      try {
+        const { useHealthStore } = await import('../health-store');
+        useHealthStore.getState().reset();
+      } catch { /* best-effort */ }
+
       set({
         user: response.user,
         isAuthenticated: true,
@@ -143,6 +149,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: null,
         pending2FA: null,
       });
+
+      // Mirror the app-boot behaviour: load any abandoned session for patients
+      // so the ResumeSessionModal is offered after a mid-session user switch.
+      if (response.user.role === 'user') {
+        import('../session-store')
+          .then(({ useSessionStore }) => useSessionStore.getState().fetchIncomplete())
+          .catch(() => {});
+      }
+
       return true;
     } catch (err: unknown) {
       set({
@@ -168,6 +183,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (response.refreshToken) {
         await saveRefreshToken(response.refreshToken);
       }
+      // Clear any previous user's health data before applying the new user's state.
+      try {
+        const { useHealthStore } = await import('../health-store');
+        useHealthStore.getState().reset();
+      } catch { /* best-effort */ }
+
       set({
         user: response.user,
         isAuthenticated: true,
@@ -175,6 +196,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: null,
         pending2FA: null,
       });
+
+      // Same as direct login: offer resume modal for patients on user switch.
+      if (response.user.role === 'user') {
+        import('../session-store')
+          .then(({ useSessionStore }) => useSessionStore.getState().fetchIncomplete())
+          .catch(() => {});
+      }
+
       return true;
     } catch (err: unknown) {
       set({ loading: false, error: extractErrorMessage(err) });
@@ -220,6 +249,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         activeConversationId: null,
         userId: null,
       });
+    } catch { /* best-effort */ }
+    try {
+      const { useHealthStore } = await import('../health-store');
+      useHealthStore.getState().reset();
     } catch { /* best-effort */ }
   },
 

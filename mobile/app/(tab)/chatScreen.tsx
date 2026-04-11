@@ -74,7 +74,9 @@ const ChatScreen: React.FC = () => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showModeModal, setShowModeModal] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
-  const hasInitialized = useRef(false);
+  // Track which userId was last used to initialize the chat store so that
+  // switching accounts always loads the correct user's conversation history.
+  const initializedForUserId = useRef<string | null>(null);
 
   // Network connectivity
   useEffect(() => {
@@ -85,8 +87,13 @@ const ChatScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (user?.id && !hasInitialized.current) {
-      hasInitialized.current = true;
+    if (!user?.id) {
+      // User logged out — reset so the next login always re-initializes.
+      initializedForUserId.current = null;
+      return;
+    }
+    if (initializedForUserId.current !== user.id) {
+      initializedForUserId.current = user.id;
       initializeChat(user.id);
     }
   }, [user?.id, initializeChat]);

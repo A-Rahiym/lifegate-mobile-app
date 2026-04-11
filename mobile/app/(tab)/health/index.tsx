@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -602,17 +602,32 @@ export default function HealthDashboardScreen() {
     unreadAlertCount,
     fetchPatientTimeline,
     fetchPatientAlerts,
+    reset: resetHealthStore,
   } = useHealthStore();
 
   const { user, sessionLoading } = useAuthStore();
+
+  // Track the last userId that triggered a fetch. When a different user
+  // becomes active, drop stale data immediately so the previous user's
+  // records never flash in the new user's view.
+  const fetchedForUserId = useRef<string | null>(null);
+
   // Wait for the session to be fully restored before making authenticated API
   // calls. On a web refresh, _layout.tsx triggers restoreSession() which is
   // async. Without this guard, the API calls fire before the access token is
   // set in memory, causing a 401 / stuck loading state.
   useEffect(() => {
     if (!sessionLoading && user?.id) {
+      if (fetchedForUserId.current !== user.id) {
+        // User changed — clear stale data before the new fetch resolves.
+        resetHealthStore();
+      }
+      fetchedForUserId.current = user.id;
       fetchPatientTimeline();
       fetchPatientAlerts();
+    }
+    if (!user?.id) {
+      fetchedForUserId.current = null;
     }
   }, [sessionLoading, user?.id]);
 

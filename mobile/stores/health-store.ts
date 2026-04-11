@@ -33,6 +33,7 @@ interface HealthState {
   markAlertRead: (id: string) => void;
   markPhysicianAlertRead: (id: string) => void;
   markAllAlertsRead: () => void;
+  reset: () => void;
 }
 
 export const useHealthStore = create<HealthState>((set, get) => ({
@@ -144,4 +145,19 @@ export const useHealthStore = create<HealthState>((set, get) => ({
       unreadAlertCount: 0,
     }));
   },
+
+  /** Clear all user-scoped data (call on logout / user switch). */
+  reset: () =>
+    set({
+      patientTimeline: [],
+      timelineError: null,
+      physicianTimeline: [],
+      physicianTimelineError: null,
+      patientAlerts: [],
+      alertsError: null,
+      unreadAlertCount: 0,
+      physicianAlerts: [],
+      physicianAlertsError: null,
+      unreadPhysicianAlertCount: 0,
+    }),
 }));

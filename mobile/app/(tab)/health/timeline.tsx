@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo, useState } from 'react';
+import React, { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -359,15 +359,29 @@ function MonthGroup({
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function HealthTimelineScreen() {
-  const { patientTimeline, timelineLoading, timelineError, fetchPatientTimeline, unreadAlertCount } = useHealthStore();
+  const { patientTimeline, timelineLoading, timelineError, fetchPatientTimeline, unreadAlertCount, reset: resetHealthStore } = useHealthStore();
   const { user, sessionLoading } = useAuthStore();
 
   const [dateFilter, setDateFilter] = useState<DateFilter>('30d');
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('ALL');
   const [abnormalOnly, setAbnormalOnly] = useState(false);
 
+  // Track the last userId that triggered a fetch. When a different user
+  // becomes active, drop stale data immediately so the previous user's
+  // records never flash in the new user's view.
+  const fetchedForUserId = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!sessionLoading && user?.id) fetchPatientTimeline();
+    if (!sessionLoading && user?.id) {
+      if (fetchedForUserId.current !== user.id) {
+        resetHealthStore();
+      }
+      fetchedForUserId.current = user.id;
+      fetchPatientTimeline();
+    }
+    if (!user?.id) {
+      fetchedForUserId.current = null;
+    }
   }, [sessionLoading, user?.id]);
 
   const onRefresh = useCallback(async () => { await fetchPatientTimeline(); }, [fetchPatientTimeline]);
