@@ -21,7 +21,7 @@ import { ChatInputBar } from 'components/ChatInputBar';
 import { ProfileMenu } from 'components/ProfileMenu';
 import { SuggestedActions } from 'components/SuggestedActions';
 import { ModeSelectionModal } from 'components/ModeSelectionModal';
-import { useChatStore } from 'stores/chat-store';
+import { useChatStore } from '@/stores/chat-store';
 import { useAuthStore } from 'stores/auth/auth-store';
 import { usePaymentStore } from 'stores/payment-store';
 import { GreetingSection } from 'components';
@@ -38,18 +38,9 @@ const MODE_BADGE: Record<SessionMode, { label: string; color: string; bg: string
   clinical_diagnosis: { label: 'AI + Physician', color: '#0f766e', bg: '#ccfbf1' },
 };
 
-const CATEGORY_LABELS: Record<ConversationCategory, string> = {
-  doctor_consultation: 'Doctor Consultation',
-  general_health: 'General Health',
-  eye_checkup: 'Eye Check Up',
-  hearing_test: 'Hearing Test',
-  mental_health: 'Mental Health',
-};
-
 const ChatScreen: React.FC = () => {
-  const activeConversation = useChatStore((state) =>
-    state.conversations.find((c) => c.id === state.activeConversationId)
-  );
+  const conversations = useChatStore((state) => state.conversations);
+  const activeConversationId = useChatStore((state) => state.activeConversationId);
   const sendMessage = useChatStore((state) => state.sendMessage);
   const retrySendMessage = useChatStore((state) => state.retrySendMessage);
   const createConversation = useChatStore((state) => state.createConversation);
@@ -59,17 +50,19 @@ const ChatScreen: React.FC = () => {
   const isInitializing = useChatStore((state) => state.isInitializing);
   const error = useChatStore((state) => state.error);
   const clearError = useChatStore((state) => state.clearError);
-  const escalationNotice = useChatStore((state) => state.escalationNotice);
   const clearEscalationNotice = useChatStore((state) => state.clearEscalationNotice);
   const initializeChat = useChatStore((state) => state.initializeChat);
 
-  const { user, logout } = useAuthStore();
-  const creditBalance = usePaymentStore((state) => state.balance?.balance ?? null);
-  const fetchBalance = usePaymentStore((state) => state.fetchBalance);
-
-  const messages = activeConversation?.messages || [];
-  const activeCategory = activeConversation?.category;
+  const activeConversation = useMemo(
+    () => conversations.find((conversation) => conversation.id === activeConversationId) || null,
+    [conversations, activeConversationId]
+  );
+  const messages = useMemo(() => activeConversation?.messages || [], [activeConversation]);
   const activeMode = activeConversation?.mode;
+  const escalationNotice = activeConversation?.escalationNotice || null;
+
+  const { user, logout } = useAuthStore();
+  const fetchBalance = usePaymentStore((state) => state.fetchBalance);
   const [showWelcome, setShowWelcome] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showModeModal, setShowModeModal] = useState(false);
@@ -107,7 +100,7 @@ const ChatScreen: React.FC = () => {
     if (showWelcome && !isInitializing && activeConversation && !activeConversation.mode) {
       setShowModeModal(true);
     }
-  }, [showWelcome, isInitializing, activeConversation?.id, activeConversation?.mode]);
+  }, [showWelcome, isInitializing, activeConversation, activeConversation?.mode]);
 
   useEffect(() => {
     // INSUFFICIENT_CREDITS is not auto-dismissed — user must act (top up or dismiss).
@@ -127,7 +120,7 @@ const ChatScreen: React.FC = () => {
           hour: '2-digit',
           minute: '2-digit',
         }),
-        status: msg.status,
+        status: msg.status === 'READ' ? 'SENT' : msg.status,
         diagnosis: msg.diagnosis,
         prescription: msg.prescription,
         diagnosisId: msg.diagnosisId,
@@ -198,12 +191,6 @@ const ChatScreen: React.FC = () => {
     },
     [activeConversation, setConversationMode]
   );
-
-  const headerSubtitle = activeMode
-    ? MODE_LABELS[activeMode]
-    : activeCategory
-      ? CATEGORY_LABELS[activeCategory]
-      : 'Choose a mode to start';
 
   return (
     <>
@@ -317,7 +304,10 @@ const ChatScreen: React.FC = () => {
                 <Text style={{ fontSize: 12, color: '#78350f', fontWeight: '500', flex: 1, lineHeight: 18 }}>
                   {escalationNotice}
                 </Text>
-                <TouchableOpacity onPress={clearEscalationNotice} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity
+                  onPress={() => clearEscalationNotice(activeConversationId ?? undefined)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                   <Ionicons name="close" size={16} color="#b45309" />
                 </TouchableOpacity>
               </View>
@@ -339,7 +329,7 @@ const ChatScreen: React.FC = () => {
               >
                 <Ionicons name="cloud-offline-outline" size={16} color="#b45309" />
                 <Text style={{ fontSize: 12, color: '#92400e', fontWeight: '500', flex: 1 }}>
-                  You're offline. Check your connection to chat with the AI.
+                  You&apos;re offline. Check your connection to chat with the AI.
                 </Text>
               </View>
             )}
