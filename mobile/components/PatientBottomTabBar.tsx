@@ -2,7 +2,7 @@ import { View, Pressable, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-export type PatientTab = 'chat' | 'health' | 'timeline' | 'profile';
+export type PatientTab = 'chat' | 'health' | 'profile' | 'settings';
 
 interface PatientBottomTabBarProps {
   activeTab: PatientTab;
@@ -28,17 +28,17 @@ const TABS: Record<PatientTab, TabConfig> = {
     activeIcon: 'heart',
     route: '/(tab)/health',
   },
-  timeline: {
-    label: 'History',
-    icon: 'time-outline',
-    activeIcon: 'time',
-    route: '/(tab)/health/timeline',
-  },
   profile: {
     label: 'Profile',
     icon: 'person-outline',
     activeIcon: 'person',
     route: '/(tab)/profile',
+  },
+  settings: {
+    label: 'Settings',
+    icon: 'settings-outline',
+    activeIcon: 'settings',
+    route: '/(tab)/settings',
   },
 };
 
