@@ -259,13 +259,6 @@ const ChatScreen: React.FC = () => {
                 >
                   <Ionicons name="chatbubble-ellipses-outline" size={24} color="#0f766e" />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => router.replace('/(tab)/settings')}
-                  activeOpacity={0.7}
-                  style={{ padding: 6 }}
-                >
-                  <Ionicons name="settings-outline" size={26} color="#0f766e" />
-                </TouchableOpacity>
               </View>
             </View>
 
